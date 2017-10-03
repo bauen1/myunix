@@ -1,0 +1,4 @@
+toolchain
+*.o
+*.d
+kernel/kernel.bin
