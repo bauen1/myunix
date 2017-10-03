@@ -22,11 +22,27 @@ INCLUDEDIR?=$(PREFIX)/include/myunix
 
 # mandatory flags
 CFLAGS:=$(CFLAGS) -Wall -Wextra -I$(PWD)/include -ffreestanding -std=gnu99 -fstack-protector-all -I./include -I$(ARCHDIR)
+CPPFLAGS:=$(CPPFLAGS) -D__myunix_kernel
 LDFLAGS:=$(LDFLAGS) -ffreestanding
 LIBS:=$(LIBS) -nostdlib
 ASFLAGS:=$(ASFLAGS) -f elf -w+orphan-labels
+OBJS:=$(subst .c,.o,$(wildcard *.c)) $(subst .s,.o,$(wildcard *.s))
 
-AS:=nasm
+# arch-specific flags
+include $(ARCHDIR)/make.config
+CFLAGS:=$(CFLAGS) $(ARCH_CFLAGS)
+CPPFLAGS:=$(CFLAGS) $(ARCH_CPPFLAGS)
+LDFLAGS:=$(LDFLAGS) $(ARCH_LDFLAGS)
+LIBS:=$(LIBS) $(ARCH_LIBS)
+OBJS:=$(OBJS) $(ARCH_OBJS)
+
+# default tools
+
+AS?=nasm
+CC?=gcc
+LD?=ld
+
+# try to use ../toolchain or user-supplied TOOLCHAIN_PREFIX
 
 ifneq ("","$(wildcard ../toolchain/bin)")
   $(info Trying to use toolchain in ../toolchain; pass TOOLCHAIN_PREFIX='' to use the system's c compiler overwrite)
@@ -42,6 +58,8 @@ endif
 
 #
 
+DEPS:=$(OBJS:.o=.d)
+
 .DEFAULT: all
 .PHONY: all
 all: kernel.bin
@@ -49,8 +67,38 @@ all: kernel.bin
 .PHONY: clean
 clean:
 	rm -f kernel.bin
-	rm -f *.o */*.o */*/*.o
-	rm -f *.d */*.d */*/*.d
+	rm -f $(OBJS) *.o */*.o */*/*.o
+	rm -f $(DEPS) *.d */*.d */*/*.d
+
+%.o: %.c
+	$(CC) $(CFLAGS) $(CPPFLAGS) -MMD -c $< -o $@
+
+%.o: %.s
+	$(AS) $(ASFLAGS) -MF $(@:.o=.d) $< -o $@
+
+kernel.bin: $(OBJS) $(ARCHDIR)/link.ld
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $(LIBS) -T $(ARCHDIR)/link.ld -o $@ $(OBJS)
+
+kernel.bin: $(ARCHDIR)/boot.o kmain.o $(ARCHDIR)/link.ld
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $(LIBS) -T $(ARCHDIR)/link.ld -o $@ $(ARCHDIR)/boot.o kmain.o
+
+# virtual machine targets
+
+ifeq ("$(TARGET_ARCH)","i686")
+  QEMU?=qemu-system-i386
+else
+  QEMU?=qemu-system-$(TARGET_ARCH)
+endif
+
+QEMUFLAGS?=-no-shutdown -no-reboot
+
+.PHONY: run
+run: kernel.bin
+	$(QEMU) $(QEMUFLAGS) -kernel kernel.bin
+
+
+
+# install targets
 
 .PHONY: install
 install: install-headers install-kernel
@@ -65,27 +113,4 @@ install-kernel:
 	mkdir -p $(DESTDIR)$(BOOTDIR)
 	install -D -m0755 kernel.bin $(DESTDIR)$(BOOTDIR)/kernel.bin
 
-%.o: %.c
-	$(CC) $(CFLAGS) $(CPPFLAGS) -MMD -c $< -o $@
-
-%.o: %.s
-	$(AS) $(ASFLAGS) -MF $(@:.o=.d) $< -o $@
-
-kernel.bin: $(ARCHDIR)/boot.o kmain.o $(ARCHDIR)/link.ld
-	$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $(LIBS) -T $(ARCHDIR)/link.ld -o $@ $(ARCHDIR)/boot.o kmain.o
-
--include *.d
--include $(ARCH_DIR)/*.d
-
-ifeq ("$(TARGET_ARCH)","i686")
-  QEMU?=qemu-system-i386
-else
-  QEMU?=qemu-system-$(TARGET_ARCH)
-endif
-
-QEMUFLAGS?=-no-shutdown -no-reboot
-
-.PHONY: run
-run: kernel.bin
-	$(QEMU) $(QEMUFLAGS) -kernel kernel.bin
-
+-include $(DEPS)
