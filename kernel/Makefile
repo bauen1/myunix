@@ -38,9 +38,9 @@ OBJS:=$(OBJS) $(ARCH_OBJS)
 
 # default tools
 
-AS?=nasm
-CC?=gcc
-LD?=ld
+AS:=nasm
+CC:=gcc
+LD:=ld
 
 # try to use ../toolchain or user-supplied TOOLCHAIN_PREFIX
 
@@ -79,9 +79,6 @@ clean:
 kernel.bin: $(OBJS) $(ARCHDIR)/link.ld
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $(LIBS) -T $(ARCHDIR)/link.ld -o $@ $(OBJS)
 
-kernel.bin: $(ARCHDIR)/boot.o kmain.o $(ARCHDIR)/link.ld
-	$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $(LIBS) -T $(ARCHDIR)/link.ld -o $@ $(ARCHDIR)/boot.o kmain.o
-
 # virtual machine targets
 
 ifeq ("$(TARGET_ARCH)","i686")
@@ -109,7 +106,7 @@ install-headers:
 	cp -R include/. $(ARCHDIR)/*.h $(DESTDIR)$(INCLUDEDIR)/.
 
 .PHONY: install-kernel
-install-kernel:
+install-kernel: kernel.bin
 	mkdir -p $(DESTDIR)$(BOOTDIR)
 	install -D -m0755 kernel.bin $(DESTDIR)$(BOOTDIR)/kernel.bin
 
