@@ -9,4 +9,6 @@ void tty_clear_screen();
 
 void tty_move_cursor(unsigned int x, unsigned int y);
 
+char tty_putchar(char c);
+
 #endif
