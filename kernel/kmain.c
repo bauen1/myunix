@@ -4,6 +4,7 @@
 #include <boot.h>
 #include <cpu.h>
 #include <multiboot.h>
+#include <tty.h>
 
 void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	if (eax != MULTIBOOT_BOOTLOADER_MAGIC) {
@@ -11,11 +12,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	}
 	*((uint32_t *)0xb8000) = 0x414f414f;
 
-	// move the cursor to 0 0
-	outb(0x3D4, 0x0F);
-	outb(0x3D5, 0x00);
-	outb(0x3D4, 0x0E);
-	outb(0x3D5, 0x00);
+	tty_move_cursor(0, 0);
 
 	halt();
 }
