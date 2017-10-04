@@ -13,6 +13,22 @@ static void tty_update_cursor() {
 	outb(0x3D5, (uint8_t)((position>>8)&0xFF));
 }
 
+static void tty_scroll() {
+	if (cursor_y >= TTY_HEIGHT) {
+		for (unsigned int y = 0; y < TTY_HEIGHT; y++) {
+			for (unsigned int x = 0; x <= TTY_WIDTH; x++) {
+				vmem[((y * TTY_WIDTH) + x)] = vmem[(((y + 1) * TTY_WIDTH) + x)];
+			}
+		}
+
+		for (unsigned int x = 0; x <= TTY_WIDTH; x++) {
+			vmem[((TTY_HEIGHT * TTY_WIDTH) + x)] = 0x0F00;
+		}
+
+		tty_move_cursor(0, TTY_HEIGHT - 1);
+	}
+}
+
 void tty_move_cursor(unsigned int x, unsigned int y) {
 	cursor_x = x;
 	cursor_y = y;
@@ -45,7 +61,7 @@ char tty_putchar(char c) {
 		tty_move_cursor(0, cursor_y + 1);
 	}
 	if (cursor_y >= TTY_HEIGHT) {
-		// TODO: tty_scroll();
+		tty_scroll();
 	}
 	return c;
 }
