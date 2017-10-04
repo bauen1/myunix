@@ -49,3 +49,9 @@ char tty_putchar(char c) {
 	}
 	return c;
 }
+
+void tty_puts(const char *str) {
+	while (*str != 0) {
+		tty_putchar(*str++);
+	}
+}

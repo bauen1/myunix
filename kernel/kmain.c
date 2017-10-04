@@ -24,5 +24,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	tty_putchar('\n');
 	tty_putchar('\r');
 
+	tty_puts("hello world :)\n\r");
+
 	halt();
 }
