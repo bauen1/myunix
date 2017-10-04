@@ -9,7 +9,7 @@ endif
 ARCHDIR=arch/$(TARGET_ARCH)
 
 # default flags
-CFLAGS?=-O2 -g
+CFLAGS?=-O2
 CPPFLAGS?=
 LDFLAGS?=
 LIBS?=
@@ -21,8 +21,8 @@ BOOTDIR?=/boot
 INCLUDEDIR?=$(PREFIX)/include/myunix
 
 # mandatory flags
-CFLAGS:=$(CFLAGS) -Wall -Wextra -I$(PWD)/include -ffreestanding -std=gnu99 -fstack-protector-all -I./include -I$(ARCHDIR)
-CPPFLAGS:=$(CPPFLAGS) -D__myunix_kernel
+CFLAGS:=$(CFLAGS) -Wall -Wextra -ffreestanding -std=gnu99 -fstack-protector-all
+CPPFLAGS:=$(CPPFLAGS) -D__myunix_kernel -I./include -I$(ARCHDIR)
 LDFLAGS:=$(LDFLAGS) -ffreestanding
 LIBS:=$(LIBS) -nostdlib
 ASFLAGS:=$(ASFLAGS) -f elf -w+orphan-labels
@@ -31,10 +31,18 @@ OBJS:=$(subst .c,.o,$(wildcard *.c)) $(subst .s,.o,$(wildcard *.s))
 # arch-specific flags
 include $(ARCHDIR)/make.config
 CFLAGS:=$(CFLAGS) $(ARCH_CFLAGS)
-CPPFLAGS:=$(CFLAGS) $(ARCH_CPPFLAGS)
+CPPFLAGS:=$(CPPFLAGS) $(ARCH_CPPFLAGS)
 LDFLAGS:=$(LDFLAGS) $(ARCH_LDFLAGS)
 LIBS:=$(LIBS) $(ARCH_LIBS)
 OBJS:=$(OBJS) $(ARCH_OBJS)
+
+# command line overrides
+CFLAGS:=$(CFLAGS) $(EXTRA_CFLAGS)
+CPPFLAGS:=$(CPPFLAGS) $(EXTRA_CPPFLAGS)
+LDFLAGS:=$(LDFLAGS) $(EXTRA_LDFLAGS)
+LIBS:=$(LIBS) $(EXTRA_LIBS)
+ASFLAGS:=$(ASFLAGS) $(EXTRA_ASFLAGS)
+OBJS:=$(OBJS) $(EXTRA_OBJS)
 
 # default tools
 
@@ -92,8 +100,6 @@ QEMUFLAGS?=-no-shutdown -no-reboot
 .PHONY: run
 run: kernel.bin
 	$(QEMU) $(QEMUFLAGS) -kernel kernel.bin
-
-
 
 # install targets
 

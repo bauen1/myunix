@@ -35,5 +35,9 @@ SECTIONS
 		*(.bss)
 	}
 
+	/DISCARD/ : {
+		*(.comment)
+	}
+
 	end = .;
 }
