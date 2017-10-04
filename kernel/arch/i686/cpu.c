@@ -30,3 +30,8 @@ inline void outw(uint16_t port, uint16_t data) {
 inline void outl(uint16_t port, uint32_t data) {
 	__asm__ __volatile("outl %1, %0" : : "dN" (port), "a" (data));
 }
+
+
+inline void io_wait() {
+	__asm__ __volatile__("outb %0, $0x80" : : "a"(0));
+}
