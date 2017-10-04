@@ -5,6 +5,7 @@
 #include <cpu.h>
 #include <gdt.h>
 #include <multiboot.h>
+#include <pic.h>
 #include <tty.h>
 
 void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
@@ -13,6 +14,8 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	}
 
 	gdt_init();
+
+	pic_init();
 
 	tty_clear_screen();
 
