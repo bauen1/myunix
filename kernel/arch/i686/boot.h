@@ -1,9 +1,6 @@
 #ifndef BOOT_H
 #define BOOT_H 1
 
-__attribute__((noreturn)) extern void _halt();
-#define halt() ((void)_halt())
-
 extern void *start;
 extern void *code;
 extern void *rodata;
