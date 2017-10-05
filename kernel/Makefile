@@ -21,7 +21,7 @@ BOOTDIR?=/boot
 INCLUDEDIR?=$(PREFIX)/include/myunix
 
 # mandatory flags
-CFLAGS:=$(CFLAGS) -Wall -Wextra -ffreestanding -std=gnu99 -fstack-protector-all -mno-red-zone
+CFLAGS:=$(CFLAGS) -Wall -Wextra -ffreestanding -std=gnu99 -fstack-protector -mno-red-zone
 CPPFLAGS:=$(CPPFLAGS) -D__myunix_kernel -I./include -I$(ARCHDIR)
 LDFLAGS:=$(LDFLAGS) -ffreestanding
 LIBS:=$(LIBS) -nostdlib
