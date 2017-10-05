@@ -1,22 +1,21 @@
-extern isr_handler
+extern handle_isr
 
 isr_common_stub:
-	pushad
+	pusha
 
 	push ds
 	push es
 	push fs
 	push gs
-
-	mov ax, 0x10        ; kernel data segment
+	mov ax, 0x10        ; kernel data segment gdt index
 	mov ds, ax
 	mov es, ax
 	mov fs, ax
 	mov gs, ax
+	cld
 
-	push esp            ; push a the stack pointer
-	call isr_handler    ; so we can use it as a pointer to a struct in here
-	mov eax, esp        ; return value (uint32_t) is the new stack pointer
+	push esp            ; our argument is a pointer to the stacks top
+	call handle_isr
 	add esp, 4
 
 	pop gs
@@ -24,257 +23,84 @@ isr_common_stub:
 	pop es
 	pop ds
 
-	popad
-
-	add esp, 8          ; removes the error code & isr num
-	;sti
+	popa
+	add esp, 8          ; pop isr_num and err_num
 	iret
 
-global isr0
-isr0:         cli
-	push byte 0
-	push byte 0
-	jmp isr_common_stub
-global isr1
-isr1:         cli
-	push byte 0
-	push byte 1
-	jmp isr_common_stub
-global isr2
-isr2:         cli
-	push byte 0
-	push byte 2
-	jmp isr_common_stub
-global isr3
-isr3:         cli
-	push byte 0
-	push byte 3
-	jmp isr_common_stub
-global isr4
-isr4:         cli
-	push byte 0
-	push byte 4
-	jmp isr_common_stub
-global isr5
-isr5:         cli
-	push byte 0
-	push byte 5
-	jmp isr_common_stub
-global isr6
-isr6:         cli
-	push byte 0
-	push byte 6
-	jmp isr_common_stub
-global isr7
-isr7:         cli
-	push byte 0
-	push byte 7
-	jmp isr_common_stub
-global isr8
-isr8:         cli
-	;push byte 0
-	push byte 8
-	jmp isr_common_stub
-global isr9
-isr9:         cli
-	push byte 0
-	push byte 9
-	jmp isr_common_stub
-global isr10
-isr10:        cli
-	;push byte 0
-	push byte 10
-	jmp isr_common_stub
-global isr11
-isr11:        cli
-	;push byte 0
-	push byte 11
-	jmp isr_common_stub
-global isr12
-isr12:        cli
-	;push byte 0
-	push byte 12
-	jmp isr_common_stub
-global isr13
-isr13:        cli
-	;push byte 0
-	push byte 13
-	jmp isr_common_stub
-global isr14
-isr14:        cli
-	;push byte 0
-	push byte 14
-	jmp isr_common_stub
-global isr15
-isr15:        cli
-	push byte 0
-	push byte 15
-	jmp isr_common_stub
-global isr16
-isr16:        cli
-	push byte 0
-	push byte 16
-	jmp isr_common_stub
-global isr17
-isr17:        cli
-	push byte 0
-	push byte 17
-	jmp isr_common_stub
-global isr18
-isr18:        cli
-	push byte 0
-	push byte 18
-	jmp isr_common_stub
-global isr19
-isr19:        cli
-	push byte 0
-	push byte 19
-	jmp isr_common_stub
-global isr20
-isr20:        cli
-	push byte 0
-	push byte 20
-	jmp isr_common_stub
-global isr21
-isr21:        cli
-	push byte 0
-	push byte 21
-	jmp isr_common_stub
-global isr22
-isr22:        cli
-	push byte 0
-	push byte 22
-	jmp isr_common_stub
-global isr23
-isr23:        cli
-	push byte 0
-	push byte 23
-	jmp isr_common_stub
-global isr24
-isr24:        cli
-	push byte 0
-	push byte 24
-	jmp isr_common_stub
-global isr25
-isr25:        cli
-	push byte 0
-	push byte 25
-	jmp isr_common_stub
-global isr26
-isr26:        cli
-	push byte 0
-	push byte 26
-	jmp isr_common_stub
-global isr27
-isr27:        cli
-	push byte 0
-	push byte 27
-	jmp isr_common_stub
-global isr28
-isr28:        cli
-	push byte 0
-	push byte 28
-	jmp isr_common_stub
-global isr29
-isr29:        cli
-	push byte 0
-	push byte 29
-	jmp isr_common_stub
-global isr30
-isr30:        cli
-	push byte 0
-	push byte 30
-	jmp isr_common_stub
-global isr31
-isr31:        cli
-	push byte 0
-	push byte 31
-	jmp isr_common_stub
+%macro ISR_CUSTOM 2
+	global _isr%1
+	_isr%1:
+		cli
+		push %2 ; custom value
+		push %1 ; isr number
+		jmp isr_common_stub
+%endmacro
 
-global isr32
-isr32:        cli
-	push byte 0
-	push byte 32
-	jmp isr_common_stub
-global isr33
-isr33:        cli
-	push byte 0
-	push byte 33
-	jmp isr_common_stub
-global isr34
-isr34:        cli
-	push byte 0
-	push byte 34
-	jmp isr_common_stub
-global isr35
-isr35:        cli
-	push byte 0
-	push byte 35
-	jmp isr_common_stub
-global isr36
-isr36:        cli
-	push byte 0
-	push byte 36
-	jmp isr_common_stub
-global isr37
-isr37:        cli
-	push byte 0
-	push byte 37
-	jmp isr_common_stub
-global isr38
-isr38:        cli
-	push byte 0
-	push byte 38
-	jmp isr_common_stub
-global isr39
-isr39:        cli
-	push byte 0
-	push byte 39
-	jmp isr_common_stub
-global isr40
-isr40:        cli
-	push byte 0
-	push byte 40
-	jmp isr_common_stub
-global isr41
-isr41:        cli
-	push byte 0
-	push byte 41
-	jmp isr_common_stub
-global isr42
-isr42:        cli
-	push byte 0
-	push byte 42
-	jmp isr_common_stub
-global isr43
-isr43:        cli
-	push byte 0
-	push byte 43
-	jmp isr_common_stub
-global isr44
-isr44:        cli
-	push byte 0
-	push byte 44
-	jmp isr_common_stub
-global isr45
-isr45:        cli
-	push byte 0
-	push byte 45
-	jmp isr_common_stub
-global isr46
-isr46:        cli
-	push byte 0
-	push byte 46
-	jmp isr_common_stub
-global isr47
-isr47:        cli
-	push byte 0
-	push byte 47
-	jmp isr_common_stub
+%macro ISR_NOERR 1
+	global _isr%1
+	_isr%1:
+		cli
+		push 0  ; 0 error code
+		push %1 ; isr number
+		jmp isr_common_stub
+%endmacro
 
-; This one is special, its our syscall handler :)
-global isr128
-isr128:       cli
-	push byte 0
-	push byte 128
-	jmp isr_common_stub
+%macro ISR_ERR 1
+	global _isr%1
+	_isr%1:
+		cli
+		; error code is already pushed by the cpu
+		push %1 ; isr number
+		jmp isr_common_stub
+%endmacro
+
+
+ISR_NOERR 0
+ISR_NOERR 1
+ISR_NOERR 2
+ISR_NOERR 3
+ISR_NOERR 4
+ISR_NOERR 5
+ISR_NOERR 6
+ISR_NOERR 7
+ISR_ERR   8
+ISR_NOERR 9
+ISR_ERR   10
+ISR_ERR   11
+ISR_ERR   12
+ISR_ERR   13
+ISR_ERR   14
+ISR_NOERR 15
+ISR_NOERR 16
+ISR_NOERR 17
+ISR_NOERR 18
+ISR_NOERR 19
+ISR_NOERR 20
+ISR_NOERR 21
+ISR_NOERR 22
+ISR_NOERR 23
+ISR_NOERR 24
+ISR_NOERR 25
+ISR_NOERR 26
+ISR_NOERR 27
+ISR_NOERR 28
+ISR_NOERR 29
+ISR_NOERR 30
+ISR_NOERR 31
+ISR_CUSTOM 32,0
+ISR_CUSTOM 33,1
+ISR_CUSTOM 34,2
+ISR_CUSTOM 35,3
+ISR_CUSTOM 36,4
+ISR_CUSTOM 37,5
+ISR_CUSTOM 38,6
+ISR_CUSTOM 39,7
+ISR_CUSTOM 40,8
+ISR_CUSTOM 41,9
+ISR_CUSTOM 42,10
+ISR_CUSTOM 43,11
+ISR_CUSTOM 44,12
+ISR_CUSTOM 45,13
+ISR_CUSTOM 46,14
+ISR_CUSTOM 47,15
+ISR_CUSTOM 128,0

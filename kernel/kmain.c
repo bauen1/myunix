@@ -9,6 +9,10 @@
 #include <pic.h>
 #include <tty.h>
 
+void test_isr0(registers_t *regs) {
+	tty_puts("test_isr0\n\r");
+}
+
 void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	if (eax != MULTIBOOT_BOOTLOADER_MAGIC) {
 		halt();
@@ -25,9 +29,12 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	idt_init();
 	tty_puts("[OK] idt_init\n\r");
 
+	idt_set_isr_handler(0, test_isr0);
+
 	__asm__ __volatile__ ("sti");
 	tty_puts("[OK] sti\n\r");
 
+	tty_puts("int $0\n\r");
 	__asm__ __volatile__ ("int $0");
 
 	tty_puts("hello world :)\n\r");

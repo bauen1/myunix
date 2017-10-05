@@ -2,6 +2,7 @@
 #define IDT_H 1
 
 #include <stdint.h>
+#include <isrs.h>
 
 struct idt_entry {
 	uint16_t offset_low;
@@ -13,6 +14,8 @@ struct idt_entry {
 
 void idt_init();
 
-#include <isrs.h>
+typedef void (*isr_handler)(registers_t *regs);
+
+void idt_set_isr_handler(uint8_t i, isr_handler handler);
 
 #endif
