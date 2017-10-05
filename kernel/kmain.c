@@ -7,6 +7,7 @@
 #include <idt.h>
 #include <multiboot.h>
 #include <pic.h>
+#include <pit.h>
 #include <tty.h>
 
 void test_isr0(registers_t *regs) {
@@ -29,6 +30,9 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	idt_init();
 	tty_puts("[OK] idt_init\n\r");
 
+	pit_init();
+	tty_puts("[OK] pit_init\n\r");
+
 	idt_set_isr_handler(0, test_isr0);
 
 	__asm__ __volatile__ ("sti");
@@ -41,6 +45,10 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	tty_puts("cmdline: '");
 	tty_puts((char *)mbi->cmdline);
 	tty_puts("'\n\r");
+	tty_puts("looping forever...\n\r");
+	for (;;) {
+		__asm__ __volatile__ ("hlt");
+	}
 
 	halt();
 }
