@@ -9,7 +9,7 @@ endif
 ARCHDIR=arch/$(TARGET_ARCH)
 
 # default flags
-CFLAGS?=-O2
+CFLAGS?=-O2 -g
 CPPFLAGS?=
 LDFLAGS?=
 LIBS?=
@@ -21,7 +21,7 @@ BOOTDIR?=/boot
 INCLUDEDIR?=$(PREFIX)/include/myunix
 
 # mandatory flags
-CFLAGS:=$(CFLAGS) -Wall -Wextra -ffreestanding -std=gnu99 -fstack-protector-all
+CFLAGS:=$(CFLAGS) -Wall -Wextra -ffreestanding -std=gnu99 -fstack-protector-all -mno-red-zone
 CPPFLAGS:=$(CPPFLAGS) -D__myunix_kernel -I./include -I$(ARCHDIR)
 LDFLAGS:=$(LDFLAGS) -ffreestanding
 LIBS:=$(LIBS) -nostdlib
@@ -49,6 +49,7 @@ OBJS:=$(OBJS) $(EXTRA_OBJS)
 AS:=nasm
 CC:=gcc
 LD:=ld
+OBJCOPY:=objcopy
 
 # try to use ../toolchain or user-supplied TOOLCHAIN_PREFIX
 
@@ -62,6 +63,7 @@ endif
 ifdef TOOLCHAIN_PREFIX
   CC:=$(TOOLCHAIN_PREFIX)gcc
   LD:=$(TOOLCHAIN_PREFIX)ld
+  OBJCOPY:=$(TOOLCHAIN_PREFIX)objcopy
 endif
 
 #
@@ -70,7 +72,7 @@ DEPS:=$(OBJS:.o=.d)
 
 .DEFAULT: all
 .PHONY: all
-all: kernel.bin
+all: kernel
 
 .PHONY: clean
 clean:
@@ -84,8 +86,17 @@ clean:
 %.o: %.s
 	$(AS) $(ASFLAGS) -MF $(@:.o=.d) $< -o $@
 
-kernel.bin: $(OBJS) $(ARCHDIR)/link.ld
+.PHONY: kernel
+kernel: kernel.elf kernel.sym kernel.bin
+
+kernel.elf: $(OBJS) $(ARCHDIR)/link.ld
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $(LIBS) -T $(ARCHDIR)/link.ld -o $@ $(OBJS)
+
+kernel.sym: kernel.elf
+	$(OBJCOPY) --only-keep-debug $^ $@
+
+kernel.bin: kernel.elf
+	$(OBJCOPY) --strip-debug $^ $@
 
 # virtual machine targets
 
@@ -98,8 +109,16 @@ endif
 QEMUFLAGS?=-no-shutdown -no-reboot
 
 .PHONY: run
-run: kernel.bin
+run: kernel
 	$(QEMU) $(QEMUFLAGS) -kernel kernel.bin
+
+.PHONY: debug-run
+debug-run: kernel
+	$(QEMU) $(QEMUFLAGS) -s -S -kernel kernel.bin
+
+.PHONY: gdb
+gdb: kernel.sym
+	gdb -s kernel.sym -ex "target remote localhost:1234"
 
 # install targets
 
@@ -112,7 +131,7 @@ install-headers:
 	cp -R include/. $(ARCHDIR)/*.h $(DESTDIR)$(INCLUDEDIR)/.
 
 .PHONY: install-kernel
-install-kernel: kernel.bin
+install-kernel: kernel
 	mkdir -p $(DESTDIR)$(BOOTDIR)
 	install -D -m0755 kernel.bin $(DESTDIR)$(BOOTDIR)/kernel.bin
 

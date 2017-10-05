@@ -2,3 +2,5 @@ toolchain
 *.o
 *.d
 kernel/kernel.bin
+kernel/kernel.sym
+kernel/kernel.elf
