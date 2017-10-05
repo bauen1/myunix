@@ -116,12 +116,16 @@ static const char *exception_name[] = {
 
 #include <tty.h>
 #include <cpu.h>
+#include <pic.h>
 
 void isr_handler(registers_t *regs) {
 	if (regs->isr_num < 32) {
 		tty_puts("\n\rEncountered: '");
 		tty_puts(exception_name[regs->isr_num]);
 		tty_puts("'\n\r");
+	} else {
+		/* TODO: check for spurious IRQ */
+		pic_send_eoi(pic_get_irq_from_isr(regs->isr_num));
 	}
 	tty_puts("halting the cpu");
 	halt();
