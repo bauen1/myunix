@@ -38,8 +38,8 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	__asm__ __volatile__ ("sti");
 	tty_puts("[OK] sti\n\r");
 
-	tty_puts("int $0\n\r");
-	__asm__ __volatile__ ("int $0");
+	tty_puts("int $0x80\n\r");
+	__asm__ __volatile__ ("int $0x80");
 
 	tty_puts("hello world :)\n\r");
 	tty_puts("cmdline: '");

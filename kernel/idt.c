@@ -2,7 +2,7 @@
 #include <idt_load.h>
 #include <stdint.h>
 
-static struct idt_entry idt_entries[256];
+static struct idt_entry idt_entries[256] = { 0 };
 
 static void idt_set_gate(uint8_t i, void * isr, uint16_t selector, uint8_t flags) {
 	uint32_t offset = (uint32_t)isr;
@@ -74,7 +74,7 @@ void idt_init() {
 	idt_set_gate(47, _isr47, 0x08, 0x8E);
 
 	// syscall
-	idt_set_gate(0x80, _isr128, 0x08, 0x8E);
+	idt_set_gate(0x80,_isr128,0x08,0x8E);
 
 	idt_p.limit = sizeof(idt_entries) - 1;
 	idt_p.base = (uint32_t)&idt_entries;
@@ -106,19 +106,19 @@ static const char *exception_name[] = {
 	"coprocessor fault",
 	"alignment check exception",
 	"machine check exception",
-	"Reserved",
-	"Reserved",
-	"Reserved",
-	"Reserved",
-	"Reserved",
-	"Reserved",
-	"Reserved",
-	"Reserved",
-	"Reserved",
-	"Reserved",
-	"Reserved",
-	"Reserved",
-	"Reserved",
+	"reserved",
+	"reserved",
+	"reserved",
+	"reserved",
+	"reserved",
+	"reserved",
+	"reserved",
+	"reserved",
+	"reserved",
+	"reserved",
+	"reserved",
+	"reserved",
+	"reserved",
 };
 
 #include <tty.h>
@@ -135,6 +135,6 @@ void handle_isr(registers_t *regs) {
 		tty_puts("'\n\r");
 	} else {
 		/* TODO: check for spurious IRQ */
-		pic_send_eoi(pic_get_irq_from_isr(regs->isr_num));
+		pic_send_eoi(irq_from_isr(regs->isr_num));
 	}
 }

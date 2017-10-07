@@ -21,6 +21,11 @@ void pic_init() {
 	io_wait();
 	outb(PIC2_DATA, 0x01);
 	io_wait();
+
+	outb(PIC1_DATA, 0x00);
+	io_wait();
+	outb(PIC2_DATA, 0x00);
+	io_wait();
 }
 
 void pic_send_eoi(unsigned int irq) {
