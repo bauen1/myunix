@@ -27,6 +27,8 @@ make
 echo "Installing binutils"
 make install
 cd ..
+echo "Cleaning up source and build directory"
+rm -rf build-binutils "binutils-$BINUTILS_VERSION"
 
 ## gcc
 
@@ -46,7 +48,26 @@ make install-gcc
 echo "Installing libgcc"
 make install-target-libgcc
 cd ..
+echo "Cleaning up source and build directory"
+rm -rf gcc-build "gcc-$GCC_VERSION"
+
+## grub
+GRUB_VERSION=2.02
+echo "Downloading grub-$GRUB_VERSION"
+wget ftp://ftp.gnu.org/gnu/grub/grub-$GRUB_VERSION.tar.xz{,.sig}
+tar -xvf grub-$GRUB_VERSION.tar.xz
+mkdir grub-build
+cd grub-build
+echo "Building grub"
+../grub-$GRUB_VERSION/configure \
+  --sbindir="$PREFIX/bin" \
+  --prefix="$PREFIX" TARGET_CC=${TARGET}-gcc TARGET_OBJCOPY=${TARGET}-objcopy TARGET_STRIP=${TARGET}-strip TARGET_NM=${TARGET}-nm TARGET_RANLIB=${TARGET}-ranlib --target=${TARGET}
+make
+echo "Installing grub"
+make install
+cd ..
+echo "Cleaning up source and build directory"
+rm -rf grub-build "grub-$GRUB_VERSION"
 
 cd ..
 
-cd ..
