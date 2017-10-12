@@ -130,9 +130,11 @@ void handle_isr(registers_t *regs) {
 		isr_handlers[regs->isr_num](regs);
 	}
 	if (regs->isr_num < 32) {
-		tty_puts("\n\rEncountered: '");
+		tty_puts("\nEncountered: '");
 		tty_puts(exception_name[regs->isr_num]);
-		tty_puts("'\n\r");
+		tty_puts("\n");
+		tty_puts("Halting the CPU\n");
+		halt();
 	} else {
 		/* TODO: check for spurious IRQ */
 		pic_send_eoi(irq_from_isr(regs->isr_num));

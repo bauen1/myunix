@@ -10,10 +10,6 @@
 #include <pit.h>
 #include <tty.h>
 
-void test_isr0(registers_t *regs) {
-	tty_puts("test_isr0\n\r");
-}
-
 void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	if (eax != MULTIBOOT_BOOTLOADER_MAGIC) {
 		halt();
@@ -22,30 +18,29 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	tty_clear_screen();
 
 	gdt_init();
-	tty_puts("[OK] gdt_init\n\r");
+	tty_puts("[OK] gdt_init\n");
 
 	pic_init();
-	tty_puts("[OK] pic_init\n\r");
+	tty_puts("[OK] pic_init\n");
 
 	idt_init();
-	tty_puts("[OK] idt_init\n\r");
+	tty_puts("[OK] idt_init\n");
 
 	pit_init();
-	tty_puts("[OK] pit_init\n\r");
+	tty_puts("[OK] pit_init\n");
 
-	idt_set_isr_handler(0, test_isr0);
 
 	__asm__ __volatile__ ("sti");
-	tty_puts("[OK] sti\n\r");
+	tty_puts("[OK] sti\n");
 
-	tty_puts("int $0x80\n\r");
+	tty_puts("int $0x80\n");
 	__asm__ __volatile__ ("int $0x80");
 
-	tty_puts("hello world :)\n\r");
+	tty_puts("hello world :)\n");
 	tty_puts("cmdline: '");
 	tty_puts((char *)mbi->cmdline);
-	tty_puts("'\n\r");
-	tty_puts("looping forever...\n\r");
+	tty_puts("'\n");
+	tty_puts("looping forever...\n");
 	for (;;) {
 		__asm__ __volatile__ ("hlt");
 	}
