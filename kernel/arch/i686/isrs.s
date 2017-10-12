@@ -16,7 +16,7 @@ isr_common_stub:
 
 	push esp            ; our argument is a pointer to the stacks top
 	call handle_isr
-	add esp, 4
+	mov esp, eax
 
 	pop gs
 	pop fs

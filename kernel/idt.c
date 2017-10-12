@@ -1,6 +1,7 @@
 #include <idt.h>
 #include <idt_load.h>
 #include <stdint.h>
+#include <tty.h>
 
 static struct idt_entry idt_entries[256] = { 0 };
 
@@ -121,11 +122,10 @@ static const char *exception_name[] = {
 	"reserved",
 };
 
-#include <tty.h>
 #include <cpu.h>
 #include <pic.h>
 
-void handle_isr(registers_t *regs) {
+void * handle_isr(registers_t *regs) {
 	if (isr_handlers[regs->isr_num]) {
 		isr_handlers[regs->isr_num](regs);
 	}
@@ -139,4 +139,7 @@ void handle_isr(registers_t *regs) {
 		/* TODO: check for spurious IRQ */
 		pic_send_eoi(irq_from_isr(regs->isr_num));
 	}
+
+	/* return a pointer to the new stack */
+	return regs;
 }
