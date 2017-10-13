@@ -76,7 +76,7 @@ all: kernel
 
 .PHONY: clean
 clean:
-	rm -f kernel.bin
+	rm -f kernel.elf kernel.sym kernel.bin
 	rm -f $(OBJS) *.o */*.o */*/*.o
 	rm -f $(DEPS) *.d */*.d */*/*.d
 
