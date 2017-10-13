@@ -14,7 +14,7 @@ struct idt_entry {
 
 void idt_init();
 
-typedef void (*isr_handler)(registers_t *regs);
+typedef void *(*isr_handler)(registers_t *regs);
 
 void idt_set_isr_handler(uint8_t i, isr_handler handler);
 

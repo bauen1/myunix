@@ -13,11 +13,13 @@
 
 unsigned long ticks = 0;
 
-static void irq0_handler(__attribute__((unused)) registers_t *regs) {
+static void *irq0_handler(registers_t *regs) {
 	if (ticks%FREQUENCY==0) {
 		tty_putchar('.');
 	}
 	ticks++;
+
+	return regs;
 }
 
 static void pit_setup_channel_zero(int frequency) {

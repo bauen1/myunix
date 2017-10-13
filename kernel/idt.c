@@ -126,8 +126,9 @@ static const char *exception_name[] = {
 #include <pic.h>
 
 void * handle_isr(registers_t *regs) {
+	void * new_regs = regs;
 	if (isr_handlers[regs->isr_num]) {
-		isr_handlers[regs->isr_num](regs);
+		new_regs = isr_handlers[regs->isr_num](regs);
 	}
 	if (regs->isr_num < 32) {
 		tty_puts("\nEncountered: '");
@@ -141,5 +142,5 @@ void * handle_isr(registers_t *regs) {
 	}
 
 	/* return a pointer to the new stack */
-	return regs;
+	return new_regs;
 }
