@@ -7,4 +7,3 @@
 #define assert(exp) ((void)((exp) ? 0: __assert_failed(#exp, __FILE__, __LINE__)))
 
 #endif
-
