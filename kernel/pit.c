@@ -30,6 +30,6 @@ static void pit_setup_channel_zero(int frequency) {
 }
 
 void pit_init() {
-	idt_set_isr_handler(32+0, irq0_handler);
+	isr_set_handler(32 + 0, irq0_handler);
 	pit_setup_channel_zero(FREQUENCY);
 }

@@ -12,10 +12,8 @@ struct idt_entry {
 	uint16_t offset_high;
 } __attribute__((packed));
 
-void idt_init();
+void idt_install();
 
-typedef void *(*isr_handler)(registers_t *regs);
-
-void idt_set_isr_handler(uint8_t i, isr_handler handler);
+void idt_set_gate(uint8_t i, void * isr, uint16_t selector, uint8_t flags);
 
 #endif
