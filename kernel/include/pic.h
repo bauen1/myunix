@@ -12,7 +12,6 @@
 
 void pic_init();
 
-
 #define irq_from_isr(i) ((unsigned int)((unsigned int)(i))-32)
 #define isr_from_irq(i) ((unsigned int)((unsigned int)(i))+32)
 void pic_send_eoi(unsigned int irq);

@@ -7,17 +7,17 @@
 // TODO: tss
 
 typedef struct gdt_entry {
-	uint16_t limit_low;
-	uint16_t base_low;
-	uint8_t base_middle;
-	uint8_t access;
-	uint8_t granularity;
-	uint8_t base_high;
+	uint16_t limit_low __attribute__((packed));
+	uint16_t base_low __attribute__((packed));
+	uint8_t base_middle __attribute__((packed));
+	uint8_t access __attribute__((packed));
+	uint8_t granularity __attribute__((packed));
+	uint8_t base_high __attribute__((packed));
 } __attribute__((packed)) gdt_entry_t;
 
 typedef struct {
-	uint16_t limit;
-	uintptr_t base;
+	uint16_t limit __attribute__((packed));
+	uintptr_t base __attribute__((packed));
 } __attribute__((packed)) gdt_pointer_t;
 
 static gdt_pointer_t gdt_pointer;

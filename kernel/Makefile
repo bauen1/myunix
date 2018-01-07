@@ -23,7 +23,7 @@ INCLUDEDIR?=$(PREFIX)/include/myunix
 # mandatory flags
 CFLAGS:=$(CFLAGS) -Wall -Wextra -ffreestanding -std=gnu99 -fstack-protector -mno-red-zone
 CPPFLAGS:=$(CPPFLAGS) -D__myunix_kernel -I./include -I$(ARCHDIR)
-LDFLAGS:=$(LDFLAGS) -ffreestanding
+LDFLAGS:=$(LDFLAGS)
 LIBS:=$(LIBS) -nostdlib
 ASFLAGS:=$(ASFLAGS) -f elf -w+orphan-labels
 OBJS:=$(subst .c,.o,$(wildcard *.c)) $(subst .s,.o,$(wildcard *.s))
@@ -81,7 +81,7 @@ clean:
 	rm -f $(DEPS) *.d */*.d */*/*.d
 
 %.o: %.c
-	$(CC) $(CFLAGS) $(CPPFLAGS) -MMD -c $< -o $@
+	$(CC) $(CFLAGS) $(CPPFLAGS) -MD -c $< -o $@
 
 %.o: %.s
 	$(AS) $(ASFLAGS) -MF $(@:.o=.d) $< -o $@
@@ -90,7 +90,7 @@ clean:
 kernel: kernel.elf kernel.sym kernel.bin
 
 kernel.elf: $(OBJS) $(ARCHDIR)/link.ld
-	$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $(LIBS) -T $(ARCHDIR)/link.ld -o $@ $(OBJS)
+	$(LD) $(LDFLAGS) $(LIBS) -T $(ARCHDIR)/link.ld -o $@ $(OBJS)
 
 kernel.sym: kernel.elf
 	$(OBJCOPY) --only-keep-debug $^ $@

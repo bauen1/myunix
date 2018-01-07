@@ -2,6 +2,7 @@
 #define ISR_H 1
 
 #include <stdint.h>
+#include <cpu.h>
 
 void isr_init();
 

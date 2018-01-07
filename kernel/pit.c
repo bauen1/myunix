@@ -1,5 +1,6 @@
 #include <cpu.h>
 #include <idt.h>
+#include <isr.h>
 #include <pit.h>
 #include <stdint.h>
 #include <tty.h>

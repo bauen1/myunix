@@ -4,21 +4,21 @@
 #include <stdint.h>
 
 typedef struct registers {
-	uint32_t gs;
-	uint32_t fs;
-	uint32_t es;
-	uint32_t ds;
+	uint32_t gs __attribute__((packed));
+	uint32_t fs __attribute__((packed));
+	uint32_t es __attribute__((packed));
+	uint32_t ds __attribute__((packed));
 
-	uint32_t edi, esi, ebp, esp, ebx, edx, ecx, eax; /* pushed by pusha */
+	uint32_t edi, esi, ebp, esp, ebx, edx, ecx, eax __attribute__((packed)); /* pushed by pusha */
 
-	uint32_t isr_num;
-	uint32_t err_code;
+	uint32_t isr_num __attribute__((packed));
+	uint32_t err_code __attribute__((packed));
 
-	uint32_t eip;
-	uint32_t cs;
-	uint32_t eflags;
-	uint32_t usersp;
-	uint32_t ss;
+	uint32_t eip __attribute__((packed));
+	uint32_t cs __attribute__((packed));
+	uint32_t eflags __attribute__((packed));
+	uint32_t usersp __attribute__((packed));
+	uint32_t ss __attribute__((packed));
 } __attribute__((packed)) registers_t;
 
 
