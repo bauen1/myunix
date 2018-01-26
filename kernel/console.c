@@ -48,6 +48,7 @@ void printf(const char *fmt, ...) {
 				case 's':
 					puts(va_arg(args, char *));
 					break;
+				case 'i':
 				case 'd':
 					itoa(va_arg(args, int), &buf[0], 10);
 					puts(buf);
