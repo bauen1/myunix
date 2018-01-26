@@ -9,20 +9,22 @@ MB_HDR_CHECKSUM equ -(MB_HDR_MAGIC + MB_HDR_FLAGS)
 STACK_SIZE equ 32768 ; needs to be dividable by 16
 
 bits 32
-extern code, bss, end, kmain
+extern __start, __bss_start, __bss_end
+extern kmain
 
-section .mboot
-	jmp _entry
+section .boot
 align 4
 mboot_hdr:
 	dd MB_HDR_MAGIC
 	dd MB_HDR_FLAGS
 	dd MB_HDR_CHECKSUM
+	; address field
 	dd mboot_hdr
-	dd code
-	dd bss
-	dd end
+	dd __start
+	dd __bss_start
+	dd __bss_end
 	dd _entry
+	; graphics field
 	dd 0
 	dd 0
 	dd 0

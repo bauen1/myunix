@@ -1,12 +1,16 @@
 #ifndef BOOT_H
 #define BOOT_H 1
 
-extern void *start;
-extern void *code;
-extern void *rodata;
-extern void *data;
-extern void *bss;
-extern void *end;
+extern void *__start;
+extern void *__text_start;
+extern void *__text_end;
+extern void *__rodata_start;
+extern void *__rodata_end;
+extern void *__data_start;
+extern void *__data_end;
+extern void *__bss_start;
+extern void *__bss_end;
+extern void *__end;
 
 __attribute__((noreturn)) extern void __stack_chk_fail();
 const uintptr_t __stack_chk_guard;

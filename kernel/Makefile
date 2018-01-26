@@ -1,3 +1,4 @@
+.SUFFIXES:
 #
 BUILD?=$(shell uname -s | tr '[:upper:]' '[:lower:]')-$(shell uname -m)
 HOST?=$(BUILD)
@@ -21,28 +22,12 @@ BOOTDIR?=/boot
 INCLUDEDIR?=$(PREFIX)/include/myunix
 
 # mandatory flags
-CFLAGS:=$(CFLAGS) -Wall -Wextra -ffreestanding -std=gnu99 -fstack-protector -mno-red-zone
+CFLAGS:=$(CFLAGS) -Wall -Wextra -ffreestanding -std=gnu99 -fstack-protector
 CPPFLAGS:=$(CPPFLAGS) -D__myunix_kernel -I./include -I$(ARCHDIR)
 LDFLAGS:=$(LDFLAGS)
 LIBS:=$(LIBS) -nostdlib
 ASFLAGS:=$(ASFLAGS) -f elf -w+orphan-labels
 OBJS:=$(subst .c,.o,$(wildcard *.c)) $(subst .s,.o,$(wildcard *.s))
-
-# arch-specific flags
-include $(ARCHDIR)/make.config
-CFLAGS:=$(CFLAGS) $(ARCH_CFLAGS)
-CPPFLAGS:=$(CPPFLAGS) $(ARCH_CPPFLAGS)
-LDFLAGS:=$(LDFLAGS) $(ARCH_LDFLAGS)
-LIBS:=$(LIBS) $(ARCH_LIBS)
-OBJS:=$(OBJS) $(ARCH_OBJS)
-
-# command line overrides
-CFLAGS:=$(CFLAGS) $(EXTRA_CFLAGS)
-CPPFLAGS:=$(CPPFLAGS) $(EXTRA_CPPFLAGS)
-LDFLAGS:=$(LDFLAGS) $(EXTRA_LDFLAGS)
-LIBS:=$(LIBS) $(EXTRA_LIBS)
-ASFLAGS:=$(ASFLAGS) $(EXTRA_ASFLAGS)
-OBJS:=$(OBJS) $(EXTRA_OBJS)
 
 # default tools
 
@@ -65,6 +50,22 @@ ifdef TOOLCHAIN_PREFIX
   LD:=$(TOOLCHAIN_PREFIX)ld
   OBJCOPY:=$(TOOLCHAIN_PREFIX)objcopy
 endif
+
+# arch-specific flags
+include $(ARCHDIR)/make.config
+CFLAGS:=$(CFLAGS) $(ARCH_CFLAGS)
+CPPFLAGS:=$(CPPFLAGS) $(ARCH_CPPFLAGS)
+LDFLAGS:=$(LDFLAGS) $(ARCH_LDFLAGS)
+LIBS:=$(LIBS) $(ARCH_LIBS)
+OBJS:=$(OBJS) $(ARCH_OBJS)
+
+# command line overrides
+CFLAGS:=$(CFLAGS) $(EXTRA_CFLAGS)
+CPPFLAGS:=$(CPPFLAGS) $(EXTRA_CPPFLAGS)
+LDFLAGS:=$(LDFLAGS) $(EXTRA_LDFLAGS)
+LIBS:=$(LIBS) $(EXTRA_LIBS)
+ASFLAGS:=$(ASFLAGS) $(EXTRA_ASFLAGS)
+OBJS:=$(OBJS) $(EXTRA_OBJS)
 
 #
 
@@ -106,7 +107,7 @@ else
   QEMU?=qemu-system-$(TARGET_ARCH)
 endif
 
-QEMUFLAGS?=-no-shutdown -no-reboot
+QEMUFLAGS?=-no-shutdown -no-reboot $(ARCH_QEMUFLAGS) $(EXTRA_QEMUFLAGS)
 
 .PHONY: run
 run: kernel

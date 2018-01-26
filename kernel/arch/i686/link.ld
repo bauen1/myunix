@@ -1,43 +1,44 @@
 ENTRY(_entry)
+
 SECTIONS
 {
 	. = 1M;
 	phys = .;
+	__start = .;
 
-	start = .;
-
-	/* read-only code (initialized) */
-	.text ALIGN(4K) : {
-		code = .;
-		*(.mboot) /* make sure the mboot header is at the very beginning of the file */
-		*(.text) /* read-only code */
-		. = ALIGN(4K);
+	__text_start = .;
+	.text : { /* read-only code */
+		*(.boot)
+		*(.text)
 	}
+	. = ALIGN(4K);
+	__text_end = .;
 
-	/* read-only data (initialized) */
-	.rodata ALIGN(4K) : {
-		rodata = .;
-		*(.rodata) /* read-only data */
-		. = ALIGN(4K);
+	__rodata_start = .;
+	.rodata : { /* read-only data */
+		*(.rodata)
 	}
+	. = ALIGN(4K);
+	__rodata_end = .;
 
-	/* read-write data (initialized) */
-	.data ALIGN(4K) : {
-		data = .;
+	__data_start = .;
+	.data : { /* read-write data */
 		*(.data)
-		. = ALIGN(4K);
 	}
+	. = ALIGN(4K);
+	__data_end = .;
 
-	/* read-write data (uninitialized) */
-	.bss ALIGN(4K) : {
-		bss = .;
+	__bss_start = .;
+	.bss : { /* read-write data */
 		*(COMMON)
 		*(.bss)
 	}
+	. = ALIGN(4K);
+	__bss_end = .;
+
+	__end = .;
 
 	/DISCARD/ : {
 		*(.comment)
 	}
-
-	end = .;
 }
