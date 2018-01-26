@@ -2,6 +2,10 @@
 #include <stdint.h>
 #include <tty.h>
 
+void tty_init() {
+	tty_clear_screen();
+}
+
 static unsigned short cursor_x, cursor_y;
 static volatile uint16_t *vmem = (uint16_t *)TTY_VMEM_ADDR;
 
@@ -44,11 +48,11 @@ void tty_clear_screen() {
 	tty_move_cursor(0, 0);
 }
 
-char tty_putchar(char c) {
+char tty_putc(char c) {
 	if ((c == '\b') && (cursor_x > 0)) {
 		tty_move_cursor(cursor_x - 1, cursor_y);
 	} else if (c == '\n') {
-		tty_putchar('\r');
+		tty_putc('\r');
 		tty_move_cursor(0, cursor_y + 1);
 	} else if (c == '\r') {
 		tty_move_cursor(0, cursor_y);
@@ -69,6 +73,6 @@ char tty_putchar(char c) {
 
 void tty_puts(const char *str) {
 	while (*str != 0) {
-		tty_putchar(*str++);
+		tty_putc(*str++);
 	}
 }

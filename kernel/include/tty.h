@@ -5,6 +5,8 @@
 #define TTY_HEIGHT (25)
 #define TTY_WIDTH (80)
 
+void tty_init();
+
 void tty_clear_screen();
 
 void tty_move_cursor(unsigned int x, unsigned int y);
