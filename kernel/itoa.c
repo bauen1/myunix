@@ -13,6 +13,8 @@ char * utoa(unsigned int value, char *str, int base) {
 		value = value / base;
 	} while (value != 0);
 
+	str[i] = 0;
+
 	i--;
 	for (int j = 0; j < i; j++, i--) {
 		char c = str[j];
