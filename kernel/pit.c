@@ -16,7 +16,7 @@ unsigned long ticks = 0;
 
 static void *irq0_handler(registers_t *regs) {
 	if (ticks%FREQUENCY==0) {
-		tty_putchar('.');
+		tty_putc('.');
 	}
 	ticks++;
 

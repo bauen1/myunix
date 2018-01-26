@@ -4,9 +4,6 @@ BUILD?=$(shell uname -s | tr '[:upper:]' '[:lower:]')-$(shell uname -m)
 HOST?=$(BUILD)
 TARGET?=$(HOST)
 TARGET_ARCH:=$(lastword $(subst -, ,$(TARGET)))
-ifeq ($(TARGET_ARCH),x86_64)
-  TARGET_ARCH:=i686
-endif
 ARCHDIR=arch/$(TARGET_ARCH)
 
 # default flags
@@ -52,7 +49,7 @@ ifdef TOOLCHAIN_PREFIX
 endif
 
 # arch-specific flags
-include $(ARCHDIR)/make.config
+-include $(ARCHDIR)/make.config
 CFLAGS:=$(CFLAGS) $(ARCH_CFLAGS)
 CPPFLAGS:=$(CPPFLAGS) $(ARCH_CPPFLAGS)
 LDFLAGS:=$(LDFLAGS) $(ARCH_LDFLAGS)
