@@ -7,7 +7,6 @@
 
 #include <gdt.h>
 #include <idt.h>
-#include <isr.h>
 #include <multiboot.h>
 #include <pic.h>
 #include <pit.h>
@@ -22,6 +21,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	console_init();
 
 	puts("Hello world - console api\n");
+	printf("0x%x\n", 0xDEADBEEF);
 
 	gdt_init();
 	puts("[OK] gdt_init\n");

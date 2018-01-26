@@ -28,3 +28,42 @@ void puts(const char *s) {
 		putc(s[i]);
 	}
 }
+
+void printf(const char *fmt, ...) {
+	va_list args;
+	va_start(args, fmt);
+
+	char buf[256]; // probably too much
+
+	while (*fmt != 0) {
+		if (*fmt == '%') {
+			fmt++;
+			if (*fmt == 0) {
+				break;
+			}
+			switch (*fmt) {
+				case '%':
+					putc('%');
+					break;
+				case 's':
+					puts(va_arg(args, char *));
+					break;
+				case 'd':
+					itoa(va_arg(args, int), &buf[0], 10);
+					puts(buf);
+					break;
+				case 'x':
+					itoa(va_arg(args, int), &buf[0], 16);
+					puts(buf);
+					break;
+				default:
+					putc(*fmt);
+			}
+		} else {
+			putc(*fmt);
+		}
+		fmt++;
+	}
+
+	va_end(args);
+}

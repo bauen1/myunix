@@ -104,12 +104,14 @@ static const char *exception_name[] = {
 void *handle_isr(registers_t *regs) {
 	registers_t *new_regs = regs;
 
+	if (regs->isr_num != 0x20) {
+		printf("Encountered: isr 0x%x\n", regs->isr_num);
+	}
+
 	if (isr_handlers[regs->isr_num]) {
 		new_regs = isr_handlers[regs->isr_num](regs);
 	} else if (regs->isr_num < 32) {
-		puts("\nEncountered unhandled exception: ");
-		puts(exception_name[regs->isr_num]);
-		puts(" !\n");
+		printf("Encountered unhandled exception: '%s' !\n", exception_name[regs->isr_num]);
 		puts("Halting the cpu!\n");
 		halt();
 	}
