@@ -1,8 +1,8 @@
-#include <tty.h>
 #include <idt.h>
 #include <isr.h>
 #include <cpu.h>
 #include <pic.h>
+#include <console.h>
 
 static isr_handler isr_handlers[256];
 void isr_set_handler(uint8_t i, isr_handler handler) {
@@ -107,10 +107,10 @@ void *handle_isr(registers_t *regs) {
 	if (isr_handlers[regs->isr_num]) {
 		new_regs = isr_handlers[regs->isr_num](regs);
 	} else if (regs->isr_num < 32) {
-		tty_puts("\nEncountered unhandled exception: ");
-		tty_puts(exception_name[regs->isr_num]);
-		tty_puts(" !\n");
-		tty_puts("Halting the cpu!\n");
+		puts("\nEncountered unhandled exception: ");
+		puts(exception_name[regs->isr_num]);
+		puts(" !\n");
+		puts("Halting the cpu!\n");
 		halt();
 	}
 

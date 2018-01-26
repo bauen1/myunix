@@ -3,7 +3,7 @@
 #include <isr.h>
 #include <pit.h>
 #include <stdint.h>
-#include <tty.h>
+#include <console.h>
 
 #define PIT_0_DATA 0x40
 #define PIT_1_DATA 0x41
@@ -16,7 +16,7 @@ unsigned long ticks = 0;
 
 static void *irq0_handler(registers_t *regs) {
 	if (ticks%FREQUENCY==0) {
-		tty_putc('.');
+		putc('.');
 	}
 	ticks++;
 

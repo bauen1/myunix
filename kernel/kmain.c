@@ -4,13 +4,13 @@
 #include <assert.h>
 #include <boot.h>
 #include <cpu.h>
+
 #include <gdt.h>
 #include <idt.h>
 #include <isr.h>
 #include <multiboot.h>
 #include <pic.h>
 #include <pit.h>
-#include <tty.h>
 
 #include <console.h>
 
@@ -20,7 +20,6 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	}
 
 	console_init();
-
 
 	puts("Hello world - console api\n");
 
@@ -54,7 +53,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 
 	puts("looping forever...\n");
 	for (;;) {
-		__asm__ __volatile__ ("hlt");
+		putc(getc());
 	}
 
 	halt();

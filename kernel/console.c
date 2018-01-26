@@ -10,7 +10,12 @@ void console_init() {
 }
 
 char getc() {
-	return serial_getc();
+	char c = serial_getc();
+	if (c == '\r') {
+		return '\n';
+	} else {
+		return c;
+	}
 }
 
 void putc(char c) {
