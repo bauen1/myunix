@@ -7,6 +7,7 @@
 
 #include <gdt.h>
 #include <idt.h>
+#include <isr.h>
 #include <multiboot.h>
 #include <pic.h>
 #include <pit.h>
@@ -21,7 +22,6 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	console_init();
 
 	puts("Hello world - console api\n");
-	printf("0x%x\n", 0xDEADBEEF);
 
 	gdt_init();
 	puts("[OK] gdt_init\n");
@@ -38,11 +38,14 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	pit_init();
 	puts("[OK] pit_init\n");
 
-//	keyboard_init();
-//	puts("[OK] keyboard_init\n");
 
 	__asm__ __volatile__ ("sti");
 	puts("[OK] sti\n");
+
+	if (mbi->flags && 0x01) { // are mem_* valid ?
+		printf("mem_lower: %ikb\n", mbi->mem_lower);
+		printf("mem_upper: %ikb\n", mbi->mem_upper);
+	}
 
 	puts("int $0x80\n");
 	__asm__ __volatile__ ("int $0x80");

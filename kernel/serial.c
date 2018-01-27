@@ -44,7 +44,9 @@ void serial_putc(char c) {
 }
 
 char serial_getc() {
-	while (serial_is_read_ready() == 0) {};
+	while (serial_is_read_ready() == 0) {
+		__asm__ __volatile__("hlt");
+	};
 	return inb(PORT);
 }
 
