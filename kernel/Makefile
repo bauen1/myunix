@@ -115,8 +115,8 @@ debug-run: kernel
 	$(QEMU) $(QEMUFLAGS) -s -S -kernel kernel.bin
 
 .PHONY: gdb
-gdb: kernel.sym
-	gdb -s kernel.sym -ex "target remote localhost:1234"
+gdb: kernel.elf .gdbinit
+	gdb kernel.elf -e .gdbinit
 
 # install targets
 
