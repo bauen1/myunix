@@ -35,4 +35,6 @@ void outl(uint16_t port, uint32_t data);
 
 void io_wait();
 
+#define hlt() __asm__ __volatile__ ("hlt")
+
 #endif

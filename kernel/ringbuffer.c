@@ -20,7 +20,7 @@ ringbuffer_t *ringbuffer_init(ringbuffer_t *ringbuffer, unsigned char *buffer, s
 }
 unsigned char ringbuffer_read_byte(ringbuffer_t *ringbuffer) {
 	while (ringbuffer_unread(ringbuffer) <= 0) {
-		__asm__ __volatile__("hlt");
+		hlt();
 	}
 	unsigned char c = ringbuffer->buffer[ringbuffer->read_head];
 	ringbuffer->read_head += 1;
