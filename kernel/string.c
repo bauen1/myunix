@@ -17,3 +17,10 @@ void *memset(void *dest, int c, size_t len) {
 	}
 	return dest;
 }
+
+void *memcpy(void *dest, const void *src, size_t n) {
+	while (n--) {
+		(*(char *)dest++) = (*(char *)src++);
+	}
+	return dest;
+}
