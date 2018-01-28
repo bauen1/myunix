@@ -43,9 +43,9 @@ else
 endif
 
 ifdef TOOLCHAIN_PREFIX
-  CC:=$(TOOLCHAIN_PREFIX)gcc
-  LD:=$(TOOLCHAIN_PREFIX)ld
-  OBJCOPY:=$(TOOLCHAIN_PREFIX)objcopy
+  CC:=$(TOOLCHAIN_PREFIX)$(CC)
+  LD:=$(TOOLCHAIN_PREFIX)$(LD)
+  OBJCOPY:=$(TOOLCHAIN_PREFIX)$(OBJCOPY)
 endif
 
 # arch-specific flags
@@ -117,20 +117,5 @@ debug-run: kernel
 .PHONY: gdb
 gdb: kernel.elf .gdbinit
 	gdb kernel.elf -e .gdbinit
-
-# install targets
-
-.PHONY: install
-install: install-headers install-kernel
-
-.PHONY: install-headers
-install-headers:
-	mkdir -p $(DESTDIR)$(INCLUDEDIR)
-	cp -R include/. $(ARCHDIR)/*.h $(DESTDIR)$(INCLUDEDIR)/.
-
-.PHONY: install-kernel
-install-kernel: kernel
-	mkdir -p $(DESTDIR)$(BOOTDIR)
-	install -D -m0755 kernel.bin $(DESTDIR)$(BOOTDIR)/kernel.bin
 
 -include $(DEPS)

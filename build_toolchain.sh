@@ -4,13 +4,13 @@ set -ex
 echo "Cleaning up old toolchain:"
 rm -rf toolchain
 
-mkdir toolchain
+mkdir -p toolchain
 export PREFIX="$PWD/toolchain"
 export TARGET=i686-elf
 export PATH="$PREFIX/bin:$PATH"
 
 cd toolchain
-mkdir src
+mkdir -p src
 cd src
 
 ## binutils
@@ -69,5 +69,17 @@ cd ..
 echo "Cleaning up source and build directory"
 rm -rf grub-build "grub-$GRUB_VERSION"
 
-cd ..
+test -d tinycc || git clone "http://repo.or.cz/tinycc.git"
+cd tinycc
+./configure \
+    --prefix="$PREFIX" \
+    --enable-cross \
+    --sysincludepaths='' \
+    --libpaths='' \
+    --crtprefix=''
 
+make
+make test
+make install
+
+cd ..
