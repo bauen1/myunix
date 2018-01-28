@@ -7,10 +7,16 @@
 #include <isr.h>
 #include <pic.h>
 
+#include <ringbuffer.h>
+
+#define SERIALBUFFER_LENGTH 1024
+static ringbuffer_t serial_ringbuffer;
+static unsigned char serialbuffer[SERIALBUFFER_LENGTH];
+
 #define PORT 0x3F8
 
 static void *irq4_handler(registers_t *regs) {
-	serial_putc(inb(PORT));
+	ringbuffer_write_byte(&serial_ringbuffer, inb(PORT));
 	return regs;
 }
 
@@ -23,6 +29,7 @@ static int serial_is_read_ready() {
 }
 
 void serial_init() {
+	ringbuffer_init(&serial_ringbuffer, serialbuffer, SERIALBUFFER_LENGTH);
 	isr_set_handler(isr_from_irq(4), irq4_handler);
 
 	// init serial COM0
@@ -43,10 +50,7 @@ void serial_putc(char c) {
 }
 
 char serial_getc() {
-	while (serial_is_read_ready() == 0) {
-		__asm__ __volatile__("hlt");
-	};
-	return inb(PORT);
+	return ringbuffer_read_byte(&serial_ringbuffer);
 }
 
 void serial_puts(const char *str) {
