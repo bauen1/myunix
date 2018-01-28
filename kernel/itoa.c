@@ -1,6 +1,6 @@
 #include <stddef.h>
 
-char * utoa(unsigned int value, char *str, int base) {
+char * utoa(unsigned int value, char *str, int base, int width) {
 	int i = 0;
 
 	if ((base < 2) || (base > 36)) {
@@ -13,6 +13,10 @@ char * utoa(unsigned int value, char *str, int base) {
 		value = value / base;
 	} while (value != 0);
 
+	for (; i < width; i++) {
+		str[i] = '0';
+	}
+
 	str[i] = 0;
 
 	i--;
@@ -24,11 +28,11 @@ char * utoa(unsigned int value, char *str, int base) {
 	return str;
 }
 
-char * itoa(int num, char *str, int base) {
+char * itoa(int num, char *str, int base, int width) {
 	if ((base == 10) && (num < 0)) {
-		return utoa((unsigned)-num, str, base);
+		return utoa((unsigned)-num, str, base, width);
 	} else {
-		return utoa((unsigned)num, str, base);
+		return utoa((unsigned)num, str, base, width);
 	}
 
 }

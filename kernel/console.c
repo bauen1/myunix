@@ -36,6 +36,7 @@ void printf(const char *fmt, ...) {
 	va_start(args, fmt);
 
 	char buf[256]; // probably too much
+	char *s;
 
 	while (*fmt != 0) {
 		if (*fmt == '%') {
@@ -43,20 +44,30 @@ void printf(const char *fmt, ...) {
 			if (*fmt == 0) {
 				break;
 			}
+			unsigned int width = 0;
+			while ((*fmt >= '0') && (*fmt <= '9')) {
+				width = width * 10 + (*fmt - '0');
+				fmt++;
+			}
 			switch (*fmt) {
 				case '%':
 					putc('%');
 					break;
 				case 's':
-					puts(va_arg(args, char *));
+					s = va_arg(args, char *);
+					if (s == NULL) {
+						puts("(null)");
+					} else {
+						puts(s);
+					}
 					break;
 				case 'i':
 				case 'd':
-					itoa(va_arg(args, int), &buf[0], 10);
+					itoa(va_arg(args, int), &buf[0], 10, width);
 					puts(buf);
 					break;
 				case 'x':
-					itoa(va_arg(args, int), &buf[0], 16);
+					itoa(va_arg(args, int), &buf[0], 16, width);
 					puts(buf);
 					break;
 				default:
