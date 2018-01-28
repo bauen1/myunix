@@ -3,9 +3,8 @@
 
 #include <serial.h>
 
-#include <isrs.h>
+#include <cpu.h>
 #include <isr.h>
-//#include <tty.h>
 #include <pic.h>
 
 #define PORT 0x3F8

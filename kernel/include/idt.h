@@ -2,7 +2,6 @@
 #define IDT_H 1
 
 #include <stdint.h>
-#include <isrs.h>
 
 struct idt_entry {
 	uint16_t offset_low __attribute__((packed));

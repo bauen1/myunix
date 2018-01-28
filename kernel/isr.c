@@ -1,4 +1,5 @@
 #include <idt.h>
+#include <isrs.h>
 #include <isr.h>
 #include <cpu.h>
 #include <pic.h>
@@ -103,7 +104,6 @@ static const char *exception_name[] = {
 
 void *handle_isr(registers_t *regs) {
 	registers_t *new_regs = regs;
-
 
 	if (isr_handlers[regs->isr_num]) {
 		new_regs = isr_handlers[regs->isr_num](regs);

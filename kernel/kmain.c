@@ -15,6 +15,8 @@
 #include <console.h>
 
 void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
+	(void)esp;
+
 	if (eax != MULTIBOOT_BOOTLOADER_MAGIC) {
 		halt();
 	}
