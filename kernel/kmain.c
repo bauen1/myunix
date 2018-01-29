@@ -54,10 +54,29 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 		}
 	}
 
+	if (mbi->flags && 0x20) {
+		multiboot_memory_map_t *mmap;
+		printf("mbi->mmap_addr: 0x%x\n", mbi->mmap_addr);
+		printf("mbi->mmap_length: 0x%x\n", mbi->mmap_length);
+		for (mmap = (multiboot_memory_map_t *)mbi->mmap_addr;
+			(uintptr_t)mmap < (mbi->mmap_addr + mbi->mmap_length);
+			mmap = (multiboot_memory_map_t *)((uintptr_t)mmap + mmap->size + sizeof(mmap->size))) {
+			printf(" addr: 0x%08x%08x len: 0x%08x%08x type:0x%x\n",
+				(mmap->addr >> 32),
+				mmap->addr & 0xFFFFFFFF,
+				(mmap->len >> 32),
+				mmap->len  & 0xFFFFFFFF,
+				mmap->type);
+		}
+	}
+
 	printf("[%i] int $0x80\n");
 	__asm__ __volatile__ ("int $0x80");
 
 	printf("[%i] cmdline: '%s'\n", ticks, (char *)mbi->cmdline);
+
+	vmm_init();
+	printf("[%i] [OK] vmm_init\n");
 
 	puts("looping forever...\n");
 	for (;;) {
