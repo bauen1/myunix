@@ -33,6 +33,6 @@ void vmm_init() {
 		page_directory[i] = ((uint32_t)page_tables[i]) | PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE;
 	}
 
-	load_page_directory(&page_directory[0]);
+	load_page_directory((uint32_t)page_directory);
 	enable_paging();
 }

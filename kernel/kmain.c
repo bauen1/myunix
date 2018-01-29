@@ -70,13 +70,13 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 		}
 	}
 
-	printf("[%i] int $0x80\n");
+	printf("[%i] int $0x80\n", ticks);
 	__asm__ __volatile__ ("int $0x80");
 
 	printf("[%i] cmdline: '%s'\n", ticks, (char *)mbi->cmdline);
 
 	vmm_init();
-	printf("[%i] [OK] vmm_init\n");
+	printf("[%i] [OK] vmm_init\n", ticks);
 
 	puts("looping forever...\n");
 	for (;;) {

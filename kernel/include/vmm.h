@@ -17,4 +17,6 @@
 #define PAGE_TABLE_ACCESSED 0x20
 #define PAGE_TABLE_DIRTY 0x40
 
+void vmm_init();
+
 #endif

@@ -19,7 +19,7 @@ BOOTDIR?=/boot
 INCLUDEDIR?=$(PREFIX)/include/myunix
 
 # mandatory flags
-CFLAGS:=$(CFLAGS) -Wall -Wextra -ffreestanding -std=gnu99 -fstack-protector -Wno-attributes
+CFLAGS:=$(CFLAGS) -Wall -Wextra -ffreestanding -std=gnu99 -fstack-protector -Wno-attributes -Wno-format
 CPPFLAGS:=$(CPPFLAGS) -D__myunix_kernel -I./include -I$(ARCHDIR)
 LDFLAGS:=$(LDFLAGS)
 LIBS:=$(LIBS) -nostdlib
@@ -30,6 +30,7 @@ OBJS:=$(subst .c,.o,$(wildcard *.c)) $(subst .s,.o,$(wildcard *.s))
 
 AS:=nasm
 CC:=gcc
+#CC:=tcc
 LD:=ld
 OBJCOPY:=objcopy
 

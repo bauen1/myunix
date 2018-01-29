@@ -20,13 +20,8 @@ static void *irq4_handler(registers_t *regs) {
 	return regs;
 }
 
-static int serial_is_transmit_ready() {
-	return inb(PORT + 5) & 0x20;
-}
-
-static int serial_is_read_ready() {
-	return inb(PORT + 5) & 0x01;
-}
+#define serial_is_transmit_ready() (inb(PORT + 5) & 0x20)
+#define serial_is_read_ready() (inb(PORT + 5) & 0x01),
 
 void serial_init() {
 	ringbuffer_init(&serial_ringbuffer, serialbuffer, SERIALBUFFER_LENGTH);

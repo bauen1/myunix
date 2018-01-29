@@ -12,8 +12,7 @@ extern void *__bss_start;
 extern void *__bss_end;
 extern void *__end;
 
-__attribute__((noreturn)) extern void __stack_chk_fail();
-const uintptr_t __stack_chk_guard;
+extern const uintptr_t __stack_chk_guard;
 
 extern void *stack;
 

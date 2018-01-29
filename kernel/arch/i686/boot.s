@@ -53,11 +53,6 @@ _halt:
 	jmp .loop
 .end:
 
-global __stack_chk_fail:function (__stack_chk_fail.end - __stack_chk_fail)
-__stack_chk_fail:
-	jmp _halt
-.end:
-
 section .rodata
 global __stack_chk_guard:data (__stack_chk_guard.end - __stack_chk_guard)
 __stack_chk_guard:
