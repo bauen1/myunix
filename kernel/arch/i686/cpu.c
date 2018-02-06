@@ -20,15 +20,15 @@ inline uint32_t inl(uint16_t port) {
 }
 
 inline void outb(uint16_t port, uint8_t data) {
-	__asm__ __volatile("outb %1, %0" : : "dN" (port), "a" (data));
+	__asm__ __volatile("outb %0, %1" : : "a" (data), "dN" (port));
 }
 
 inline void outw(uint16_t port, uint16_t data) {
-	__asm__ __volatile("outw %1, %0" : : "dN" (port), "a" (data));
+	__asm__ __volatile("outw %0, %1" : : "a" (data), "dN" (port));
 }
 
 inline void outl(uint16_t port, uint32_t data) {
-	__asm__ __volatile("outl %1, %0" : : "dN" (port), "a" (data));
+	__asm__ __volatile("outl %0, %1" : : "a" (data), "dN" (port));
 }
 
 
