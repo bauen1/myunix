@@ -1,19 +1,17 @@
+#include <assert.h>
 #include <stdint.h>
 #include <stddef.h>
 
-#include <assert.h>
 #include <boot.h>
 #include <cpu.h>
 
+#include <console.h>
 #include <gdt.h>
 #include <idt.h>
 #include <isr.h>
 #include <multiboot.h>
 #include <pic.h>
 #include <pit.h>
-
-#include <console.h>
-
 #include <vmm.h>
 
 void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
@@ -39,16 +37,18 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	pit_init();
 	printf("[%i] [OK] pit_init\n", (int)ticks);
 
-
 	__asm__ __volatile__ ("sti");
 	printf("[%i] [OK] sti\n", (int)ticks);
 
-	if (mbi->flags && 0x01) { // are mem_* valid ?
+	if (mbi->flags && MULTIBOOT_INFO_MEMORY) {
 		printf("mem_lower: %ikb\n", mbi->mem_lower);
 		printf("mem_upper: %ikb\n", mbi->mem_upper);
+	} else {
+		printf("mem_* not provided by bootloader, kernel init impossible.!\n");
+		halt();
 	}
 
-	if (mbi->flags && 0x08) {
+	if (mbi->flags && MULTIBOOT_INFO_MODS) {
 		printf("[%i] %i modules\n", (int)ticks, mbi->mods_count);
 		if (mbi->mods_count > 0) {
 			// we have modules
@@ -58,10 +58,11 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	printf("[%i] int $0x80\n", (int)ticks);
 	__asm__ __volatile__ ("int $0x80");
 
-	printf("[%i] cmdline: '%s'\n", (int)ticks, (char *)mbi->cmdline);
+	if (mbi->flags && MULTIBOOT_INFO_CMDLINE) {
+		printf("[%i] cmdline: '%s'\n", (int)ticks, (char *)mbi->cmdline);
+	}
 
-	assert(mbi->flags && 0x01);
-	if (mbi->flags && 0x20) {
+	if (mbi->flags && MULTIBOOT_INFO_MEM_MAP) {
 		for (multiboot_memory_map_t *mmap = (multiboot_memory_map_t *)mbi->mmap_addr;
 			((uint32_t)mmap) < (mbi->mmap_addr + mbi->mmap_length);
 			mmap = (multiboot_memory_map_t *)((uint32_t)mmap + mmap->size + sizeof(mmap->size))) {

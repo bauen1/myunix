@@ -28,7 +28,7 @@ void vmm_init() {
 
 	for (int i = 0; i < 1024; i++) {
 		for (int j = 0; j < 1024; j++) {
-			page_tables[i][j] = ((i * 1024 * 0x1000) + (j * 0x1000)) | PAGE_DIRECTORY_PRESENT | PAGE_DIRECTORY_READWRITE;
+			page_tables[i][j] = ((uint32_t)((uint32_t)i * 1024 * 0x1000) + ((uint32_t)j * 0x1000)) | PAGE_DIRECTORY_PRESENT | PAGE_DIRECTORY_READWRITE;
 		}
 		page_directory[i] = ((uint32_t)page_tables[i]) | PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE;
 	}

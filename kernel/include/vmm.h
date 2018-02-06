@@ -19,4 +19,6 @@
 
 void vmm_init();
 
+void vmm_enable();
+
 #endif
