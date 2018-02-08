@@ -64,7 +64,7 @@ void isr_init() {
 	idt_set_gate(47, _isr47, 0x08, 0x8E);
 
 	// syscall
-	idt_set_gate(0x80,_isr128,0x08,0x8E);
+	idt_set_gate(0x80,_isr128,0x08,0xEE);
 }
 
 static const char *exception_name[] = {
@@ -109,6 +109,7 @@ void *handle_isr(registers_t *regs) {
 		new_regs = isr_handlers[regs->isr_num](regs);
 	} else if (regs->isr_num < 32) {
 		printf("Encountered unhandled exception: '%s' !\n", exception_name[regs->isr_num]);
+		printf("err_code: 0x%x\n", regs->err_code);
 		puts("Halting the cpu!\n");
 		halt();
 	} else {
