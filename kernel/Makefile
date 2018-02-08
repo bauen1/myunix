@@ -20,6 +20,7 @@ INCLUDEDIR?=$(PREFIX)/include/myunix
 
 # mandatory flags
 CFLAGS:=$(CFLAGS) -Wall -Wextra -ffreestanding -std=gnu99 -fstack-protector -Wno-attributes -Wno-format
+CFLAGS+=-Werror
 CPPFLAGS:=$(CPPFLAGS) -D__myunix_kernel -I./include -I$(ARCHDIR)
 LDFLAGS:=$(LDFLAGS)
 LIBS:=$(LIBS) -nostdlib
