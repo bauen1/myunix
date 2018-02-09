@@ -1,6 +1,8 @@
 #ifndef VMM_H
 #define VMM_H 1
 
+#include <stdint.h>
+
 #define PAGE_DIRECTORY_PRESENT 0x01
 #define PAGE_DIRECTORY_READWRITE 0x02
 #define PAGE_DIRECTORY_USER 0x04

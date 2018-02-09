@@ -1,7 +1,7 @@
+#include <stdint.h>
+
 #include <idt.h>
 #include <idt_load.h>
-#include <stdint.h>
-#include <tty.h>
 #include <string.h>
 
 static struct idt_entry idt_entries[256] = { 0 };

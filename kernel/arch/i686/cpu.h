@@ -23,7 +23,7 @@ typedef struct registers {
 
 /* _halt is found in boot.s */
 __attribute__((noreturn)) extern void _halt();
-#define halt() ((void)_halt())
+__attribute__((noreturn)) void halt();
 
 uint8_t inb(uint16_t port);
 uint16_t inw(uint16_t port);

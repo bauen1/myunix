@@ -35,3 +35,10 @@ inline void outl(uint16_t port, uint32_t data) {
 inline void io_wait() {
 	__asm__ __volatile__("outb %0, $0x80" : : "a"(0));
 }
+
+__attribute__((noreturn))
+inline void halt() {
+	puts("halting the cpu\n");
+	_halt();
+}
+
