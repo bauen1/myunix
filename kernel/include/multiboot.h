@@ -219,7 +219,7 @@ struct multiboot_info
       multiboot_uint8_t framebuffer_blue_field_position;
       multiboot_uint8_t framebuffer_blue_mask_size;
     };
-  }
+  };
 };
 typedef struct multiboot_info multiboot_info_t;
 
