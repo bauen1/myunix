@@ -9,7 +9,14 @@ typedef struct registers {
 	uint32_t es __attribute__((packed));
 	uint32_t ds __attribute__((packed));
 
-	uint32_t edi, esi, ebp, esp, ebx, edx, ecx, eax __attribute__((packed)); /* pushed by pusha */
+	uint32_t edi __attribute__((packed));
+	uint32_t esi __attribute__((packed));
+	uint32_t ebp __attribute__((packed));
+	uint32_t esp __attribute__((packed));
+	uint32_t ebx __attribute__((packed));
+	uint32_t edx __attribute__((packed));
+	uint32_t ecx __attribute__((packed));
+	uint32_t eax __attribute__((packed));
 
 	uint32_t isr_num __attribute__((packed));
 	uint32_t err_code __attribute__((packed));

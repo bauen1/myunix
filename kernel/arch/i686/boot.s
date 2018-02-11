@@ -25,7 +25,7 @@ mboot_hdr:
 	dd __bss_end
 	dd _entry
 	; graphics field
-	dd 0
+	dd 1
 	dd 0
 	dd 0
 	dd 0

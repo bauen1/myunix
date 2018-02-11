@@ -78,17 +78,17 @@ static const char *exception_name[] = {
 	"no coprocessor",
 	"double fault",
 	"coprocessor segment overrun",
-	"bad tss",
+	"invalid tss",
 	"segment not present",
-	"stack fault",
+	"stack segment fault",
 	"general protection fault",
 	"page fault",
-	"unknown interrupt exception",
+	"reserved",
 	"coprocessor fault",
 	"alignment check exception",
 	"machine check exception",
-	"reserved",
-	"reserved",
+	"SIMD Floating-Point Exception",
+	"Virtualization Exception",
 	"reserved",
 	"reserved",
 	"reserved",
@@ -110,7 +110,6 @@ void *handle_isr(registers_t *regs) {
 	} else if (regs->isr_num < 32) {
 		printf("Encountered unhandled exception: '%s' !\n", exception_name[regs->isr_num]);
 		printf("err_code: 0x%x\n", regs->err_code);
-		puts("Halting the cpu!\n");
 		halt();
 	} else {
 		printf("Encountered: isr 0x%x\n", regs->isr_num);
