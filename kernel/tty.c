@@ -1,5 +1,7 @@
-#include <cpu.h>
+#include <stddef.h>
 #include <stdint.h>
+
+#include <cpu.h>
 #include <tty.h>
 
 void tty_init() {

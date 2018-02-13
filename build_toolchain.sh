@@ -1,85 +1,130 @@
-#!/bin/bash
-set -ex
+#!/bin/sh
+set -e
+set -x
 
-echo "Cleaning up old toolchain:"
-rm -rf toolchain
+BINUTILS_VERSION=2.30
+GCC_VERSION=7.3.0
+GRUB_VERSION=2.02
+TINYCC_TAG=release_0_9_27
 
 mkdir -p toolchain
 export PREFIX="$PWD/toolchain"
 export TARGET=i686-elf
 export PATH="$PREFIX/bin:$PATH"
+export JOBS=4
 
 cd toolchain
 mkdir -p src
 cd src
 
-## binutils
+if [ ! -f .downloaded ]; then
+	echo "Downloading binutils-$BINUTILS_VERSION"
+	wget ftp://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_VERSION.tar.xz
+	wget ftp://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_VERSION.tar.xz.sig
+	tar -xvf binutils-$BINUTILS_VERSION.tar.xz
+	echo "Downloading gcc-$GCC_VERSION"
+	wget ftp://ftp.gnu.org/gnu/gcc/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.xz
+	wget ftp://ftp.gnu.org/gnu/gcc/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.xz.sig
+	tar -xvf gcc-$GCC_VERSION.tar.xz
+	echo "Downloading grub-$GRUB_VERSION"
+	wget ftp://ftp.gnu.org/gnu/grub/grub-$GRUB_VERSION.tar.xz
+	wget ftp://ftp.gnu.org/gnu/grub/grub-$GRUB_VERSION.tar.xz.sig
+	tar -xvf grub-$GRUB_VERSION.tar.xz
+	echo "Cloning tinycc"
+	test -d tinycc || git clone "http://repo.or.cz/tinycc.git"
+	git -C tinycc checkout $TINYCC_TAG
+	touch .downloaded
+fi
 
-BINUTILS_VERSION=2.29
-echo "Downloading binutils-$BINUTILS_VERSION"
-wget ftp://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_VERSION.tar.xz{,.sig}
-tar -xvf binutils-$BINUTILS_VERSION.tar.xz
-mkdir build-binutils
-cd build-binutils
-echo "Building binutils"
-../binutils-$BINUTILS_VERSION/configure --target="$TARGET" --prefix="$PREFIX" --with-sysroot --disable-nls --disable-werror
-make
-echo "Installing binutils"
-make install
-cd ..
-echo "Cleaning up source and build directory"
-rm -rf build-binutils "binutils-$BINUTILS_VERSION"
+if [ ! -f .built_binutils ]; then
+	echo "Building Binutils"
+	rm -rf binutils-build
+	mkdir -p binutils-build
+	(cd binutils-build
+		../binutils-$BINUTILS_VERSION/configure \
+			--target="$TARGET" \
+			--prefix="$PREFIX" \
+			--with-sysroot \
+			--disable-nls \
+			--disable-werror
 
-## gcc
+		make -j$JOBS
+		echo "Installing binutils"
+		make -j$JOBS install
+	)
+	echo "Cleaning up"
+	rm -rf binutils-build
+	#"binutils-$BINUTILS_VERSION"
+	touch .built_binutils
+fi
 
-GCC_VERSION=7.2.0
-echo "Downloading gcc-$GCC_VERSION"
-wget ftp://ftp.gnu.org/gnu/gcc/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.xz{,.sig}
-tar -xvf gcc-$GCC_VERSION.tar.xz
-mkdir gcc-build
-cd gcc-build
-echo "Building gcc"
-../gcc-$GCC_VERSION/configure --target="$TARGET" --prefix="$PREFIX" --disable-nls --enable-languages=c,c++ --without-headers
-make all-gcc
-echo "Building libgcc"
-make all-target-libgcc
-echo "Installing gcc"
-make install-gcc
-echo "Installing libgcc"
-make install-target-libgcc
-cd ..
-echo "Cleaning up source and build directory"
-rm -rf gcc-build "gcc-$GCC_VERSION"
+if [ ! -f .built_tinycc ]; then
+	echo "Building Tiny C Compiler"
+	rm -rf tinycc-build
+	mkdir -p tinycc-build
+	(cd tinycc-build
+		../tinycc/configure \
+			--prefix="$PREFIX/opt" \
+			--strip-binaries \
+			--sysroot='$PREFIX/opt/sysroot'
 
-## grub
-GRUB_VERSION=2.02
-echo "Downloading grub-$GRUB_VERSION"
-wget ftp://ftp.gnu.org/gnu/grub/grub-$GRUB_VERSION.tar.xz{,.sig}
-tar -xvf grub-$GRUB_VERSION.tar.xz
-mkdir grub-build
-cd grub-build
-echo "Building grub"
-../grub-$GRUB_VERSION/configure \
-  --sbindir="$PREFIX/bin" \
-  --prefix="$PREFIX" TARGET_CC=${TARGET}-gcc TARGET_OBJCOPY=${TARGET}-objcopy TARGET_STRIP=${TARGET}-strip TARGET_NM=${TARGET}-nm TARGET_RANLIB=${TARGET}-ranlib --target=${TARGET}
-make
-echo "Installing grub"
-make install
-cd ..
-echo "Cleaning up source and build directory"
-rm -rf grub-build "grub-$GRUB_VERSION"
+		#../configure \
+		#	--prefix="$PREFIX" \
+		#	--enable-cross \
+		#	--sysincludepaths='' \
+		#	--libpaths='' \
+		#	--crtprefix=''
+		make -j$JOBS cross-i386
+		make -j$JOBS cross-x86_64
+		make -j$JOBS cross-arm
+		make -j$JOBS cross-arm64
+		make -j$JOBS install
+	)
 
-test -d tinycc || git clone "http://repo.or.cz/tinycc.git"
-cd tinycc
-./configure \
-    --prefix="$PREFIX" \
-    --enable-cross \
-    --sysincludepaths='' \
-    --libpaths='' \
-    --crtprefix=''
+	echo "Cleaning up build directory"
+	rm -rf tinycc-build
+	touch .built_tinycc
+fi
 
-make
-make test
-make install
+if [ ! -f .built_gcc ]; then
+	echo "Building gcc"
+	rm -rf gcc-build
+	mkdir -p gcc-build
+	(cd gcc-build
+		../gcc-$GCC_VERSION/configure \
+			--target="$TARGET" \
+			--prefix="$PREFIX" \
+			--disable-nls \
+			--enable-languages=c \
+			--without-headers
+		make -j$JOBS all-gcc all-target-libgcc
+		make -j$JOBS install-gcc install-target-libgcc
+	)
 
-cd ..
+	echo "Cleaning up build directory"
+	rm -rf gcc-build
+	touch .built_gcc
+fi
+
+if [ ! -f .built_grub ]; then
+	echo "Building grub"
+	rm -rf grub-build
+	mkdir -p grub-build
+	(cd grub-build
+		../grub-$GRUB_VERSION/configure \
+			--sbindir="$PREFIX/bin" \
+			--prefix="$PREFIX" \
+			TARGET_CC=${TARGET}-gcc \
+			TARGET_OBJCOPY=${TARGET}-objcopy \
+			TARGET_STRIP=${TARGET}-strip \
+			TARGET_NM=${TARGET}-nm \
+			TARGET_RANLIB=${TARGET}-ranlib \
+			--target=${TARGET}
+		make -j$JOBS
+		make -j$JOBS install
+	)
+	echo "Cleaning up source and build directory"
+	rm -rf grub-build
+	touch .built_grub
+fi
+

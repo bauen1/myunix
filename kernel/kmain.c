@@ -56,9 +56,6 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 		}
 	}
 
-	printf("[%i] int $0x80\n", (int)ticks);
-	__asm__ __volatile__ ("int $0x80");
-
 	if (mbi->flags && MULTIBOOT_INFO_CMDLINE) {
 		printf("[%i] cmdline: '%s'\n", (int)ticks, (char *)mbi->cmdline);
 	}
