@@ -9,7 +9,7 @@ ARCHDIR=arch/$(TARGET_ARCH)
 # default flags
 CFLAGS?=-O2 -g
 CPPFLAGS?=
-LDFLAGS?=
+LDFLAGS?=-g
 LIBS?=
 ASFLAGS?=
 
@@ -22,7 +22,7 @@ INCLUDEDIR?=$(PREFIX)/include/myunix
 CFLAGS:=$(CFLAGS) -Wall -Wextra -ffreestanding -std=gnu99 -fstack-protector -Wno-attributes -Wno-format
 CFLAGS+=-Werror
 CPPFLAGS:=$(CPPFLAGS) -D__myunix_kernel -I./include -I$(ARCHDIR)
-LDFLAGS:=$(LDFLAGS)
+LDFLAGS:=$(LDFLAGS) -static
 LIBS:=$(LIBS) -nostdlib
 ASFLAGS:=$(ASFLAGS) -f elf -w+orphan-labels
 OBJS:=$(subst .c,.o,$(wildcard *.c)) $(subst .s,.o,$(wildcard *.s))
@@ -95,7 +95,7 @@ kernel.elf: $(OBJS) $(ARCHDIR)/link.ld
 	$(LD) $(LDFLAGS) $(LIBS) -T $(ARCHDIR)/link.ld -o $@ $(OBJS)
 # link using tcc
 #kernel.elf: $(OBJS)
-#	$(LD) -o $@ -nostdlib -nostdinc -static -Wl,--image-base=0x100000 -Wl,--section-alignment=0x1000 $(OBJS)
+#	$(LD) $(LDFLAGS) $(LIBS) -o $@ -nostdinc -Wl,--image-base=0x100000 -Wl,--section-alignment=0x1000 $(OBJS)
 
 kernel.sym: kernel.elf
 	$(OBJCOPY) --only-keep-debug $^ $@
