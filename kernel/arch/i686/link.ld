@@ -4,11 +4,9 @@ SECTIONS
 {
 	. = 1M;
 	phys = .;
-	__start = .;
 
 	__text_start = .;
 	.text : { /* read-only code */
-		*(.boot)
 		*(.text)
 	}
 	. = ALIGN(4K);
@@ -36,7 +34,7 @@ SECTIONS
 	. = ALIGN(4K);
 	__bss_end = .;
 
-	__end = .;
+	_end = .;
 
 	/DISCARD/ : {
 		*(.comment)

@@ -47,7 +47,7 @@ void vmm_init() {
 	map_page((void *)0, (void *)0, 0);
 
 	// map the kernel
-	for (uintptr_t i = (uintptr_t)&__start & 0xFFFFF000; i < (uintptr_t)&__end; i += 0x1000) {
+	for (uintptr_t i = (uintptr_t)&_start & 0xFFFFF000; i < (uintptr_t)&_end; i += 0x1000) {
 		map_page((void *)i, (void *)i, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
 		if (i % 0x400000) {
 			page_directory[i >> 22] = ((uint32_t)page_tables[i >> 22]) | 3;
