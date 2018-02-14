@@ -75,9 +75,9 @@ if [ ! -f .built_tinycc ]; then
 		#	--libpaths='' \
 		#	--crtprefix=''
 		make -j$JOBS cross-i386
-		make -j$JOBS cross-x86_64
-		make -j$JOBS cross-arm
-		make -j$JOBS cross-arm64
+#		make -j$JOBS cross-x86_64
+#		make -j$JOBS cross-arm
+#		make -j$JOBS cross-arm64
 		make -j$JOBS install
 	)
 
