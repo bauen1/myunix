@@ -13,8 +13,10 @@
 #include <pic.h>
 #include <pit.h>
 #include <pmm.h>
+#include <syscall.h>
 #include <vmm.h>
 #include <tty.h>
+#include <framebuffer.h>
 
 void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	(void)esp;
@@ -38,8 +40,23 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 			printf(" framebuffer_bpp: 0x%x\n", mbi->framebuffer_bpp);
 			printf(" bytes per text line: 0x%x\n", mbi->framebuffer_pitch);
 		} else if (mbi->framebuffer_type == MULTIBOOT_FRAMEBUFFER_TYPE_RGB) {
+			framebuffer_init((uintptr_t)mbi->framebuffer_addr,
+				mbi->framebuffer_pitch,
+				mbi->framebuffer_width,
+				mbi->framebuffer_height,
+				mbi->framebuffer_bpp,
+				mbi->framebuffer_red_field_position,
+				mbi->framebuffer_red_mask_size,
+				mbi->framebuffer_green_field_position,
+				mbi->framebuffer_green_mask_size,
+				mbi->framebuffer_blue_field_position,
+				mbi->framebuffer_blue_mask_size);
 			printf("VESA framebuffer\n");
-			halt();
+			printf(" addr: 0x%x%08x\n", (uint32_t)(mbi->framebuffer_addr >> 32), (uint32_t)mbi->framebuffer_addr);
+			printf(" pitch: 0x%x\n", (uint32_t)mbi->framebuffer_pitch);
+			printf(" width: 0x%x\n", (uint32_t)mbi->framebuffer_width);
+				printf(" height: 0x%x\n", (uint32_t)mbi->framebuffer_height);
+			printf(" bpp: 0x%x\n", (uint32_t)mbi->framebuffer_bpp);
 		} else if (mbi->framebuffer_type == MULTIBOOT_FRAMEBUFFER_TYPE_INDEXED) {
 			printf("indexed framebuferr!!!!\n");
 			halt();
