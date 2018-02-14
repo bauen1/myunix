@@ -23,6 +23,33 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	assert(eax == MULTIBOOT_BOOTLOADER_MAGIC);
 
 	console_init();
+	printf("early console init!\n");
+
+	if ((mbi->flags && MULTIBOOT_INFO_FRAMEBUFFER_INFO) && (mbi->framebuffer_addr != 0)) {
+		if (mbi->framebuffer_type == MULTIBOOT_FRAMEBUFFER_TYPE_EGA_TEXT) {
+			tty_init((uintptr_t)mbi->framebuffer_addr,
+				mbi->framebuffer_width,
+				mbi->framebuffer_height,
+				mbi->framebuffer_pitch,
+				mbi->framebuffer_bpp);
+			printf("tty framebuffer:\n");
+			printf(" width: %i height: %i\n", mbi->framebuffer_width, mbi->framebuffer_height);
+			printf(" framebuffer_bpp: 0x%x\n", mbi->framebuffer_bpp);
+			printf(" bytes per text line: 0x%x\n", mbi->framebuffer_pitch);
+		} else if (mbi->framebuffer_type == MULTIBOOT_FRAMEBUFFER_TYPE_RGB) {
+			printf("VESA framebuffer\n");
+			halt();
+		} else if (mbi->framebuffer_type == MULTIBOOT_FRAMEBUFFER_TYPE_INDEXED) {
+			printf("indexed framebuferr!!!!\n");
+			halt();
+		} else {
+			printf("unknown framebuffer type: 0x%x\n", mbi->framebuffer_type);
+			halt();
+		}
+	} else {
+		tty_init((uintptr_t)0xb8000, 80, 25, 16, 80*2);
+		printf("no framebuffer found assuming default i386 vga text mode\n");
+	}
 
 
 	gdt_init();

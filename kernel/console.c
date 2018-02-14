@@ -8,7 +8,6 @@
 
 void console_init() {
 	serial_init();
-	tty_init();
 }
 
 char getc() {

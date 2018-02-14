@@ -8,11 +8,8 @@ void tty_init() {
 	tty_clear_screen();
 }
 
-static unsigned short cursor_x, cursor_y;
-static volatile uint16_t *vmem = (uint16_t *)TTY_VMEM_ADDR;
-
 static void tty_update_cursor() {
-	unsigned short position = (cursor_y*TTY_WIDTH)+cursor_x;
+	unsigned short position = (cursor_y*width)+cursor_x;
 	outb(0x3D4, 0x0F);
 	outb(0x3D5, (uint8_t)(position&0xFF));
 	outb(0x3D4, 0x0E);
@@ -20,55 +17,62 @@ static void tty_update_cursor() {
 }
 
 static inline void tty_clear_line(unsigned int y) {
-	for (unsigned int x = 0; x <= TTY_WIDTH; x++) {
-		vmem[((y * TTY_WIDTH) + x)] = (0x0F << 8) | ' ';
+	for (unsigned int x = 0; x <= width; x++) {
+		((uint16_t *)vmem)[((y * TTY_WIDTH) + x)] = (0x07 << 8) | ' ';
 	}
 }
 
 static void tty_scroll() {
-	if (cursor_y >= TTY_HEIGHT) {
-		for (unsigned int y = 0; y < TTY_HEIGHT; y++) {
-			for (unsigned int x = 0; x <= TTY_WIDTH; x++) {
-				vmem[((y * TTY_WIDTH) + x)] = vmem[(((y + 1) * TTY_WIDTH) + x)];
-			}
+	for (unsigned int y = 0; y < height; y++) {
+		for (unsigned int x = 0; x <= width; x++) {
+			((uint16_t *)vmem)[((y * TTY_WIDTH) + x)] = ((uint16_t *)vmem)[(((y + 1) * TTY_WIDTH) + x)];
 		}
-		tty_clear_line(TTY_HEIGHT);
-		tty_move_cursor(0, TTY_HEIGHT - 1);
 	}
+	tty_clear_line(height);
 }
 
 void tty_move_cursor(unsigned int x, unsigned int y) {
 	cursor_x = x;
 	cursor_y = y;
-	tty_update_cursor(); // FIXME: inefficient in most cases
+	tty_update_cursor();
 }
 
 void tty_clear_screen() {
-	for (unsigned int y = 0; y < TTY_HEIGHT; y++) {
+	for (unsigned int y = 0; y < height; y++) {
 		tty_clear_line(y);
 	}
 	tty_move_cursor(0, 0);
 }
 
 char tty_putc(char c) {
+	unsigned short old_x = cursor_x;
+	unsigned short old_y = cursor_y;
+
 	if ((c == '\b') && (cursor_x > 0)) {
-		tty_move_cursor(cursor_x - 1, cursor_y);
+		cursor_x -= 1;
 	} else if (c == '\n') {
 		tty_putc('\r');
-		tty_move_cursor(0, cursor_y + 1);
+		cursor_x = 0;
+		cursor_y += 1;
 	} else if (c == '\r') {
-		tty_move_cursor(0, cursor_y);
+		cursor_x = 0;
 	} else if (c == '\t') {
-		tty_move_cursor(cursor_x + 4, cursor_y);
+		cursor_x += 4;
 	} else {
-		vmem[((cursor_y * TTY_WIDTH) + cursor_x)] = (0x0F << 8) | c;
-		tty_move_cursor(cursor_x + 1, cursor_y);
+		((uint16_t *)vmem)[((cursor_y * TTY_WIDTH) + cursor_x)] = (0x07 << 8) | c;
+		cursor_x += 1;
 	}
-	if (cursor_x >= TTY_WIDTH) {
-		tty_move_cursor(0, cursor_y + 1);
-	}
-	if (cursor_y >= TTY_HEIGHT) {
-		tty_scroll();
+	if ((old_x != cursor_x) || (old_y != cursor_y)) {
+		if (cursor_x >= width) {
+			cursor_x = 0;
+			cursor_y += 1;
+		}
+		if (cursor_y >= height) {
+			tty_scroll();
+			cursor_x = 0;
+			cursor_y = height - 1;
+		}
+		tty_update_cursor();
 	}
 	return c;
 }
