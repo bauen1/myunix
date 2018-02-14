@@ -14,6 +14,7 @@
 #include <pit.h>
 #include <pmm.h>
 #include <vmm.h>
+#include <tty.h>
 
 void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	(void)esp;
