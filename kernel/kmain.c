@@ -107,7 +107,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 		printf("[%i] cmdline: '%s'\n", (int)ticks, (char *)mbi->cmdline);
 	}
 
-	pmm_init(&real_end, mbi->mem_lower*1024 + mbi->mem_upper*1024);
+	pmm_init((void *)real_end, mbi->mem_lower*1024 + mbi->mem_upper*1024);
 
 	if (mbi->flags && MULTIBOOT_INFO_MEM_MAP) {
 		for (multiboot_memory_map_t *mmap = (multiboot_memory_map_t *)mbi->mmap_addr;
