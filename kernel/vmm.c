@@ -19,7 +19,17 @@ void map_page(void *physaddr, void *virtaddr, uint16_t flags) {
 void *page_fault(registers_t *regs) {
 	uintptr_t address;
 	__asm__ __volatile__("mov %%cr2, %0" : "=r"(address));
-	printf("page_fault\neip: 0x%x\nerr_code: 0x%x\naddress: 0x%x\n", regs->eip, regs->err_code, address);
+	printf("! page_fault !\n");
+	printf("err_code: 0x%x\n", regs->err_code);
+	printf("eip: 0x%x\n", (uint32_t)(regs->eip));
+	printf("address: 0x%x\n", (uint32_t)(address));
+
+	if (regs->err_code && 0x4) {
+		printf("usermode\n");
+	} else {
+		printf("KERNEL MODE PAGE FAULT\n");
+		halt();
+	}
 	halt();
 }
 
