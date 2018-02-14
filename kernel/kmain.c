@@ -147,6 +147,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	vmm_init();
 
 
+	syscall_init();
 
 	vmm_enable();
 	printf("[%i] [OK] vmm_enable\n", (int)ticks);
