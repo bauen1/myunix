@@ -44,4 +44,6 @@ void io_wait();
 
 #define hlt() __asm__ __volatile__ ("hlt")
 
+void dump_regs(registers_t *regs);
+
 #endif

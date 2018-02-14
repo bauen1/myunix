@@ -109,7 +109,7 @@ void *handle_isr(registers_t *regs) {
 		new_regs = isr_handlers[regs->isr_num](regs);
 	} else if (regs->isr_num < 32) {
 		printf("Encountered unhandled exception: '%s' !\n", exception_name[regs->isr_num]);
-		printf("err_code: 0x%x\n", regs->err_code);
+		dump_regs(regs);
 		halt();
 	} else {
 		printf("Encountered: isr 0x%x\n", regs->isr_num);
