@@ -79,6 +79,7 @@ clean:
 	rm -f kernel.elf kernel.sym kernel.bin
 	rm -f $(OBJS) *.o */*.o */*/*.o
 	rm -f $(DEPS) *.d */*.d */*/*.d
+	rm -f iso/*.iso iso/kernel.bin
 
 %.o: %.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -MD -c $< -o $@
@@ -111,6 +112,20 @@ else
 endif
 
 QEMUFLAGS?=-serial stdio -no-shutdown -no-reboot $(ARCH_QEMUFLAGS) $(EXTRA_QEMUFLAGS)
+
+iso/kernel.bin: kernel.bin
+	cp $< $@
+
+iso/grub_eltorito.iso: iso/grub/grub.cfg iso/kernel.bin iso/
+	grub-mkimage -c iso/grub/grub.cfg -v -p \(cd\)/grub/ -o $@ -O i386-pc-eltorito biosdisk iso9660 part_msdos fat ext2 multiboot boot normal help all_video echo serial
+
+iso/grub_iso.iso: iso/grub_eltorito.iso iso
+	rm -f $@
+	xorriso -as mkisofs -o $@ -b grub_eltorito.iso -r iso -no-emul-boot -boot-info-table
+
+.PHONY: run-grub
+run-grub: iso/grub_iso.iso
+	$(QEMU) $(QEMUFLAGS) -cdrom $<
 
 .PHONY: run
 run: kernel
