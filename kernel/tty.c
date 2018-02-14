@@ -4,7 +4,17 @@
 #include <cpu.h>
 #include <tty.h>
 
-void tty_init() {
+static unsigned short cursor_x, cursor_y;
+static unsigned short width, height;
+static unsigned short bytes_per_char, bytes_per_line;
+static volatile void *vmem = NULL;
+
+void tty_init(uintptr_t vmem_ptr, uint32_t w, uint32_t h, uint32_t bpp, uint32_t pitch) {
+	width = w;
+	height = h;
+	bytes_per_char = bpp;
+	bytes_per_line = pitch;
+	vmem = (void *)vmem_ptr;
 	tty_clear_screen();
 }
 
