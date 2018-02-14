@@ -1,8 +1,8 @@
 # myunix
 A unix-like kernel+userspace, for SCIENCE!
 
-To build:
+To build (for i386):
 ```
 cd kernel
-make all
+make TARGET=myunix2-i686 all
 ```
