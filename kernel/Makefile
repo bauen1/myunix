@@ -89,8 +89,12 @@ clean:
 .PHONY: kernel
 kernel: kernel.elf kernel.sym kernel.bin
 
+# link using gcc / ld
 kernel.elf: $(OBJS) $(ARCHDIR)/link.ld
 	$(LD) $(LDFLAGS) $(LIBS) -T $(ARCHDIR)/link.ld -o $@ $(OBJS)
+# link using tcc
+#kernel.elf: $(OBJS)
+#	$(LD) -o $@ -nostdlib -nostdinc -static -Wl,--image-base=0x100000 -Wl,--section-alignment=0x1000 $(OBJS)
 
 kernel.sym: kernel.elf
 	$(OBJCOPY) --only-keep-debug $^ $@
