@@ -55,6 +55,9 @@ void tty_clear_screen() {
 }
 
 char tty_putc(char c) {
+	if (vmem == NULL) {
+		return 0;
+	}
 	unsigned short old_x = cursor_x;
 	unsigned short old_y = cursor_y;
 
