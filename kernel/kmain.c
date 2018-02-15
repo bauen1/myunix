@@ -129,6 +129,14 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 				for (uintptr_t i = 0; i < mmap->len; i += 0x1000) {
 					pmm_set_block(mmap->addr + i);
 				}
+			} else if (mmap->type == 0x03) {
+				printf("acpi reclaimable\n");
+			} else if (mmap->type == 0x04) {
+				printf("nvs\n");
+			} else if (mmap->type == 0x05) {
+				printf("bad ram\n");
+			} else if (mmap->type == 0) {
+				break;
 			} else {
 				printf("type: 0x%x\n", mmap->type);
 			}
