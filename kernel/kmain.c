@@ -107,7 +107,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 			for (int i = 0; i < mbi->mods_count; i++) {
 				printf("mods[%i].mod_start: 0x%x\n", i, mods[i].mod_start);
 				printf("mods[%i].mod_end: 0x%x\n", i, mods[i].mod_end);
-				if (mods[i] != 0) {
+				if (mods[i].cmdline != 0) {
 					printf("mods[%i].cmdline: '%s'\n", i, (char *)mods[i].cmdline);
 				}
 				printf("mods[%i].mod_add: 0x%x\n", i, mods[i].pad);
