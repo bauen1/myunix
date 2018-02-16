@@ -1,11 +1,15 @@
+/* headers supplied by the c compiler */
 #include <assert.h>
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
+/* arch specific headers */
 #include <boot.h>
 #include <cpu.h>
 
+/* all other headers */
 #include <console.h>
+#include <framebuffer.h>
 #include <gdt.h>
 #include <idt.h>
 #include <isr.h>
@@ -14,9 +18,8 @@
 #include <pit.h>
 #include <pmm.h>
 #include <syscall.h>
-#include <vmm.h>
 #include <tty.h>
-#include <framebuffer.h>
+#include <vmm.h>
 
 void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	(void)esp;

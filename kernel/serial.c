@@ -1,13 +1,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <serial.h>
-
 #include <cpu.h>
 #include <isr.h>
 #include <pic.h>
-
 #include <ringbuffer.h>
+#include <serial.h>
 
 #define SERIALBUFFER_LENGTH 1024
 static ringbuffer_t serial_ringbuffer;

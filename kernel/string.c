@@ -1,5 +1,5 @@
+#include <assert.h>
 #include <stddef.h>
-#include <string.h>
 
 __attribute__((pure))
 size_t strlen(const char *str) {

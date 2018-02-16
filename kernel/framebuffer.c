@@ -3,7 +3,6 @@
 #include <stdint.h>
 
 #include <framebuffer.h>
-
 #include <string.h>
 #include <console.h>
 

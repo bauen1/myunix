@@ -1,9 +1,10 @@
+#include <stdint.h>
+
+#include <console.h>
 #include <cpu.h>
 #include <idt.h>
 #include <isr.h>
 #include <pit.h>
-#include <stdint.h>
-#include <console.h>
 
 #define PIT_0_DATA 0x40
 #define PIT_1_DATA 0x41

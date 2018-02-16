@@ -2,12 +2,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <vmm.h>
-#include <paging.h>
-#include <console.h>
 #include <boot.h>
-#include <isr.h>
+#include <console.h>
 #include <cpu.h>
+#include <isr.h>
+#include <paging.h>
+#include <vmm.h>
 
 __attribute__((aligned(4096))) uint32_t page_directory[1024];
 __attribute__((aligned(4096))) uint32_t page_tables[1024][1024];

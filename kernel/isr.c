@@ -1,9 +1,9 @@
-#include <idt.h>
-#include <isrs.h>
-#include <isr.h>
-#include <cpu.h>
-#include <pic.h>
 #include <console.h>
+#include <cpu.h>
+#include <idt.h>
+#include <isr.h>
+#include <isrs.h>
+#include <pic.h>
 
 static isr_handler isr_handlers[256];
 void isr_set_handler(uint8_t i, isr_handler handler) {

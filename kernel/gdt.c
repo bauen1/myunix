@@ -1,8 +1,9 @@
 #include <stdint.h>
+
 #include <gdt.h>
 #include <gdt_flush.h>
-#include <tss_flush.h>
 #include <string.h>
+#include <tss_flush.h>
 
 // FIXME: move to arch/i686 and arch/x86_64
 

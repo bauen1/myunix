@@ -1,7 +1,7 @@
 #include <stddef.h>
 
-#include <ringbuffer.h>
 #include <cpu.h>
+#include <ringbuffer.h>
 
 static size_t ringbuffer_unread(ringbuffer_t *ringbuffer) {
 	if (ringbuffer->write_head < ringbuffer->read_head) {

@@ -1,6 +1,6 @@
+#include <console.h>
 #include <cpu.h>
 #include <isr.h>
-#include <console.h>
 
 static void *syscall_putc(registers_t *regs) {
 	putc((char)regs->ebx);

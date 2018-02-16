@@ -1,8 +1,9 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <pmm.h>
+
 #include <console.h>
+#include <pmm.h>
 #include <string.h>
 
 static uint32_t *block_map;
