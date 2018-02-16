@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <framebuffer.h>
 #include <itoa.h>
 #include <serial.h>
 #include <tty.h>
@@ -21,6 +22,7 @@ char getc() {
 
 void putc(char c) {
 	tty_putc(c);
+	framebuffer_putc(c);
 	serial_putc(c);
 }
 
