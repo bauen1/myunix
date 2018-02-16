@@ -5,4 +5,6 @@ extern unsigned long ticks;
 
 void pit_init();
 
+void _sleep(unsigned long miliseconds);
+
 #endif

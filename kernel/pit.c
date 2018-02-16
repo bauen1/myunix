@@ -34,3 +34,10 @@ void pit_init() {
 	isr_set_handler(32 + 0, irq0_handler);
 	pit_setup_channel_zero(FREQUENCY);
 }
+
+void _sleep(unsigned long miliseconds) {
+	unsigned long target_ticks = ticks + miliseconds;
+	while (ticks < target_ticks) {
+		hlt();
+	}
+}
