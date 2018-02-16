@@ -103,6 +103,15 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 		printf("[%i] %i modules\n", (int)ticks, mbi->mods_count);
 		if (mbi->mods_count > 0) {
 			// we have modules
+			multiboot_module_t *mods = (multiboot_module_t *)mbi->mods_addr;
+			for (int i = 0; i < mbi->mods_count; i++) {
+				printf("mods[%i].mod_start: 0x%x\n", i, mods[i].mod_start);
+				printf("mods[%i].mod_end: 0x%x\n", i, mods[i].mod_end);
+				if (mods[i] != 0) {
+					printf("mods[%i].cmdline: '%s'\n", i, (char *)mods[i].cmdline);
+				}
+				printf("mods[%i].mod_add: 0x%x\n", i, mods[i].pad);
+			}
 		}
 	}
 
