@@ -39,7 +39,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 				mbi->framebuffer_pitch,
 				mbi->framebuffer_bpp);
 			printf("tty framebuffer:\n");
-			printf(" width: %i height: %i\n", mbi->framebuffer_width, mbi->framebuffer_height);
+			printf(" width: %u height: %u\n", mbi->framebuffer_width, mbi->framebuffer_height);
 			printf(" framebuffer_bpp: 0x%x\n", mbi->framebuffer_bpp);
 			printf(" bytes per text line: 0x%x\n", mbi->framebuffer_pitch);
 		} else if (mbi->framebuffer_type == MULTIBOOT_FRAMEBUFFER_TYPE_RGB) {
@@ -58,7 +58,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 			printf(" addr: 0x%x%08x\n", (uint32_t)(mbi->framebuffer_addr >> 32), (uint32_t)mbi->framebuffer_addr);
 			printf(" pitch: 0x%x\n", (uint32_t)mbi->framebuffer_pitch);
 			printf(" width: 0x%x\n", (uint32_t)mbi->framebuffer_width);
-				printf(" height: 0x%x\n", (uint32_t)mbi->framebuffer_height);
+			printf(" height: 0x%x\n", (uint32_t)mbi->framebuffer_height);
 			printf(" bpp: 0x%x\n", (uint32_t)mbi->framebuffer_bpp);
 		} else if (mbi->framebuffer_type == MULTIBOOT_FRAMEBUFFER_TYPE_INDEXED) {
 			printf("indexed framebuferr!!!!\n");
@@ -74,37 +74,37 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 
 
 	gdt_init();
-	printf("[%i] [OK] gdt_init\n", (int)ticks);
+	printf("[%u] [OK] gdt_init\n", (unsigned int)ticks);
 
 	pic_init();
-	printf("[%i] [OK] pic_init\n", (int)ticks);
+	printf("[%u] [OK] pic_init\n", (unsigned int)ticks);
 
 	idt_install();
-	printf("[%i] [OK] idt_install\n", (int)ticks);
+	printf("[%u] [OK] idt_install\n", (unsigned int)ticks);
 
 	isr_init();
-	printf("[%i] [OK] isr_init\n", (int)ticks);
+	printf("[%u] [OK] isr_init\n", (unsigned int)ticks);
 
 	pit_init();
-	printf("[%i] [OK] pit_init\n", (int)ticks);
+	printf("[%u] [OK] pit_init\n", (unsigned int)ticks);
 
 	__asm__ __volatile__ ("sti");
-	printf("[%i] [OK] sti\n", (int)ticks);
+	printf("[%u] [OK] sti\n", (unsigned int)ticks);
 
 	if (mbi->flags && MULTIBOOT_INFO_MEMORY) {
-		printf("mem_lower: %ikb\n", mbi->mem_lower);
-		printf("mem_upper: %ikb\n", mbi->mem_upper);
+		printf("mem_lower: %ukb\n", mbi->mem_lower);
+		printf("mem_upper: %ukb\n", mbi->mem_upper);
 	} else {
 		printf("mem_* not provided by bootloader, kernel init impossible.!\n");
 		halt();
 	}
 
 	if (mbi->flags && MULTIBOOT_INFO_MODS) {
-		printf("[%i] %i modules\n", (int)ticks, mbi->mods_count);
+		printf("[%u] %u modules\n", (unsigned int)ticks, mbi->mods_count);
 		if (mbi->mods_count > 0) {
 			// we have modules
 			multiboot_module_t *mods = (multiboot_module_t *)mbi->mods_addr;
-			for (int i = 0; i < mbi->mods_count; i++) {
+			for (unsigned int i = 0; i < mbi->mods_count; i++) {
 				printf("mods[%i].mod_start: 0x%x\n", i, mods[i].mod_start);
 				printf("mods[%i].mod_end: 0x%x\n", i, mods[i].mod_end);
 				if (mods[i].cmdline != 0) {
@@ -116,7 +116,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	}
 
 	if (mbi->flags && MULTIBOOT_INFO_CMDLINE) {
-		printf("[%i] cmdline: '%s'\n", (int)ticks, (char *)mbi->cmdline);
+		printf("[%u] cmdline: '%s'\n", (unsigned int)ticks, (char *)mbi->cmdline);
 	}
 
 	pmm_init((void *)real_end, mbi->mem_lower*1024 + mbi->mem_upper*1024);
@@ -165,12 +165,13 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	printf("0x%x free blocks\n", pmm_count_free_blocks());
 
 	vmm_init();
+	printf("[%u] [OK] vmm_init\n", (unsigned int)ticks);
 
 
 	syscall_init();
 
 	vmm_enable();
-	printf("[%i] [OK] vmm_enable\n", (int)ticks);
+	printf("[%u] [OK] vmm_enable\n", (unsigned int)ticks);
 
 	puts("looping forever...\n");
 	for (;;) {
