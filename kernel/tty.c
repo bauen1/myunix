@@ -89,9 +89,3 @@ char tty_putc(char c) {
 	}
 	return c;
 }
-
-void tty_puts(const char *str) {
-	while (*str != 0) {
-		tty_putc(*str++);
-	}
-}

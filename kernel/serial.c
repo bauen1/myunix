@@ -47,10 +47,3 @@ void serial_putc(char c) {
 char serial_getc() {
 	return ringbuffer_read_byte(&serial_ringbuffer);
 }
-
-void serial_puts(const char *str) {
-	while (*str != 0) {
-		serial_putc(*str++);
-	}
-}
-

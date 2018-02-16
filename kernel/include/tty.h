@@ -16,6 +16,4 @@ void tty_move_cursor(unsigned int x, unsigned int y);
 
 char tty_putc(char c);
 
-void tty_puts(const char *str);
-
 #endif
