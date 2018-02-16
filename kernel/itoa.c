@@ -30,7 +30,8 @@ char * utoa(unsigned int value, char *str, int base, int width) {
 
 char * itoa(int num, char *str, int base, int width) {
 	if ((base == 10) && (num < 0)) {
-		return utoa((unsigned)-num, str, base, width);
+		str[0] = '-';
+		return utoa((unsigned)-num, str + 1, base, width);
 	} else {
 		return utoa((unsigned)num, str, base, width);
 	}

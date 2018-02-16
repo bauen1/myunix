@@ -65,8 +65,12 @@ void printf(const char *fmt, ...) {
 					itoa(va_arg(args, int), &buf[0], 10, width);
 					puts(buf);
 					break;
+				case 'u':
+					utoa(va_arg(args, unsigned int), &buf[0], 10, width);
+					puts(buf);
+					break;
 				case 'x':
-					itoa(va_arg(args, int), &buf[0], 16, width);
+					utoa(va_arg(args, unsigned int), &buf[0], 16, width);
 					puts(buf);
 					break;
 				default:
