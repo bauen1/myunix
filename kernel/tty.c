@@ -19,6 +19,8 @@ void tty_init(uintptr_t vmem_ptr, uint32_t w, uint32_t h, uint32_t fb_bpp, uint3
 	vmem = (void *)vmem_ptr;
 
 	assert(fb_bpp == 0x10);
+	assert(width > 0);
+	assert(height > 0);
 
 	tty_clear_screen();
 	printf("tty framebuffer:\n");
@@ -54,7 +56,7 @@ static void tty_copy_line(unsigned int s, unsigned int d) {
 }
 
 static void tty_scroll() {
-	for (unsigned int y = 0; y < (height-1); y++) {
+	for (unsigned int y = 0; y < (unsigned int)(height-1); y++) {
 		tty_copy_line(y + 1, y);
 	}
 
@@ -81,8 +83,6 @@ void tty_putc(char c) {
 
 	assert(cursor_x < width);
 	assert(cursor_y < height);
-	unsigned short old_x = cursor_x;
-	unsigned short old_y = cursor_y;
 
 	if ((c == '\b') && (cursor_x > 0)) {
 		cursor_x -= 1;
