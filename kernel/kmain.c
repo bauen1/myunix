@@ -52,7 +52,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 				mbi->framebuffer_blue_field_position,
 				mbi->framebuffer_blue_mask_size);
 		} else if (mbi->framebuffer_type == MULTIBOOT_FRAMEBUFFER_TYPE_INDEXED) {
-			printf("indexed framebuffer, no supporting driver, trying tty anyway.\n"
+			printf("indexed framebuffer, no supporting driver, trying tty anyway.\n");
 			// try to init anyway
 			tty_init((uintptr_t)mbi->framebuffer_addr, mbi->framebuffer_width, mbi->framebuffer_height, mbi->framebuffer_pitch, mbi->framebuffer_bpp);
 			printf("indexed framebuffer\n");
