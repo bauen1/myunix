@@ -133,12 +133,30 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 			// we have modules
 			multiboot_module_t *mods = (multiboot_module_t *)mbi->mods_addr;
 			for (unsigned int i = 0; i < mbi->mods_count; i++) {
-				printf("mods[%i].mod_start: 0x%x\n", i, mods[i].mod_start);
-				printf("mods[%i].mod_end: 0x%x\n", i, mods[i].mod_end);
+				uintptr_t mod_start = mods[i].mod_start;
+				uintptr_t mod_end = mods[i].mod_end;
+
+				printf("mods[%u].mod_start: 0x%x\n", i, mods[i].mod_start);
+				printf("mods[%u].mod_end: 0x%x\n", i, mods[i].mod_end);
 				if (mods[i].cmdline != 0) {
-					printf("mods[%i].cmdline: '%s'\n", i, (char *)mods[i].cmdline);
+					printf("mods[%u].cmdline: '%s'\n", i, (char *)mods[i].cmdline);
 				}
-				printf("mods[%i].mod_add: 0x%x\n", i, mods[i].pad);
+				printf("mods[%u].mod_add: 0x%x\n", i, mods[i].pad);
+
+				/* some sanity checks */
+				assert(mod_start < mod_end);
+				if (mod_start == mod_end) {
+					printf("WARNING: module size = 0\n");
+				}
+
+				if (((uintptr_t)&mods[i] + sizeof(multiboot_module_t)) > real_end) {
+					/* apparently some bootloaders like to put this behind the module */
+					real_end = (uintptr_t)&mods[i] + sizeof(multiboot_module_t);
+				}
+
+				if (mod_end > real_end) {
+					real_end = mod_end;
+				}
 			}
 		}
 	}
@@ -146,6 +164,9 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	if (mbi->flags && MULTIBOOT_INFO_CMDLINE) {
 		printf("[%u] cmdline: '%s'\n", (unsigned int)ticks, (char *)mbi->cmdline);
 	}
+
+	printf("kernel mem starts at:      0x%x\n", (uintptr_t)&_start);
+	printf("kernel mem really ends at: 0x%x\n", real_end);
 
 	pmm_init((void *)real_end, mbi->mem_lower*1024 + mbi->mem_upper*1024);
 	printf("[%u] [OK] pmm_init\n", (unsigned int)ticks);
