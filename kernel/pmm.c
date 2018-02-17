@@ -107,7 +107,7 @@ void pmm_free_blocks(void *p, size_t size) {
 uint32_t pmm_count_free_blocks() {
 	uint32_t count = 0;
 	for (uint32_t i = 0; i <= block_map_size; i++) {
-		if (! pmm_test_block(i * 0x1000)) {
+		if (! pmm_test_block(i)) {
 			count++;
 		}
 	}
