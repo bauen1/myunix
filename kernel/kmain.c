@@ -21,8 +21,9 @@
 #include <tty.h>
 #include <vmm.h>
 
+/* main kernel entry point */
 void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
-	(void)esp;
+	(void)esp; /* unused, temporary stack */
 
 	uintptr_t real_end = (uintptr_t)&_end;
 
@@ -38,10 +39,6 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 				mbi->framebuffer_height,
 				mbi->framebuffer_pitch,
 				mbi->framebuffer_bpp);
-			printf("tty framebuffer:\n");
-			printf(" width: %u height: %u\n", mbi->framebuffer_width, mbi->framebuffer_height);
-			printf(" framebuffer_bpp: 0x%x\n", mbi->framebuffer_bpp);
-			printf(" bytes per text line: 0x%x\n", mbi->framebuffer_pitch);
 		} else if (mbi->framebuffer_type == MULTIBOOT_FRAMEBUFFER_TYPE_RGB) {
 			framebuffer_init((uintptr_t)mbi->framebuffer_addr,
 				mbi->framebuffer_pitch,
@@ -54,15 +51,12 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 				mbi->framebuffer_green_mask_size,
 				mbi->framebuffer_blue_field_position,
 				mbi->framebuffer_blue_mask_size);
-			printf("VESA framebuffer\n");
-			printf(" addr: 0x%x%08x\n", (uint32_t)(mbi->framebuffer_addr >> 32), (uint32_t)mbi->framebuffer_addr);
-			printf(" pitch: 0x%x\n", (uint32_t)mbi->framebuffer_pitch);
-			printf(" width: 0x%x\n", (uint32_t)mbi->framebuffer_width);
-			printf(" height: 0x%x\n", (uint32_t)mbi->framebuffer_height);
-			printf(" bpp: 0x%x\n", (uint32_t)mbi->framebuffer_bpp);
 		} else if (mbi->framebuffer_type == MULTIBOOT_FRAMEBUFFER_TYPE_INDEXED) {
-			printf("indexed framebuferr!!!!\n");
-			halt();
+			printf("indexed framebuffer, no supporting driver, trying tty anyway.\n"
+			// try to init anyway
+			tty_init((uintptr_t)mbi->framebuffer_addr, mbi->framebuffer_width, mbi->framebuffer_height, mbi->framebuffer_pitch, mbi->framebuffer_bpp);
+			printf("indexed framebuffer\n");
+			printf(" addr: 0x%x%08x\n", (uint32_t)(mbi->framebuffer_addr >> 32), (uint32_t)(mbi->framebuffer_addr && 0xFFFFFFFF));
 		} else {
 			printf("unknown framebuffer type: 0x%x\n", mbi->framebuffer_type);
 			halt();

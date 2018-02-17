@@ -1,6 +1,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <console.h>
 #include <cpu.h>
 #include <tty.h>
 
@@ -16,6 +17,12 @@ void tty_init(uintptr_t vmem_ptr, uint32_t w, uint32_t h, uint32_t bpp, uint32_t
 	bytes_per_line = pitch;
 	vmem = (void *)vmem_ptr;
 	tty_clear_screen();
+
+	printf("tty framebuffer:\n");
+	printf(" addr: 0x%x\n", vmem_ptr);
+	printf(" width: %u height: %u\n", w, h);
+	printf(" framebuffer_bpp: 0x%x\n", bpp);
+	printf(" bytes per text line: 0x%x\n", pitch);
 }
 
 static void tty_update_cursor() {

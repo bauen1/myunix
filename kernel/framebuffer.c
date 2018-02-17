@@ -128,4 +128,19 @@ void framebuffer_init(uintptr_t fb_addr, uint32_t fb_pitch, uint32_t fb_width,
 			framebuffer_setpixel(x, y, 0xDE);
 		}
 	}
+
+	printf("VESA framebuffer\n");
+	printf(" addr: 0x%x\n", fb_addr);
+	printf(" pitch: 0x%x\n", fb_pitch);
+	printf(" width: 0x%x\n", fb_width);
+	printf(" height: 0x%x\n", fb_height);
+	printf(" bpp: 0x%x\n", fb_bpp);
+
+	printf(" red_field_position: 0x%x\n", fb_red_fp);
+	printf(" red_mask_size: 0x%x\n", fb_red_ms);
+	printf(" green_field_position: 0x%x\n", fb_green_fp);
+	printf(" green_mask_size: 0x%x\n", fb_green_ms);
+	printf(" blue_field_position: 0x%x\n", fb_blue_fp);
+	printf(" blue_mask_size: 0x%x\n", fb_blue_ms);
+	printf("\n");
 }
