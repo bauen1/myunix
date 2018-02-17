@@ -1,13 +1,15 @@
 #ifndef BOOT_H
 #define BOOT_H 1
 
-extern void *_start;
-extern void *__text_start;
-extern void *__text_end;
-extern void *__data_start;
-extern void *__data_end;
-extern void *__bss_start;
-extern void *__bss_end;
+extern void *_start; /* start of kernel / .text */
+#define __text_start _start
+extern void *_etext; /* end of .text */
+#define __text_end _etext
+#define __data_start _etext
+extern void *_edata;
+#define __data_end _edata
+#define __bss_start _edata
+#define __bss_end _end
 extern void *_end;
 
 extern const uintptr_t __stack_chk_guard;
