@@ -26,6 +26,8 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	(void)esp; /* unused, temporary stack */
 
 	uintptr_t real_end = (uintptr_t)&_end;
+	uintptr_t fb_start = 0;
+	uintptr_t fb_size = 0;
 
 	assert(eax == MULTIBOOT_BOOTLOADER_MAGIC);
 
@@ -34,12 +36,16 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 
 	if ((mbi->flags && MULTIBOOT_INFO_FRAMEBUFFER_INFO) && (mbi->framebuffer_addr != 0)) {
 		if (mbi->framebuffer_type == MULTIBOOT_FRAMEBUFFER_TYPE_EGA_TEXT) {
+			fb_start = mbi->framebuffer_addr;
+			fb_size = (mbi->framebuffer_height + 1) * mbi->framebuffer_pitch;
 			tty_init((uintptr_t)mbi->framebuffer_addr,
 				mbi->framebuffer_width,
 				mbi->framebuffer_height,
 				mbi->framebuffer_pitch,
 				mbi->framebuffer_bpp);
 		} else if (mbi->framebuffer_type == MULTIBOOT_FRAMEBUFFER_TYPE_RGB) {
+			fb_start = mbi->framebuffer_addr;
+			fb_size = (mbi->framebuffer_height + 1) * mbi->framebuffer_pitch;
 			framebuffer_init((uintptr_t)mbi->framebuffer_addr,
 				mbi->framebuffer_pitch,
 				mbi->framebuffer_width,
@@ -52,6 +58,8 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 				mbi->framebuffer_blue_field_position,
 				mbi->framebuffer_blue_mask_size);
 		} else if (mbi->framebuffer_type == MULTIBOOT_FRAMEBUFFER_TYPE_INDEXED) {
+			fb_start = mbi->framebuffer_addr;
+			fb_size = (mbi->framebuffer_height + 1) * mbi->framebuffer_pitch;
 			printf("indexed framebuffer, no supporting driver, trying tty anyway.\n");
 			// try to init anyway
 			tty_init((uintptr_t)mbi->framebuffer_addr, mbi->framebuffer_width, mbi->framebuffer_height, mbi->framebuffer_pitch, mbi->framebuffer_bpp);
@@ -62,7 +70,13 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 			halt();
 		}
 	} else {
-		tty_init((uintptr_t)0xb8000, 80, 25, 16, 80*2);
+		fb_start = TTY_DEFAULT_VMEM_ADDR;
+		fb_size = TTY_DEFAULT_HEIGHT * 2 * TTY_DEFAULT_WIDTH;
+		tty_init((uintptr_t)fb_start,
+			TTY_DEFAULT_WIDTH,
+			TTY_DEFAULT_HEIGHT,
+			8 * 2,
+			TTY_DEFAULT_WIDTH * 2);
 		printf("no framebuffer found assuming default i386 vga text mode\n");
 	}
 
