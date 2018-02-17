@@ -19,6 +19,7 @@
 #include <pmm.h>
 #include <syscall.h>
 #include <tty.h>
+#include <usermode.h>
 #include <vmm.h>
 
 /* helper function */
@@ -280,6 +281,24 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	/* enable paging */
 	vmm_enable();
 	printf("[%u] [OK] vmm_enable\n", (unsigned int)ticks);
+
+	/* allocate kernel space and directly map it */
+	void *kernel_stack = pmm_alloc_blocks(4); // 16kb kernel stack
+	void *kernel_stack_top = (void *)((uintptr_t)kernel_stack + 4*BLOCK_SIZE);
+	printf("kernel stack: 0x%x - 0x%x\n", (uintptr_t)kernel_stack, (uintptr_t)kernel_stack_top);
+	map_pages(kernel_stack, kernel_stack_top, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "kernel stack");
+
+	tss_set_kstack((uintptr_t)&kernel_stack_top);
+
+	void *user_stack = pmm_alloc_blocks(4); // 16kb stack
+	void *user_stack_top = (void *)((uintptr_t)user_stack + 4 * BLOCK_SIZE);
+	printf("userspace stack: 0x%x - 0x%x\n", (uintptr_t)user_stack, (uintptr_t)user_stack_top);
+	map_pages(user_stack, user_stack_top, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE | PAGE_TABLE_USER, "userstack");
+
+	printf("map_page(0x%x, 0x%x, PWU)\n", __hello_userspace, __hello_userspace);
+	map_page(__hello_userspace, __hello_userspace, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE | PAGE_TABLE_USER);
+
+	__jump_to_userspace(user_stack_top, __hello_userspace);
 
 	puts("looping forever...\n");
 	for (;;) {
