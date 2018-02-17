@@ -103,6 +103,19 @@ kernel.sym: kernel.elf
 kernel.bin: kernel.elf
 	$(OBJCOPY) --strip-debug $^ $@
 
+iso/kernel.bin: kernel.bin
+	cp $< $@
+
+iso/grub_eltorito.iso: iso/grub/grub.cfg iso/kernel.bin iso/
+	grub-mkimage -c iso/grub/grub.cfg -v -p \(cd\)/grub/ -o $@ -O i386-pc-eltorito biosdisk iso9660 part_msdos multiboot boot echo normal
+
+iso/grub_iso.iso: iso/grub_eltorito.iso iso
+	rm -f $@
+	xorriso -as mkisofs -o $@ -b grub_eltorito.iso -r iso -no-emul-boot -boot-info-table
+
+.PHONY: iso
+iso: iso/grub_iso.iso
+
 # virtual machine targets
 
 ifeq ("$(TARGET_ARCH)","i686")
@@ -113,30 +126,31 @@ endif
 
 QEMUFLAGS?=-serial stdio -no-shutdown -no-reboot $(ARCH_QEMUFLAGS) $(EXTRA_QEMUFLAGS)
 
-iso/kernel.bin: kernel.bin
-	cp $< $@
-
-iso/grub_eltorito.iso: iso/grub/grub.cfg iso/kernel.bin iso/
-	grub-mkimage -c iso/grub/grub.cfg -v -p \(cd\)/grub/ -o $@ -O i386-pc-eltorito biosdisk iso9660 part_msdos fat ext2 multiboot boot normal help all_video echo serial
-
-iso/grub_iso.iso: iso/grub_eltorito.iso iso
-	rm -f $@
-	xorriso -as mkisofs -o $@ -b grub_eltorito.iso -r iso -no-emul-boot -boot-info-table
-
 .PHONY: run-grub
 run-grub: iso/grub_iso.iso
 	$(QEMU) $(QEMUFLAGS) -cdrom $<
 
-.PHONY: run
-run: kernel
+.PHONY: run-qemu
+run-qemu: kernel.bin
 	$(QEMU) $(QEMUFLAGS) -kernel kernel.bin
 
-.PHONY: debug-run
-debug-run: kernel
+.PHONY: run-debug
+run-debug: kernel.bin
 	$(QEMU) $(QEMUFLAGS) -s -S -kernel kernel.bin
+
+.PHONY: run
+run: run-qemu
 
 .PHONY: gdb
 gdb: kernel.elf .gdbinit
 	gdb kernel.elf -e .gdbinit
+
+# tests
+
+.PHONY: cppcheck-tcc
+cppcheck-tcc:
+	cppcheck --enable=all $(CPPFLAGS) $(wildcard *.c) $(widlcard $(ARCHDIR)/*.c) -I ../toolchain/opt/lib/tcc/include $(EXTRA_CPPCHECKFLAGS)
+
+#
 
 -include $(DEPS)
