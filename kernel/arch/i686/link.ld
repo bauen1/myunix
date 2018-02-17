@@ -12,12 +12,6 @@ SECTIONS
 	. = ALIGN(4K);
 	__text_end = .;
 
-	__rodata_start = .;
-	.rodata : { /* read-only data */
-		*(.rodata)
-	}
-	. = ALIGN(4K);
-	__rodata_end = .;
 
 	__data_start = .;
 	.data : { /* read-write data */

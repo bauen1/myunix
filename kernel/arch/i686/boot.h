@@ -4,8 +4,6 @@
 extern void *_start;
 extern void *__text_start;
 extern void *__text_end;
-extern void *__rodata_start;
-extern void *__rodata_end;
 extern void *__data_start;
 extern void *__data_end;
 extern void *__bss_start;

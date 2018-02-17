@@ -44,7 +44,7 @@ _entry:
 	mov esp, stack.top
 	push DWORD 0
 	popf
-	push esp
+	push stack.top
 	push eax
 	push ebx
 	call kmain
@@ -59,7 +59,6 @@ _halt:
 	jmp .loop
 .end:
 
-section .rodata
 global __stack_chk_guard:data (__stack_chk_guard.end - __stack_chk_guard)
 __stack_chk_guard:
 	dd 0x0a0dFF00
