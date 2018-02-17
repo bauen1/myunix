@@ -32,7 +32,7 @@ mboot_hdr:
 	dd 0 ; dd _entry
 
 	; graphics field
-	dd 1
+	dd 0
 	dd 0
 	dd 0
 	dd 0
