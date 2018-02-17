@@ -133,24 +133,37 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 				);
 			if (mmap->type == MULTIBOOT_MEMORY_AVAILABLE) {
 				printf("available\n");
-				for (uintptr_t i = 0; i < mmap->len; i += 0x1000) {
-					pmm_unset_block(mmap->addr + i);
+				for (uintptr_t i = 0; i < mmap->len; i += BLOCK_SIZE) {
+					pmm_unset_block((mmap->addr + i) / BLOCK_SIZE);
 				}
 			} else if (mmap->type == MULTIBOOT_MEMORY_RESERVED) {
 				printf("reserved\n");
-				for (uintptr_t i = 0; i < mmap->len; i += 0x1000) {
-					pmm_set_block(mmap->addr + i);
+				for (uintptr_t i = 0; i < mmap->len; i += BLOCK_SIZE) {
+					pmm_set_block((mmap->addr + i) / BLOCK_SIZE);
 				}
 			} else if (mmap->type == 0x03) {
 				printf("acpi reclaimable\n");
+				for (uintptr_t i = 0; i < mmap->len; i += BLOCK_SIZE) {
+					pmm_set_block((mmap->addr + i) / BLOCK_SIZE);
+				}
 			} else if (mmap->type == 0x04) {
 				printf("nvs\n");
+				for (uintptr_t i = 0; i < mmap->len; i += BLOCK_SIZE) {
+					pmm_set_block((mmap->addr + i) / BLOCK_SIZE);
+				}
 			} else if (mmap->type == 0x05) {
 				printf("bad ram\n");
+				for (uintptr_t i = 0; i < mmap->len; i += BLOCK_SIZE) {
+					pmm_set_block((mmap->addr + i) / BLOCK_SIZE);
+				}
 			} else if (mmap->type == 0) {
+				/* something went wrong */
 				break;
 			} else {
-				printf("type: 0x%x\n", mmap->type);
+				printf("unknown (type: 0x%x)\n", mmap->type);
+				for (uintptr_t i = 0; i < mmap->len; i += BLOCK_SIZE) {
+					pmm_set_block((mmap->addr + i) / BLOCK_SIZE);
+				}
 			}
 		}
 	}
@@ -159,14 +172,16 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 
 	// mark the kernel as used
 	for (uintptr_t i = (uintptr_t)&_start & 0xFFFFF000; i < (uintptr_t)&real_end; i += 0x1000) {
-		pmm_set_block(i);
+		pmm_set_block((i)/BLOCK_SIZE);
 	}
 
-	printf("0x%x free blocks\n", pmm_count_free_blocks());
+	printf("after marking kernel 0x%x free blocks\n", pmm_count_free_blocks());
 
 	vmm_init();
 	printf("[%u] [OK] vmm_init\n", (unsigned int)ticks);
 
+	/* block zero is for special purpose */
+	pmm_set_block(0);
 
 	syscall_init();
 
