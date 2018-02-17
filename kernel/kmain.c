@@ -80,6 +80,26 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 		printf("no framebuffer found assuming default i386 vga text mode\n");
 	}
 
+	printf("mbi->flags: 0x%x\n", (uint32_t)mbi->flags);
+
+	if (mbi->flags && MULTIBOOT_INFO_BOOT_LOADER_NAME) {
+		printf("mbi->boot_loader_name: '%s'\n", (char *)mbi->boot_loader_name);
+	}
+
+	if (mbi->flags && MULTIBOOT_INFO_ELF_SHDR) {
+		printf("mbi->u.elf_sec.num: 0x%x\n", mbi->u.elf_sec.num);
+		printf("mbi->u.elf_sec.size: 0x%x\n", mbi->u.elf_sec.size);
+		printf("mbi->u.elf_sec.addr: 0x%x\n", mbi->u.elf_sec.addr);
+		printf("mbi->u.elf_sec.shndx: 0x%x\n", mbi->u.elf_sec.shndx);
+	}
+
+	if (mbi->flags && MULTIBOOT_INFO_VIDEO_INFO) {
+		printf("mbi->vbe_control_info: 0x%x\n", mbi->vbe_control_info);
+		printf("mbi->vbe_mode_info: 0x%x\n", mbi->vbe_mode_info);
+		printf("mbi->vbe_interface_seg: 0x%x\n", mbi->vbe_interface_seg);
+		printf("mbi->vbe_interface_off: 0x%x\n", mbi->vbe_interface_off);
+		printf("mbi->vbe_interface_len: 0x%x\n", mbi->vbe_interface_len);
+	}
 
 	gdt_init();
 	printf("[%u] [OK] gdt_init\n", (unsigned int)ticks);
@@ -128,6 +148,9 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	}
 
 	pmm_init((void *)real_end, mbi->mem_lower*1024 + mbi->mem_upper*1024);
+	printf("[%u] [OK] pmm_init\n", (unsigned int)ticks);
+	vmm_init();
+	printf("[%u] [OK] vmm_init\n", (unsigned int)ticks);
 
 	if (mbi->flags && MULTIBOOT_INFO_MEM_MAP) {
 		for (multiboot_memory_map_t *mmap = (multiboot_memory_map_t *)mbi->mmap_addr;
@@ -176,20 +199,19 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 		}
 	}
 
-	printf("0x%x free blocks\n", pmm_count_free_blocks());
+	/* block zero is for special purpose */
+	pmm_set_block(0);
+
+	printf("blocks: %u\n", pmm_count_free_blocks());
 
 	// mark the kernel as used
 	for (uintptr_t i = (uintptr_t)&_start & 0xFFFFF000; i < (uintptr_t)&real_end; i += 0x1000) {
 		pmm_set_block((i)/BLOCK_SIZE);
 	}
+	printf("free memory: %ukb\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
 
-	printf("after marking kernel 0x%x free blocks\n", pmm_count_free_blocks());
 
-	vmm_init();
-	printf("[%u] [OK] vmm_init\n", (unsigned int)ticks);
 
-	/* block zero is for special purpose */
-	pmm_set_block(0);
 
 	syscall_init();
 
