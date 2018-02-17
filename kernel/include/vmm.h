@@ -19,6 +19,11 @@
 #define PAGE_TABLE_ACCESSED 0x20
 #define PAGE_TABLE_DIRTY 0x40
 
+extern __attribute__((aligned(4096))) uint32_t page_directory[1024];
+extern __attribute__((aligned(4096))) uint32_t page_tables[1024][1024];
+
+void map_page(void *physaddr, void *virtaddr, uint16_t flags);
+
 void vmm_init();
 
 void vmm_enable();

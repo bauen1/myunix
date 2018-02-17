@@ -37,22 +37,11 @@ void vmm_init() {
 	isr_set_handler(14, page_fault);
 
 	for (int i = 0; i < 1024; i++) {
-		for (int j = 0; j < 1024; j++) {
-			page_tables[i][j] = ((uint32_t)((uint32_t)i * 1024 * 0x1000) + ((uint32_t)j * 0x1000)) | PAGE_DIRECTORY_PRESENT | PAGE_DIRECTORY_READWRITE;
-		}
-		page_directory[i] = ((uint32_t)page_tables[i]) | PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE;
+		page_directory[i] = ((uint32_t)page_tables[i]) | PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE | PAGE_TABLE_USER;
 	}
 
 	// catch NULL pointer derefrences
 	map_page((void *)0, (void *)0, 0);
-
-	// map the kernel
-	for (uintptr_t i = (uintptr_t)&_start & 0xFFFFF000; i < (uintptr_t)&_end; i += 0x1000) {
-		map_page((void *)i, (void *)i, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
-		if (i % 0x400000) {
-			page_directory[i >> 22] = ((uint32_t)page_tables[i >> 22]) | 3;
-		}
-	}
 }
 
 void vmm_enable() {

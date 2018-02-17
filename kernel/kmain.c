@@ -21,6 +21,23 @@
 #include <tty.h>
 #include <vmm.h>
 
+/* helper function */
+void map_pages(void *start, void *end, int flags, const char *name) {
+	if (name != NULL) {
+		if (((uintptr_t)end - (uintptr_t)start) > 0x8000) {
+			printf("%s: 0x%x - 0x%x => 0x%x - 0x%x flags: 0x%x\n", name, (uintptr_t)start, (uintptr_t)end, (uintptr_t)start, (uintptr_t)end, flags);
+		}
+	}
+	for (uintptr_t i = ((uintptr_t)start & 0xFFFFF000); i < (uintptr_t)end; i += 0x1000) {
+		if (name != NULL) {
+			if (((uintptr_t)end - (uintptr_t)start) <= 0x8000) {
+				printf("%s: 0x%x => 0x%x flags: 0x%x\n", name, i, i, flags);
+			}
+		}
+		map_page((void *)i, (void *)i, flags);
+	}
+}
+
 /* main kernel entry point */
 void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	(void)esp; /* unused, temporary stack */
@@ -115,6 +132,9 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 
 	pit_init();
 	printf("[%u] [OK] pit_init\n", (unsigned int)ticks);
+
+	syscall_init();
+	printf("[%u] [OK] syscall_init\n", (unsigned int)ticks);
 
 	__asm__ __volatile__ ("sti");
 	printf("[%u] [OK] sti\n", (unsigned int)ticks);
@@ -225,17 +245,39 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 
 	printf("blocks: %u\n", pmm_count_free_blocks());
 
-	// mark the kernel as used
+	// mark the kernel (and modules) as used
 	for (uintptr_t i = (uintptr_t)&_start & 0xFFFFF000; i < (uintptr_t)&real_end; i += 0x1000) {
 		pmm_set_block((i)/BLOCK_SIZE);
 	}
 	printf("free memory: %ukb\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
 
+	printf("pmm block_map: 0x%x - 0x%x\n", (uintptr_t)block_map, ((uintptr_t)block_map + block_map_size / 8));
 
+	for (uintptr_t i = (uintptr_t)block_map; i < (uintptr_t)((uintptr_t)block_map + block_map_size/8); i += BLOCK_SIZE) {
+		pmm_set_block(i);
+	}
 
+	map_pages((void *)block_map, (void *)((uintptr_t)block_map + block_map_size/8), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "pmm");
 
-	syscall_init();
+	/* map the code section read-only */
+	map_pages(&__text_start, &__text_end, PAGE_TABLE_PRESENT, ".text");
 
+	/* map the data section read-write */
+	map_pages(&__data_start, &__data_end, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, ".data");
+
+	/* map the bss section read-write */
+	// no debug
+	map_pages(&__bss_start, &__bss_end, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, ".bss");
+
+	/* map the framebuffer / textbuffer */
+	if ((fb_start != 0) && (fb_size != 0)) {
+		map_pages((void *)fb_start, (void *)(fb_start + fb_size), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "framebuffer");
+	}
+
+	/* directly map the pmm block map */
+	map_pages((void *)block_map, (void *)(block_map[block_map_size] + BLOCK_SIZE - 1), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "pmm");
+
+	/* enable paging */
 	vmm_enable();
 	printf("[%u] [OK] vmm_enable\n", (unsigned int)ticks);
 

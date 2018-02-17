@@ -7,8 +7,9 @@
 #include <pmm.h>
 #include <string.h>
 
-static uint32_t *block_map;
-static uint32_t block_map_size;
+uint32_t *block_map;
+uint32_t block_map_size;
+static uint32_t block_map_last;
 
 /* mark block block as used */
 inline void pmm_set_block(uintptr_t block) {
@@ -117,6 +118,7 @@ uint32_t pmm_count_free_blocks() {
 void pmm_init(void *mem_map, size_t mem_size) {
 	block_map_size = mem_size / BLOCK_SIZE;
 	block_map = (uint32_t *)mem_map;
+	block_map_last = 0;
 	printf("pmm_init at 0x%x with size 0x%x\n", (uint32_t)block_map, (uint32_t)block_map_size);
 
 	memset(block_map, 0xFF, block_map_size);
