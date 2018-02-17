@@ -11,7 +11,7 @@ CFLAGS?=-O2 -g
 CPPFLAGS?=
 LDFLAGS?=-g
 LIBS?=
-ASFLAGS?=
+ASFLAGS?=-g
 
 DESTDIR?=
 PREFIX?=/usr/local
