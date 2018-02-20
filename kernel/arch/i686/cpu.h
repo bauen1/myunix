@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 typedef struct registers {
+	uint32_t old_directory __attribute__((packed));
 	uint32_t gs __attribute__((packed));
 	uint32_t fs __attribute__((packed));
 	uint32_t es __attribute__((packed));

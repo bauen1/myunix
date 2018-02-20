@@ -1,3 +1,5 @@
+extern page_directory
+
 extern handle_isr
 
 isr_common_stub:
@@ -7,6 +9,12 @@ isr_common_stub:
 	push es
 	push fs
 	push gs
+
+	mov eax, cr3 ; save the page directory
+	push eax
+	mov eax, DWORD page_directory
+	mov cr3, eax
+
 	mov ax, 0x10        ; kernel data segment gdt index
 	mov ds, ax
 	mov es, ax
@@ -17,6 +25,9 @@ isr_common_stub:
 	push esp            ; our argument is a pointer to the stacks top
 	call handle_isr
 	mov esp, eax
+
+	pop eax ; restore the page directory
+	mov cr3, eax
 
 	pop gs
 	pop fs
