@@ -314,9 +314,12 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	map_pages(user_stack, user_stack_top, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE | PAGE_TABLE_USER, "userstack");
 
 	printf("map_page(0x%x, 0x%x, PWU)\n", __hello_userspace, __hello_userspace);
-	map_page(__hello_userspace, __hello_userspace, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE | PAGE_TABLE_USER);
+	map_page(get_table((uintptr_t)__hello_userspace, kernel_directory),
+		(uintptr_t)__hello_userspace,
+		(uintptr_t)__hello_userspace,
+		PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE | PAGE_TABLE_USER);
 
-	__jump_to_userspace(user_stack_top, __hello_userspace);
+	__jump_to_userspace(user_stack_top, __hello_userspace, kernel_directory);
 
 	puts("looping forever...\n");
 	for (;;) {
