@@ -21,8 +21,10 @@
 #include <tty.h>
 #include <usermode.h>
 #include <vmm.h>
+#include <string.h>
 
 /* helper function */
+// directly maps from including start to end
 void map_pages(void *start, void *end, int flags, const char *name) {
 	if (name != NULL) {
 		if (((uintptr_t)end - (uintptr_t)start) > 0x8000) {
@@ -31,12 +33,19 @@ void map_pages(void *start, void *end, int flags, const char *name) {
 	}
 	for (uintptr_t i = ((uintptr_t)start & 0xFFFFF000); i < (uintptr_t)end; i += 0x1000) {
 		if (name != NULL) {
-			if (((uintptr_t)end - (uintptr_t)start) <= 0x8000) {
+			if (!(((uintptr_t)end - (uintptr_t)start) > 0x8000)) {
 				printf("%s: 0x%x => 0x%x flags: 0x%x\n", name, i, i, flags);
 			}
 		}
-		map_page((void *)i, (void *)i, flags);
+		map_page(get_table(i, kernel_directory), i, i, flags);
 	}
+}
+
+void *safe_pmm_alloc_blocks(size_t size) {
+	void *v = pmm_alloc_blocks(size);
+	assert((uintptr_t)v != 0);
+	printf("safe_pmm_alloc_blocks(%u): 0x%x\n", size, (uintptr_t)v);
+	return v;
 }
 
 /* main kernel entry point */
@@ -189,10 +198,10 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	printf("kernel mem starts at:      0x%x\n", (uintptr_t)&_start);
 	printf("kernel mem really ends at: 0x%x\n", real_end);
 
+	real_end = (real_end+0xFFF) & 0xFFFFF000;
+
 	pmm_init((void *)real_end, mbi->mem_lower*1024 + mbi->mem_upper*1024);
 	printf("[%u] [OK] pmm_init\n", (unsigned int)ticks);
-	vmm_init();
-	printf("[%u] [OK] vmm_init\n", (unsigned int)ticks);
 
 	if (mbi->flags && MULTIBOOT_INFO_MEM_MAP) {
 		for (multiboot_memory_map_t *mmap = (multiboot_memory_map_t *)mbi->mmap_addr;
@@ -241,9 +250,6 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 		}
 	}
 
-	/* block zero is for special purpose */
-	pmm_set_block(0);
-
 	printf("blocks: %u\n", pmm_count_free_blocks());
 
 	// mark the kernel (and modules) as used
@@ -258,7 +264,13 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 		pmm_set_block(i);
 	}
 
-	map_pages((void *)block_map, (void *)((uintptr_t)block_map + block_map_size/8), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "pmm");
+	// special purpose
+	pmm_set_block(0);
+
+	// you can use pmm_alloc_* atfer here
+
+	vmm_init();
+	printf("[%u] [OK] vmm_init\n", (unsigned int)ticks);
 
 	/* map the code section read-only */
 	map_pages(&__text_start, &__text_end, PAGE_TABLE_PRESENT, ".text");
@@ -267,29 +279,35 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	map_pages(&__data_start, &__data_end, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, ".data");
 
 	/* map the bss section read-write */
-	// no debug
 	map_pages(&__bss_start, &__bss_end, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, ".bss");
+
+	/* directly map the pmm block map */
+//	map_pages((void *)block_map, (void *)((uintptr_t)block_map + block_map_size/8), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "pmm");
+	for (uintptr_t i = 0; i < block_map_size/8; i += BLOCK_SIZE) {
+		uintptr_t virtaddr = (uintptr_t)(block_map + i);
+		printf("  i: 0x%x\n", i);
+		map_page(get_table(virtaddr, kernel_directory), virtaddr, virtaddr, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
+	}
 
 	/* map the framebuffer / textbuffer */
 	if ((fb_start != 0) && (fb_size != 0)) {
 		map_pages((void *)fb_start, (void *)(fb_start + fb_size), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "framebuffer");
 	}
 
-	/* directly map the pmm block map */
-	map_pages((void *)block_map, (void *)(block_map[block_map_size] + BLOCK_SIZE - 1), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "pmm");
 
 	/* enable paging */
 	vmm_enable();
 	printf("[%u] [OK] vmm_enable\n", (unsigned int)ticks);
 
 	/* allocate kernel space and directly map it */
-	void *kernel_stack = pmm_alloc_blocks(4); // 16kb kernel stack
-	void *kernel_stack_top = (void *)((uintptr_t)kernel_stack + 4*BLOCK_SIZE);
-	printf("kernel stack: 0x%x - 0x%x\n", (uintptr_t)kernel_stack, (uintptr_t)kernel_stack_top);
-	map_pages(kernel_stack, kernel_stack_top, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "kernel stack");
+	uintptr_t kernel_stack = (uintptr_t)safe_pmm_alloc_blocks(1);
+	uintptr_t kernel_stack_top = kernel_stack + 1*BLOCK_SIZE;
+	printf("kernel_stack: 0x%x - 0x%x\n", kernel_stack, kernel_stack_top);
+	map_pages((void *)kernel_stack, (void *)kernel_stack_top, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "kstack");
+	tss_set_kstack(kernel_stack_top + 1 - 16);
 
-	tss_set_kstack((uintptr_t)&kernel_stack_top);
 
+	printf("allocating & mapping userspace stack");
 	void *user_stack = pmm_alloc_blocks(4); // 16kb stack
 	void *user_stack_top = (void *)((uintptr_t)user_stack + 4 * BLOCK_SIZE);
 	printf("userspace stack: 0x%x - 0x%x\n", (uintptr_t)user_stack, (uintptr_t)user_stack_top);

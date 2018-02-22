@@ -1,4 +1,4 @@
-extern page_directory
+extern kernel_directory
 
 extern handle_isr
 
@@ -12,7 +12,7 @@ isr_common_stub:
 
 	mov eax, cr3 ; save the page directory
 	push eax
-	mov eax, DWORD page_directory
+	mov eax, DWORD kernel_directory
 	mov cr3, eax
 
 	mov ax, 0x10        ; kernel data segment gdt index

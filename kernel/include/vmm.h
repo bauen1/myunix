@@ -2,6 +2,7 @@
 #define VMM_H 1
 
 #include <stdint.h>
+#include <stddef.h>
 
 #define PAGE_DIRECTORY_PRESENT 0x01
 #define PAGE_DIRECTORY_READWRITE 0x02
@@ -19,10 +20,11 @@
 #define PAGE_TABLE_ACCESSED 0x20
 #define PAGE_TABLE_DIRTY 0x40
 
-extern __attribute__((aligned(4096))) uint32_t page_directory[1024];
-extern __attribute__((aligned(4096))) uint32_t page_tables[1024][1024];
+extern __attribute__((aligned(4096))) uint32_t kernel_directory[1024];
+extern __attribute__((aligned(4096))) uint32_t kernel_tables[1024][1024];
 
-void map_page(void *physaddr, void *virtaddr, uint16_t flags);
+uint32_t *get_table(uintptr_t virtaddr, uint32_t *directory);
+void map_page(uint32_t *table, uintptr_t virtaddr, uintptr_t physaddr, uint16_t flags);
 
 void vmm_init();
 

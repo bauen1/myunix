@@ -9,6 +9,8 @@ __jump_to_userspace:
 
 	mov eax, [esp + 4] ; stack ptr
 	mov ebx, [esp + 8] ; function ptr
+	mov ecx, [esp + 12] ; directory
+	mov cr3, ecx
 
 	mov esp, eax
 
