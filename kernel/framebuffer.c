@@ -50,15 +50,9 @@ static void framebuffer_scroll() {
 	}
 
 	for (unsigned int x = 0; x < width; x++) {
-		framebuffer_setpixel(x, height - 0, 0);
-		framebuffer_setpixel(x, height - 1, 0);
-		framebuffer_setpixel(x, height - 2, 0);
-		framebuffer_setpixel(x, height - 3, 0);
-		framebuffer_setpixel(x, height - 4, 0);
-		framebuffer_setpixel(x, height - 5, 0);
-		framebuffer_setpixel(x, height - 6, 0);
-		framebuffer_setpixel(x, height - 7, 0);
-		framebuffer_setpixel(x, height - 8, 0);
+		for (unsigned int y = 0; y < 8; y++) {
+			framebuffer_setpixel(x, height - y - 1, 0);
+		}
 	}
 }
 
@@ -66,9 +60,6 @@ void framebuffer_putc(const char c) {
 	if (vmem == NULL) {
 		return;
 	}
-
-	unsigned int old_x = cursor_x;
-	unsigned int old_y = cursor_y;
 
 	if ((c == '\b') && (cursor_x > 0)) {
 		cursor_x--;
@@ -85,16 +76,14 @@ void framebuffer_putc(const char c) {
 		cursor_x++;
 	}
 
-	if ((old_x != cursor_x) || (old_y != cursor_y)) {
-		if (cursor_x >= (width / 8)) {
-			cursor_x = 0;
-		}
-		if (cursor_y >= (height / 8)) {
-			framebuffer_scroll();
-			cursor_x = 0;
-			cursor_y = (height / 8) - 1;
-		}
-		// framebuffer_update_cursor();
+	if (cursor_x >= (width / 8)) {
+		cursor_x = 0;
+		cursor_y += 1;
+	}
+	if (cursor_y >= (height / 8)) {
+		framebuffer_scroll();
+		cursor_x = 0;
+		cursor_y = (height / 8) - 1;
 	}
 
 }
@@ -107,12 +96,6 @@ void framebuffer_init(uintptr_t fb_addr, uint32_t fb_pitch, uint32_t fb_width,
 	width = fb_width;
 	height = fb_height;
 	bpp = fb_bpp;
-	(void)fb_red_fp;
-	(void)fb_red_ms;
-	(void)fb_green_fp;
-	(void)fb_green_ms;
-	(void)fb_blue_fp;
-	(void)fb_blue_ms;
 
 	if (bpp % 8 != 0) {
 		printf("unsupported bpp!\n");
