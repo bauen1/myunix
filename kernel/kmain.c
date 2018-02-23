@@ -291,7 +291,8 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 
 	/* map the framebuffer / textbuffer */
 	if ((fb_start != 0) && (fb_size != 0)) {
-		map_pages((void *)fb_start, (void *)(fb_start + fb_size), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "framebuffer");
+//		map_pages((void *)fb_start, (void *)(fb_start + fb_size), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "framebuffer");
+		map_pages((void *)fb_start, (void *)(fb_start + fb_size), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE | PAGE_TABLE_CACHE_DISABLE, "framebuffer");
 	}
 
 
