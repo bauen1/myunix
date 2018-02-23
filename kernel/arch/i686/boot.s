@@ -12,6 +12,7 @@ STACK_SIZE equ 32768 ; needs to be dividable by 16
 section .text
 bits 32
 ;extern __bss_start, __bss_end
+extern _end, _etext, _edata
 extern kmain
 global _start
 _start:
@@ -20,16 +21,24 @@ _start:
 
 align 4
 mboot_hdr:
+.magic:
 	dd MB_HDR_MAGIC
+.flags:
 	dd MB_HDR_FLAGS
+.checksum:
 	dd MB_HDR_CHECKSUM
 
 	; address field
-	dd 0 ; dd mboot_hdr
-	dd 0 ; dd _start
-	dd 0 ; dd __bss_start
-	dd 0 ; dd __bss_end
-	dd 0 ; dd _entry
+.header_addr:
+	dd mboot_hdr ; dd mboot_hdr
+.load_addr:
+	dd _start ; dd _start
+.load_end_addr:
+	dd _edata ; dd __data_end
+.bss_end_addr:
+	dd _end ; dd __bss_end
+.entry_addr:
+	dd _entry
 
 	; graphics field
 	dd 0
