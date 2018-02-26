@@ -17,23 +17,32 @@ cd toolchain
 mkdir -p src
 cd src
 
-if [ ! -f .downloaded ]; then
+if [ ! -f .downloaded_binutils ]; then
 	echo "Downloading binutils-$BINUTILS_VERSION"
 	wget ftp://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_VERSION.tar.xz
 	wget ftp://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_VERSION.tar.xz.sig
 	tar -xvf binutils-$BINUTILS_VERSION.tar.xz
+	touch .downloaded_binutils
+fi
+if [ ! -f .downloaded_gcc ]; then
 	echo "Downloading gcc-$GCC_VERSION"
 	wget ftp://ftp.gnu.org/gnu/gcc/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.xz
 	wget ftp://ftp.gnu.org/gnu/gcc/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.xz.sig
 	tar -xvf gcc-$GCC_VERSION.tar.xz
+	touch .downloaded_gcc
+fi
+if [ ! -f .downloaded_grub ]; then
 	echo "Downloading grub-$GRUB_VERSION"
 	wget ftp://ftp.gnu.org/gnu/grub/grub-$GRUB_VERSION.tar.xz
 	wget ftp://ftp.gnu.org/gnu/grub/grub-$GRUB_VERSION.tar.xz.sig
 	tar -xvf grub-$GRUB_VERSION.tar.xz
+	touch .downloaded_grub
+fi
+if [ ! -f .downloaded_tinycc ]; then
 	echo "Cloning tinycc"
 	test -d tinycc || git clone "http://repo.or.cz/tinycc.git"
 	git -C tinycc checkout $TINYCC_TAG
-	touch .downloaded
+	touch .downloaded_tinycc
 fi
 
 if [ ! -f .built_binutils ]; then

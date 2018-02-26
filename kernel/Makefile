@@ -97,11 +97,16 @@ kernel.elf: $(OBJS) $(ARCHDIR)/link.ld
 #kernel.elf: $(OBJS)
 #	$(LD) $(LDFLAGS) $(LIBS) -o $@ -nostdinc -Wl,--image-base=0x100000 -Wl,--section-alignment=0x1000 $(OBJS)
 
+# optional
 kernel.sym: kernel.elf
 	$(OBJCOPY) --only-keep-debug $^ $@
 
+# objcopy
 kernel.bin: kernel.elf
 	$(OBJCOPY) --strip-debug $^ $@
+# link again using tcc
+#kernel.bin: kernel.elf
+#	$(LD) $(LDFLAGS) $(LIBS) -nostdinc -Wl,--image-base=0x100000 -Wl,--section-alignment=0x1000 -Wl,--oformat=binary -o $@ $(OBJS)
 
 iso/kernel.bin: kernel.bin
 	cp $< $@
