@@ -13,6 +13,7 @@
 #include <gdt.h>
 #include <idt.h>
 #include <isr.h>
+#include <keyboard.h>
 #include <multiboot.h>
 #include <pic.h>
 #include <pit.h>
