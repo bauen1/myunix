@@ -4,6 +4,7 @@
 
 #include <framebuffer.h>
 #include <itoa.h>
+#include <keyboard.h>
 #include <serial.h>
 #include <tty.h>
 
@@ -12,6 +13,7 @@ void console_init() {
 }
 
 char getc() {
+	//char c = keyboard_getc();
 	char c = serial_getc();
 	if (c == '\r') {
 		return '\n';

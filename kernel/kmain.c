@@ -146,6 +146,9 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	syscall_init();
 	printf("[%u] [OK] syscall_init\n", (unsigned int)ticks);
 
+	keyboard_init();
+	printf("[%u] [OK] keyboard_init\n", (unsigned int)ticks);
+
 	__asm__ __volatile__ ("sti");
 	printf("[%u] [OK] sti\n", (unsigned int)ticks);
 
