@@ -105,6 +105,12 @@ void pmm_free_blocks(void *p, size_t size) {
 	}
 }
 
+void *pmm_alloc_blocks_safe(size_t size) {
+	void *v = pmm_alloc_blocks(size);
+	assert((uintptr_t)v != 0);
+	return v;
+}
+
 uint32_t pmm_count_free_blocks() {
 	uint32_t count = 0;
 	for (uint32_t i = 0; i <= block_map_size; i++) {

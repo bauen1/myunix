@@ -41,7 +41,7 @@ mboot_hdr:
 	dd _entry
 
 	; graphics field
-	dd 0
+	dd 0 ; 0 = graphics 1 = text mode
 	dd 0
 	dd 0
 	dd 0

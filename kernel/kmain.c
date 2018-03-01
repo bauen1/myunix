@@ -42,13 +42,6 @@ void map_pages(void *start, void *end, int flags, const char *name) {
 	}
 }
 
-void *safe_pmm_alloc_blocks(size_t size) {
-	void *v = pmm_alloc_blocks(size);
-	assert((uintptr_t)v != 0);
-	printf("safe_pmm_alloc_blocks(%u): 0x%x\n", size, (uintptr_t)v);
-	return v;
-}
-
 /* main kernel entry point */
 void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	(void)esp; /* unused, temporary stack */
@@ -296,7 +289,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	printf("[%u] [OK] vmm_enable\n", (unsigned int)ticks);
 
 	/* allocate kernel space and directly map it */
-	uintptr_t kernel_stack = (uintptr_t)safe_pmm_alloc_blocks(1);
+	uintptr_t kernel_stack = (uintptr_t)pmm_alloc_blocks_safe(1);
 	uintptr_t kernel_stack_top = kernel_stack + 1*BLOCK_SIZE;
 	printf("kernel_stack: 0x%x - 0x%x\n", kernel_stack, kernel_stack_top);
 	map_pages((void *)kernel_stack, (void *)kernel_stack_top, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "kstack");
