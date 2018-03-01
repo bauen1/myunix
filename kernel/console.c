@@ -13,8 +13,8 @@ void console_init() {
 }
 
 char getc() {
-	//char c = keyboard_getc();
-	char c = serial_getc();
+	char c = keyboard_getc();
+	//char c = serial_getc();
 	if (c == '\r') {
 		return '\n';
 	} else {
