@@ -1,3 +1,5 @@
+// TODO: dynamically allocate space for the kernel directory & tables
+// always keep ~32 pages preallocated and zeroed to avoid a loop-of-death
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -18,6 +20,24 @@ uint32_t *get_table(uintptr_t virtaddr, uint32_t *directory) {
 
 void map_page(uint32_t *table, uintptr_t virtaddr, uintptr_t physaddr, uint16_t flags) {
 	table[(uint32_t)virtaddr >> 12 & 0x3FF] = ((uint32_t)physaddr | flags);
+}
+
+/* helper function */
+// directly maps from including start to end
+void map_pages(void *start, void *end, int flags, const char *name) {
+	if (name != NULL) {
+		if (((uintptr_t)end - (uintptr_t)start) > 0x8000) {
+			printf("%s: 0x%x - 0x%x => 0x%x - 0x%x flags: 0x%x\n", name, (uintptr_t)start, (uintptr_t)end, (uintptr_t)start, (uintptr_t)end, flags);
+		}
+	}
+	for (uintptr_t i = ((uintptr_t)start & 0xFFFFF000); i < (uintptr_t)end; i += 0x1000) {
+		if (name != NULL) {
+			if (!(((uintptr_t)end - (uintptr_t)start) > 0x8000)) {
+				printf("%s: 0x%x => 0x%x flags: 0x%x\n", name, i, i, flags);
+			}
+		}
+		map_page(get_table(i, kernel_directory), i, i, flags);
+	}
 }
 
 void *page_fault(registers_t *regs) {
@@ -46,7 +66,7 @@ void vmm_init() {
 	}
 
 	// catch NULL pointer derefrences
-	map_page(get_table(0, kernel_directory), 0, 0, 0);
+	map_page(get_table_alloc(0, kernel_directory), 0, 0, 0);
 }
 
 void vmm_enable() {

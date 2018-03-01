@@ -26,6 +26,15 @@ extern __attribute__((aligned(4096))) uint32_t kernel_tables[1024][1024];
 uint32_t *get_table(uintptr_t virtaddr, uint32_t *directory);
 void map_page(uint32_t *table, uintptr_t virtaddr, uintptr_t physaddr, uint16_t flags);
 
+// directly map a range into the kernel directory
+void map_pages(void *start, void *end, int flags, const char *name);
+
+#define map_direct_kernel(v) ((void)map_page( \
+	get_table_alloc((uintptr_t)(v), kernel_directory), \
+	(uintptr_t)(v), \
+	(uintptr_t)(v), \
+	PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE))
+
 void vmm_init();
 
 void vmm_enable();

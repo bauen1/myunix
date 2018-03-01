@@ -24,24 +24,6 @@
 #include <vmm.h>
 #include <string.h>
 
-/* helper function */
-// directly maps from including start to end
-void map_pages(void *start, void *end, int flags, const char *name) {
-	if (name != NULL) {
-		if (((uintptr_t)end - (uintptr_t)start) > 0x8000) {
-			printf("%s: 0x%x - 0x%x => 0x%x - 0x%x flags: 0x%x\n", name, (uintptr_t)start, (uintptr_t)end, (uintptr_t)start, (uintptr_t)end, flags);
-		}
-	}
-	for (uintptr_t i = ((uintptr_t)start & 0xFFFFF000); i < (uintptr_t)end; i += 0x1000) {
-		if (name != NULL) {
-			if (!(((uintptr_t)end - (uintptr_t)start) > 0x8000)) {
-				printf("%s: 0x%x => 0x%x flags: 0x%x\n", name, i, i, flags);
-			}
-		}
-		map_page(get_table(i, kernel_directory), i, i, flags);
-	}
-}
-
 /* main kernel entry point */
 void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	(void)esp; /* unused, temporary stack */
