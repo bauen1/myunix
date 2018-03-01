@@ -180,6 +180,10 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	printf("kernel mem really ends at:     0x%x\n", real_end);
 
 	real_end = (real_end+0xFFF) & 0xFFFFF000;
+	printf("kernel mem really ends at (2): 0x%x\n", real_end);
+
+	// TODO: calulate the highest end of free memory and pass it to pmm_init instead of mem_lower and mem_upper
+
 
 	pmm_init((void *)real_end, 1024*1024 + mbi->mem_upper*1024);
 	printf("[%u] [OK] pmm_init\n", (unsigned int)ticks);
@@ -236,6 +240,50 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 
 	// special purpose
 	pmm_set_block(0);
+
+	// TODO: copy everything of intrest out of the multiboot info to a known, safe location
+
+	printf("set 0x%x: multiboot info\n", (uintptr_t)mbi);
+	pmm_set_block(((uintptr_t)mbi)/BLOCK_SIZE);
+	if (mbi->flags && MULTIBOOT_INFO_CMDLINE) {
+		for (uintptr_t i = (uintptr_t)mbi->cmdline;
+			i < ((uintptr_t)mbi->cmdline + (uintptr_t)strlen((char *)mbi->cmdline));
+			i += BLOCK_SIZE) {
+			printf("set 0x%x: cmdline\n", i);
+			pmm_set_block(i / BLOCK_SIZE);
+		}
+	}
+	if (mbi->flags && MULTIBOOT_INFO_MODS) {
+		for (uintptr_t i = (uintptr_t)mbi->mods_addr;
+			i < ((uintptr_t)mbi->mods_addr + ((uintptr_t)mbi->mods_count * sizeof(multiboot_module_t)));
+			i += BLOCK_SIZE) {
+			printf("set 0x%x: modinfo\n", i);
+			pmm_set_block(i / BLOCK_SIZE);
+		}
+	}
+	if (mbi->flags && MULTIBOOT_INFO_AOUT_SYMS) { // TODO: implement
+	} else if (mbi->flags && MULTIBOOT_INFO_ELF_SHDR) { // TODO: implement
+	}
+	if (mbi->flags && MULTIBOOT_INFO_MEM_MAP) { // TODO: implement
+		for (uintptr_t i = (uintptr_t)mbi->mmap_length;
+			i < ((uintptr_t)mbi->mmap_addr + (uintptr_t)mbi->mmap_length);
+			i += BLOCK_SIZE) {
+			printf("set 0x%x: mmap\n", i);
+			pmm_set_block(i / BLOCK_SIZE);
+		}
+	}
+	if (mbi->flags && MULTIBOOT_INFO_CONFIG_TABLE) { // TODO: implement (useless?)
+	}
+	if (mbi->flags && MULTIBOOT_INFO_BOOT_LOADER_NAME) {
+		for (uintptr_t i = (uintptr_t)mbi->boot_loader_name;
+			i < ((uintptr_t)mbi->boot_loader_name + (uintptr_t)strlen((char *)mbi->boot_loader_name));
+			i += BLOCK_SIZE) {
+			printf("set 0x%x: bootloader name\n", i);
+			pmm_set_block(i / BLOCK_SIZE);
+		}
+	}
+	if (mbi->flags && MULTIBOOT_INFO_APM_TABLE) { // TODO: implement
+	}
 
 	// you can use pmm_alloc_* atfer here
 
