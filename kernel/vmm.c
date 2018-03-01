@@ -66,7 +66,7 @@ void vmm_init() {
 	}
 
 	// catch NULL pointer derefrences
-	map_page(get_table_alloc(0, kernel_directory), 0, 0, 0);
+	map_page(get_table(0, kernel_directory), 0, 0, 0);
 }
 
 void vmm_enable() {
