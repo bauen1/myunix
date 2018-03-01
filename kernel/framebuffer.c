@@ -38,7 +38,7 @@ static inline void put_c_at(const char c, const unsigned int x, const unsigned i
 				framebuffer_setpixel(x + j, y + i, 0xFFFFFF);
 			} else {
 				/* do nothing */
-				//framebuffer_setpixel(x + j, y + i, 0x000000);
+				framebuffer_setpixel(x + j, y + i, 0xDE00EE);
 			}
 		}
 	}
@@ -51,7 +51,7 @@ static void framebuffer_scroll() {
 
 	for (unsigned int x = 0; x < width; x++) {
 		for (unsigned int y = 0; y < 8; y++) {
-			framebuffer_setpixel(x, height - y - 1, 0);
+			framebuffer_setpixel(x, height - y - 1, 0xDE00EE);
 		}
 	}
 }
@@ -104,13 +104,7 @@ void framebuffer_init(uintptr_t fb_addr, uint32_t fb_pitch, uint32_t fb_width,
 	cursor_x = 0;
 	cursor_y = 0;
 
-	framebuffer_clear(0xFF000000);
-
-	for (int y = 0; y < 200; y++) {
-		for (int x = 0; x < 100; x++) {
-			framebuffer_setpixel(x, y, 0xDE);
-		}
-	}
+	framebuffer_clear(0x00DE00EE);
 
 	printf("VESA framebuffer\n");
 	printf(" addr: 0x%x\n", fb_addr);
