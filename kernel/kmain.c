@@ -157,6 +157,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 		printf("mem_lower: %ukb\n", mbi->mem_lower);
 		printf("mem_upper: %ukb\n", mbi->mem_upper);
 	} else {
+		// TODO: calulated memory based on mmap
 		printf("mem_* not provided by bootloader, kernel init impossible.!\n");
 		halt();
 	}
@@ -199,12 +200,13 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 		printf("[%u] cmdline: '%s'\n", (unsigned int)ticks, (char *)mbi->cmdline);
 	}
 
-	printf("kernel mem starts at:      0x%x\n", (uintptr_t)&_start);
-	printf("kernel mem really ends at: 0x%x\n", real_end);
+	printf("kernel mem starts at:          0x%x\n", (uintptr_t)&_start);
+	printf("kernel mem ends at:            0x%x\n", (uintptr_t)&_end);
+	printf("kernel mem really ends at:     0x%x\n", real_end);
 
 	real_end = (real_end+0xFFF) & 0xFFFFF000;
 
-	pmm_init((void *)real_end, mbi->mem_lower*1024 + mbi->mem_upper*1024);
+	pmm_init((void *)real_end, 1024*1024 + mbi->mem_upper*1024);
 	printf("[%u] [OK] pmm_init\n", (unsigned int)ticks);
 
 	if (mbi->flags && MULTIBOOT_INFO_MEM_MAP) {
@@ -224,40 +226,28 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 				}
 			} else if (mmap->type == MULTIBOOT_MEMORY_RESERVED) {
 				printf("reserved\n");
-				for (uintptr_t i = 0; i < mmap->len; i += BLOCK_SIZE) {
-					pmm_set_block((mmap->addr + i) / BLOCK_SIZE);
-				}
 			} else if (mmap->type == 0x03) {
 				printf("acpi reclaimable\n");
-				for (uintptr_t i = 0; i < mmap->len; i += BLOCK_SIZE) {
-					pmm_set_block((mmap->addr + i) / BLOCK_SIZE);
-				}
 			} else if (mmap->type == 0x04) {
 				printf("nvs\n");
-				for (uintptr_t i = 0; i < mmap->len; i += BLOCK_SIZE) {
-					pmm_set_block((mmap->addr + i) / BLOCK_SIZE);
-				}
 			} else if (mmap->type == 0x05) {
 				printf("bad ram\n");
-				for (uintptr_t i = 0; i < mmap->len; i += BLOCK_SIZE) {
-					pmm_set_block((mmap->addr + i) / BLOCK_SIZE);
-				}
 			} else if (mmap->type == 0) {
 				/* something went wrong */
 				break;
 			} else {
 				printf("unknown (type: 0x%x)\n", mmap->type);
-				for (uintptr_t i = 0; i < mmap->len; i += BLOCK_SIZE) {
-					pmm_set_block((mmap->addr + i) / BLOCK_SIZE);
-				}
 			}
 		}
+	} else {
+		printf("multiboot didn't provide a memory map, can't continue\n");
+		halt();
 	}
 
 	printf("blocks: %u\n", pmm_count_free_blocks());
 
 	// mark the kernel (and modules) as used
-	for (uintptr_t i = (uintptr_t)&_start & 0xFFFFF000; i < (uintptr_t)&real_end; i += 0x1000) {
+	for (uintptr_t i = (uintptr_t)&_start & 0xFFFFF000; i < real_end; i += 0x1000) {
 		pmm_set_block((i)/BLOCK_SIZE);
 	}
 	printf("free memory: %ukb\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
@@ -265,7 +255,8 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	printf("pmm block_map: 0x%x - 0x%x\n", (uintptr_t)block_map, ((uintptr_t)block_map + block_map_size / 8));
 
 	for (uintptr_t i = (uintptr_t)block_map; i < (uintptr_t)((uintptr_t)block_map + block_map_size/8); i += BLOCK_SIZE) {
-		pmm_set_block(i);
+		printf("pmm block_map: 0x%x\n", i);
+		pmm_set_block((i)/BLOCK_SIZE);
 	}
 
 	// special purpose
