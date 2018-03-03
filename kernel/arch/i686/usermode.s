@@ -24,11 +24,7 @@ __jump_to_userspace:
 
 align 4096
 global __hello_userspace
-msg:
-	db 'hello world from ring 3!\n', 0
 __hello_userspace:
-	mov eax, 0xFF ; dump regs
-	int 0x80
 	mov eax, 0x0
 	mov ebx, 'h'
 	int 0x80
@@ -85,9 +81,10 @@ __hello_userspace:
 	int 0x80
 
 .loop:
-	mov eax, 0x01
+	mov eax, 0
+	mov ebx, '#'
 	int 0x80
-	mov eax, 0x00
+	mov eax, 0x02
+	mov ebx, 100
 	int 0x80
-
 	jmp .loop
