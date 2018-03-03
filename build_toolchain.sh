@@ -6,6 +6,10 @@ BINUTILS_VERSION=2.30
 GCC_VERSION=7.3.0
 GRUB_VERSION=2.02
 TINYCC_TAG=release_0_9_27
+PERL_VERSION=5.20.3
+AUTOMAKE_VERSION=1.12
+AUTOCONF_VERSION=2.65
+NEWLIB_TAG=newlib-3.0.0
 
 mkdir -p toolchain
 export PREFIX="$PWD/toolchain"
@@ -43,6 +47,30 @@ if [ ! -f .downloaded_tinycc ]; then
 	test -d tinycc || git clone "http://repo.or.cz/tinycc.git"
 	git -C tinycc checkout $TINYCC_TAG
 	touch .downloaded_tinycc
+fi
+if [ ! -f .downloaded_perl ]; then
+	echo "Downloading perl-$PERL_VERSION"
+	wget "http://www.cpan.org/src/5.0/perl-$PERL_VERSION.tar.gz"
+	tar -xvf perl-$PERL_VERSION.tar.gz
+	touch .downloaded_perl
+fi
+if [ ! -f .downloaded_automake ]; then
+	echo "Downloading automake-$AUTOMAKE_VERSION"
+	wget "http://ftp.gnu.org/gnu/automake/automake-$AUTOMAKE_VERSION.tar.gz"
+	tar -xvf automake-$AUTOMAKE_VERSION.tar.gz
+	touch .downloaded_automake
+fi
+if [ ! -f .downloaded_autoconf ]; then
+	echo "Downloading autoconf-$AUTOCONF_VERSION"
+	wget "http://ftp.gnu.org/gnu/autoconf/autoconf-$AUTOCONF_VERSION.tar.gz"
+	tar -xvf autoconf-$AUTOCONF_VERSION.tar.gz
+	touch .downloaded_autoconf
+fi
+if [ ! -f .downloaded_newlib ]; then
+	echo "Cloning newlib"
+	test -d newlib || git clone "git://sourceware.org/git/newlib-cygwin.git" "newlib"
+	git -C newlib checkout $NEWLIB_TAG
+	touch .downloaded_newlib
 fi
 
 if [ ! -f .built_binutils ]; then
@@ -137,3 +165,66 @@ if [ ! -f .built_grub ]; then
 	touch .built_grub
 fi
 
+if [ ! -f .built_perl ]; then
+	echo "Building grub"
+	(cd perl-$PERL_VERSION
+		./Configure \
+			-des -Dprefix="$PREFIX"
+		make -j$JOBS
+		make -j$JOBS install
+	)
+	touch .built_perl
+fi
+
+if [ ! -f .built_automake ]; then
+	echo "Building automake"
+	rm -rf automake-build && mkdir -p automake-build
+	(cd automake-build
+		../automake-$AUTOMAKE_VERSION/configure \
+			--prefix="$PREFIX"
+		make -j$JOBS
+		make -j$JOBS install
+	)
+	echo "Cleaning up source and build directory"
+	rm -rf automake-build
+	touch .built_automake
+fi
+
+if [ ! -f .built_autoconf ]; then
+	echo "Building autoconf"
+	rm -rf autoconf-build && mkdir -p autoconf-build
+	(cd autoconf-build
+		../autoconf-$AUTOCONF_VERSION/configure \
+			--prefix="$PREFIX"
+		make -j$JOBS
+		make -j$JOBS install
+	)
+	echo "Cleaning up source and build directory"
+	rm -rf autoconf-build
+	touch .built_autoconf
+fi
+
+if [ ! -f .built_newlib ]; then
+	echo "Building newlib"
+	rm -rf newlib-build && mkdir -p newlib-build
+	(cd newlib-build
+		(cd ../newlib/newlib/libc/sys
+			autoconf
+		)
+		(cd ../newlib/newlib/libc/sys/myunix
+			autoreconf
+		)
+		CFLAGS="-g" \
+		CC_FOR_TARGET="$PREFIX/bin/$TARGET-gcc" \
+		AR_FOR_TARGET="$PREFIX/bin/$TARGET-ar" \
+		RANLIB_FOR_TARGET="$PREFIX/bin/$TARGET-ranlib" \
+		../newlib/configure \
+			--prefix=/usr \
+			--target="i386-myunix"
+		make -j$JOBS all
+		make -j$JOBS install DESTDIR="$PWD/dest"
+	)
+#	echo "Cleaning up source and build directory"
+#	rm -rf newlib-build
+#	touch .built_newlib
+fi
