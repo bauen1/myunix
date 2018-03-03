@@ -11,6 +11,8 @@ struct idt_entry {
 	uint16_t offset_high __attribute__((packed));
 } __attribute__((packed));
 
+extern struct idt_entry idt_entries[256];
+
 void idt_install();
 
 void idt_set_gate(uint8_t i, void * isr, uint16_t selector, uint8_t flags);

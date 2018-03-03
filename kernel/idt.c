@@ -4,7 +4,7 @@
 #include <idt_load.h>
 #include <string.h>
 
-static struct idt_entry idt_entries[256] = { 0 };
+__attribute__((aligned(4096))) struct idt_entry idt_entries[256] = { 0 };
 
 void idt_set_gate(uint8_t i, void * isr, uint16_t selector, uint8_t flags) {
 	uint32_t offset = (uint32_t)isr;
