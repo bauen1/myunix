@@ -102,22 +102,26 @@ static const char *exception_name[] = {
 	"reserved",
 };
 
-void *handle_isr(registers_t *regs) {
-	registers_t *new_regs = regs;
+// FIXME:
+void irq_ack(int isr_num) {
+	if (isr_num >= 32 && isr_num <= 47) {
+		pic_send_eoi(irq_from_isr(isr_num));
+	}
+}
 
+void *handle_isr(registers_t *regs) {
 	if (isr_handlers[regs->isr_num]) {
-		new_regs = isr_handlers[regs->isr_num](regs);
+		isr_handlers[regs->isr_num](regs);
 	} else if (regs->isr_num < 32) {
 		printf("Encountered unhandled exception: '%s' !\n", exception_name[regs->isr_num]);
 		dump_regs(regs);
 		halt();
 	} else {
 		printf("Encountered: isr 0x%x\n", regs->isr_num);
+		if (regs->isr_num >= 32 && regs->isr_num <= 47) { // acknowledge IRQs
+			pic_send_eoi(irq_from_isr(regs->isr_num));
+		}
 	}
 
-	if (regs->isr_num >= 32 && regs->isr_num <= 47) { // acknowledge IRQs
-		pic_send_eoi(irq_from_isr(regs->isr_num));
-	}
-
-	return new_regs;
+	return regs;
 }

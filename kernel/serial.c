@@ -15,6 +15,7 @@ static unsigned char serialbuffer[SERIALBUFFER_LENGTH];
 
 static void *irq4_handler(registers_t *regs) {
 	ringbuffer_write_byte(&serial_ringbuffer, inb(PORT));
+	irq_ack(regs->isr_num);
 	return regs;
 }
 

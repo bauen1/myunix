@@ -20,6 +20,7 @@ static void *irq0_handler(registers_t *regs) {
 //		putc('.');
 	}
 	ticks++;
+	irq_ack(regs->isr_num);
 
 	return regs;
 }

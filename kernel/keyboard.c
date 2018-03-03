@@ -68,12 +68,14 @@ static void *irq1_handler(registers_t *regs) {
 	if (status & 0x01) {
 		char keycode = inb(0x60);
 		if (keycode < 0) {
+			irq_ack(regs->isr_num);
 			return regs;
 		}
 
 		ringbuffer_write_byte(&keyboard_ringbuffer, keyboard_map[(unsigned int)keycode]);
 	}
 
+	irq_ack(regs->isr_num);
 	return regs;
 }
 
