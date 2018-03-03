@@ -1,6 +1,7 @@
 #include <console.h>
 #include <cpu.h>
 #include <isr.h>
+#include <pit.h>
 
 static void *syscall_putc(registers_t *regs) {
 	putc((char)regs->ebx);
@@ -11,6 +12,17 @@ static void *syscall_getc(registers_t *regs) {
 	__asm__ __volatile__ ("sti");
 	regs->ebx = (uint32_t)getc();
 	__asm__ __volatile__ ("cli");
+	return regs;
+}
+
+static void *syscall_sleep(registers_t *regs) {
+	unsigned long target = ticks + regs->ebx;
+	while (ticks <= target) {
+		__asm__ __volatile__ ("sti");
+		__asm__ __volatile__ ("hlt");
+		__asm__ __volatile__ ("cli");
+	}
+	regs->ebx = 0;
 	return regs;
 }
 
@@ -25,6 +37,8 @@ static void *syscall_handler(registers_t *regs) {
 			return syscall_putc(regs);
 		case 0x01:
 			return syscall_getc(regs);
+		case 0x02:
+			return syscall_sleep(regs);
 		case 0xFF:
 			return syscall_dumpregs(regs);
 		default:
