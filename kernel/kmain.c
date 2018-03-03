@@ -27,7 +27,7 @@
 /* main kernel entry point */
 void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	(void)esp; /* unused, temporary stack */
-
+	uintptr_t mem_avail = 0;
 	uintptr_t real_end = (uintptr_t)&_end;
 	uintptr_t fb_start = 0;
 	uintptr_t fb_size = 0;
@@ -131,10 +131,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	if (mbi->flags && MULTIBOOT_INFO_MEMORY) {
 		printf("mem_lower: %ukb\n", mbi->mem_lower);
 		printf("mem_upper: %ukb\n", mbi->mem_upper);
-	} else {
-		// TODO: calulated memory based on mmap
-		printf("mem_* not provided by bootloader, kernel init impossible.!\n");
-		halt();
+		mem_avail = 1024 * (1024 + mbi->mem_upper);
 	}
 
 	if (mbi->flags && MULTIBOOT_INFO_MODS) {
@@ -183,9 +180,11 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	printf("kernel mem really ends at (2): 0x%x\n", real_end);
 
 	// TODO: calulate the highest end of free memory and pass it to pmm_init instead of mem_lower and mem_upper
-
-
-	pmm_init((void *)real_end, 1024*1024 + mbi->mem_upper*1024);
+	// overflow or no value
+	if (mem_avail == 0) {
+		mem_avail = 0xFFFFFFFF;
+	}
+	pmm_init((void *)real_end, mem_avail);
 	printf("[%u] [OK] pmm_init\n", (unsigned int)ticks);
 
 	if (mbi->flags && MULTIBOOT_INFO_MEM_MAP) {
@@ -242,7 +241,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	pmm_set_block(0);
 
 	// TODO: copy everything of intrest out of the multiboot info to a known, safe location
-
+	// TODO: remember to free information once its no longer needed
 	printf("set 0x%x: multiboot info\n", (uintptr_t)mbi);
 	pmm_set_block(((uintptr_t)mbi)/BLOCK_SIZE);
 	if (mbi->flags && MULTIBOOT_INFO_CMDLINE) {
@@ -272,8 +271,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 			pmm_set_block(i / BLOCK_SIZE);
 		}
 	}
-	if (mbi->flags && MULTIBOOT_INFO_CONFIG_TABLE) { // TODO: implement (useless?)
-	}
+	if (mbi->flags && MULTIBOOT_INFO_CONFIG_TABLE) {} // TODO: implement (useless?)
 	if (mbi->flags && MULTIBOOT_INFO_BOOT_LOADER_NAME) {
 		for (uintptr_t i = (uintptr_t)mbi->boot_loader_name;
 			i < ((uintptr_t)mbi->boot_loader_name + (uintptr_t)strlen((char *)mbi->boot_loader_name));
@@ -282,13 +280,15 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 			pmm_set_block(i / BLOCK_SIZE);
 		}
 	}
-	if (mbi->flags && MULTIBOOT_INFO_APM_TABLE) { // TODO: implement
-	}
+	if (mbi->flags && MULTIBOOT_INFO_APM_TABLE) {} // TODO: implement
 
 	// you can use pmm_alloc_* atfer here
 
 	vmm_init();
 	printf("[%u] [OK] vmm_init\n", (unsigned int)ticks);
+
+	/* map the complete kernel directly (including modules) read-only */
+	map_pages(&_start, (void *)real_end, PAGE_TABLE_PRESENT, "kern");
 
 	/* map the code section read-only */
 	map_pages(&__text_start, &__text_end, PAGE_TABLE_PRESENT, ".text");
@@ -300,17 +300,17 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	map_pages(&__bss_start, &__bss_end, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, ".bss");
 
 	/* directly map the pmm block map */
-//	map_pages((void *)block_map, (void *)((uintptr_t)block_map + block_map_size/8), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "pmm");
-	for (uintptr_t i = 0; i < block_map_size/8; i += BLOCK_SIZE) {
-		uintptr_t virtaddr = (uintptr_t)(block_map + i);
-		printf("  i: 0x%x\n", i);
-		map_page(get_table(virtaddr, kernel_directory), virtaddr, virtaddr, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
-	}
+	printf("pmm block_map: 0x%x - 0x%x\n", (uintptr_t)block_map, ((uintptr_t)block_map + block_map_size / 8));
+	map_pages(block_map,
+		(void *)(
+			(uintptr_t)block_map + (block_map_size / 8)
+		),
+		PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "pmm_map");
 
 	/* map the framebuffer / textbuffer */
 	if ((fb_start != 0) && (fb_size != 0)) {
-//		map_pages((void *)fb_start, (void *)(fb_start + fb_size), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "framebuffer");
-		map_pages((void *)fb_start, (void *)(fb_start + fb_size), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE | PAGE_TABLE_CACHE_DISABLE, "framebuffer");
+		map_pages((void *)fb_start, (void *)(fb_start + fb_size), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "framebuffer");
+//		map_pages((void *)fb_start, (void *)(fb_start + fb_size), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE | PAGE_TABLE_CACHE_DISABLE, "framebuffer");
 	}
 
 
