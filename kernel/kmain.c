@@ -186,6 +186,8 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	}
 	pmm_init((void *)real_end, mem_avail);
 	printf("[%u] [OK] pmm_init\n", (unsigned int)ticks);
+	vmm_init();
+	printf("[%u] [OK] vmm_init\n", (unsigned int)ticks);
 
 	if (mbi->flags && MULTIBOOT_INFO_MEM_MAP) {
 		for (multiboot_memory_map_t *mmap = (multiboot_memory_map_t *)mbi->mmap_addr;
@@ -250,6 +252,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 			i += BLOCK_SIZE) {
 			printf("set 0x%x: cmdline\n", i);
 			pmm_set_block(i / BLOCK_SIZE);
+			map_direct_kernel(i);
 		}
 	}
 	if (mbi->flags && MULTIBOOT_INFO_MODS) {
@@ -258,6 +261,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 			i += BLOCK_SIZE) {
 			printf("set 0x%x: modinfo\n", i);
 			pmm_set_block(i / BLOCK_SIZE);
+			map_direct_kernel(i);
 		}
 	}
 	if (mbi->flags && MULTIBOOT_INFO_AOUT_SYMS) { // TODO: implement
@@ -269,6 +273,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 			i += BLOCK_SIZE) {
 			printf("set 0x%x: mmap\n", i);
 			pmm_set_block(i / BLOCK_SIZE);
+			map_direct_kernel(i);
 		}
 	}
 	if (mbi->flags && MULTIBOOT_INFO_CONFIG_TABLE) {} // TODO: implement (useless?)
@@ -278,14 +283,12 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 			i += BLOCK_SIZE) {
 			printf("set 0x%x: bootloader name\n", i);
 			pmm_set_block(i / BLOCK_SIZE);
+			map_direct_kernel(i);
 		}
 	}
 	if (mbi->flags && MULTIBOOT_INFO_APM_TABLE) {} // TODO: implement
 
 	// you can use pmm_alloc_* atfer here
-
-	vmm_init();
-	printf("[%u] [OK] vmm_init\n", (unsigned int)ticks);
 
 	/* map the complete kernel directly (including modules) read-only */
 	map_pages(&_start, (void *)real_end, PAGE_TABLE_PRESENT, "kern");
