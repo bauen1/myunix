@@ -9,6 +9,8 @@
 #include <cpu.h>
 #include <isr.h>
 #include <paging.h>
+#include <pmm.h>
+#include <string.h>
 #include <vmm.h>
 
 __attribute__((aligned(4096))) uint32_t kernel_directory[1024];
@@ -16,6 +18,18 @@ __attribute__((aligned(4096))) uint32_t kernel_tables[1024][1024];
 
 uint32_t *get_table(uintptr_t virtaddr, uint32_t *directory) {
 	return (uint32_t *)(directory[virtaddr >> 22] & ~0xFFF);
+}
+
+uint32_t *get_table_alloc(uintptr_t virtaddr, uint32_t *directory) {
+	uintptr_t pt = (uintptr_t)get_table(virtaddr, directory);
+	if (pt == 0) {
+		pt = (uintptr_t)pmm_alloc_blocks_safe(1);
+		map_direct_kernel(pt);
+		memset((void *)pt, 0, BLOCK_SIZE);
+		directory[virtaddr >> 22] = (uint32_t)pt |
+			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE | PAGE_TABLE_USER;
+	}
+	return (uint32_t *)pt;
 }
 
 void map_page(uint32_t *table, uintptr_t virtaddr, uintptr_t physaddr, uint16_t flags) {
@@ -36,7 +50,7 @@ void map_pages(void *start, void *end, int flags, const char *name) {
 				printf("%s: 0x%x => 0x%x flags: 0x%x\n", name, i, i, flags);
 			}
 		}
-		map_page(get_table(i, kernel_directory), i, i, flags);
+		map_page(get_table_alloc(i, kernel_directory), i, i, flags);
 	}
 }
 
@@ -62,7 +76,10 @@ void vmm_init() {
 
 	// TODO: dynamically alloc
 	for (int i = 0; i < 1024; i++) {
-		kernel_directory[i] = ((uint32_t)kernel_tables[i]) | PAGE_DIRECTORY_PRESENT | PAGE_DIRECTORY_READWRITE | PAGE_DIRECTORY_USER;
+		uint32_t pt = (uint32_t)kernel_tables[i];
+		kernel_directory[i] = pt |
+			PAGE_DIRECTORY_PRESENT | PAGE_DIRECTORY_READWRITE | PAGE_DIRECTORY_USER |
+			PAGE_DIRECTORY_WRITE_THROUGH | PAGE_DIRECTORY_CACHE_DISABLE;
 	}
 
 	// catch NULL pointer derefrences

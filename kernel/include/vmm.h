@@ -24,6 +24,7 @@ extern __attribute__((aligned(4096))) uint32_t kernel_directory[1024];
 extern __attribute__((aligned(4096))) uint32_t kernel_tables[1024][1024];
 
 uint32_t *get_table(uintptr_t virtaddr, uint32_t *directory);
+uint32_t *get_table_alloc(uintptr_t virtaddr, uint32_t *directory);
 void map_page(uint32_t *table, uintptr_t virtaddr, uintptr_t physaddr, uint16_t flags);
 
 // directly map a range into the kernel directory
