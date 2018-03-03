@@ -5,6 +5,7 @@
 #include <idt.h>
 #include <isr.h>
 #include <pit.h>
+#include <process.h>
 
 #define PIT_0_DATA 0x40
 #define PIT_1_DATA 0x41
@@ -21,6 +22,7 @@ static void *irq0_handler(registers_t *regs) {
 	}
 	ticks++;
 	irq_ack(regs->isr_num);
+	switch_task();
 
 	return regs;
 }

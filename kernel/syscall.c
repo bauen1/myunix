@@ -18,11 +18,9 @@ static void *syscall_getc(registers_t *regs) {
 static void *syscall_sleep(registers_t *regs) {
 	unsigned long target = ticks + regs->ebx;
 	while (ticks <= target) {
-		__asm__ __volatile__ ("sti");
-		__asm__ __volatile__ ("hlt");
-		__asm__ __volatile__ ("cli");
+		switch_task();
 	}
-	regs->ebx = 0;
+	regs->eax = 0;
 	return regs;
 }
 

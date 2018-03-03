@@ -214,7 +214,7 @@ if [ ! -f .built_newlib ]; then
 		(cd ../newlib/newlib/libc/sys/myunix
 			autoreconf
 		)
-		CFLAGS="-g" \
+		CFLAGS="-O3" \
 		CC_FOR_TARGET="$PREFIX/bin/$TARGET-gcc" \
 		AR_FOR_TARGET="$PREFIX/bin/$TARGET-ar" \
 		RANLIB_FOR_TARGET="$PREFIX/bin/$TARGET-ranlib" \

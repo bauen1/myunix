@@ -1,27 +1,3 @@
-; __attribute__((noreturn))  __jump_to_userspace(void *stack, void *code);
-global __jump_to_userspace:function (__jump_to_userspace.end - __jump_to_userspace)
-__jump_to_userspace:
-	mov ax, 0x23
-	mov ds, ax
-	mov es, ax
-	mov fs, ax
-	mov gs, ax
-
-	mov eax, [esp + 4] ; stack ptr
-	mov ebx, [esp + 8] ; function ptr
-	mov ecx, [esp + 12] ; directory
-	mov cr3, ecx
-
-	mov esp, eax
-
-	push 0x23
-	push eax
-	pushf
-	push 0x1B
-	push ebx
-	iret
-.end:
-
 align 4096
 global __hello_userspace
 __hello_userspace:

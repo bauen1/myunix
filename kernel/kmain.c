@@ -18,6 +18,7 @@
 #include <pic.h>
 #include <pit.h>
 #include <pmm.h>
+#include <process.h>
 #include <syscall.h>
 #include <tty.h>
 #include <usermode.h>
@@ -26,7 +27,6 @@
 
 /* main kernel entry point */
 void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
-	(void)esp; /* unused, temporary stack */
 	uintptr_t mem_avail = 0;
 	uintptr_t real_end = (uintptr_t)&_end;
 	uintptr_t fb_start = 0;
@@ -316,32 +316,29 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 //		map_pages((void *)fb_start, (void *)(fb_start + fb_size), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE | PAGE_TABLE_CACHE_DISABLE, "framebuffer");
 	}
 
-
 	/* enable paging */
 	vmm_enable();
 	printf("[%u] [OK] vmm_enable\n", (unsigned int)ticks);
 
-	/* allocate kernel space and directly map it */
-	uintptr_t kernel_stack = (uintptr_t)pmm_alloc_blocks_safe(1);
-	uintptr_t kernel_stack_top = kernel_stack + 1*BLOCK_SIZE;
-	printf("kernel_stack: 0x%x - 0x%x\n", kernel_stack, kernel_stack_top);
-	map_pages((void *)kernel_stack, (void *)kernel_stack_top, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "kstack");
-	tss_set_kstack(kernel_stack_top + 1 - 16);
+	assert(mbi->flags && MULTIBOOT_INFO_MODS);
 
+	process_add(kidle_init(esp));
 
-	printf("allocating & mapping userspace stack");
-	void *user_stack = pmm_alloc_blocks(4); // 16kb stack
-	void *user_stack_top = (void *)((uintptr_t)user_stack + 4 * BLOCK_SIZE);
-	printf("userspace stack: 0x%x - 0x%x\n", (uintptr_t)user_stack, (uintptr_t)user_stack_top);
-	map_pages(user_stack, user_stack_top, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE | PAGE_TABLE_USER, "userstack");
+	if (mbi->mods_count > 0) {
+		// we have modules
+		multiboot_module_t *mods = (multiboot_module_t *)mbi->mods_addr;
+		for (unsigned int i = 0; i < mbi->mods_count; i++) {
+			uintptr_t mod_start = mods[i].mod_start;
+			uintptr_t mod_end = mods[i].mod_end;
+			printf("process_init(mod[%u]) name='%s'\n", i, (char *)mods[i].cmdline);
+			process_t *p = process_init(mod_start, mod_end);
+			p->pid = i + 1;
+			p->name = (char *)mods[i].cmdline;
+			process_add(p);
+		}
+	}
 
-	printf("map_page(0x%x, 0x%x, PWU)\n", __hello_userspace, __hello_userspace);
-	map_page(get_table((uintptr_t)__hello_userspace, kernel_directory),
-		(uintptr_t)__hello_userspace,
-		(uintptr_t)__hello_userspace,
-		PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE | PAGE_TABLE_USER);
-
-	__jump_to_userspace(user_stack_top, __hello_userspace, kernel_directory);
+	process_enable();
 
 	puts("looping forever...\n");
 	for (;;) {

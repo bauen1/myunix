@@ -1,7 +1,10 @@
 extern kernel_directory
-
 extern handle_isr
 
+; TODO: only reload cr3 when necessary
+section isrs
+global isrs_start
+isrs_start:
 isr_common_stub:
 	pusha
 
@@ -26,6 +29,8 @@ isr_common_stub:
 	call handle_isr
 	mov esp, eax
 
+global return_to_regs
+return_to_regs:
 	pop eax ; restore the page directory
 	mov cr3, eax
 
@@ -115,3 +120,7 @@ ISR_CUSTOM 45,13
 ISR_CUSTOM 46,14
 ISR_CUSTOM 47,15
 ISR_CUSTOM 128,0
+
+global isrs_end
+isrs_end:
+align 4096
