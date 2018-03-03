@@ -2,3 +2,4 @@ kernel.bin
 grub_eltorito.iso
 grub_iso.iso
 modules/*
+!modules/.gitkeep
