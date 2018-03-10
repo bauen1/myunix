@@ -247,6 +247,7 @@ void __restore_process() {
 }
 
 void process_remove(process_t *p) {
+	(void)p;
 	// TODO: implement
 	halt();
 }
