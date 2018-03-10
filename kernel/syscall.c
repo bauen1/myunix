@@ -4,46 +4,45 @@
 #include <pit.h>
 #include <process.h>
 
-static void *syscall_putc(registers_t *regs) {
+static void syscall_putc(registers_t *regs) {
 	putc((char)regs->ebx);
-	return regs;
 }
 
-static void *syscall_getc(registers_t *regs) {
+static void syscall_getc(registers_t *regs) {
 	__asm__ __volatile__ ("sti");
 	regs->ebx = (uint32_t)getc();
 	__asm__ __volatile__ ("cli");
-	return regs;
 }
 
-static void *syscall_sleep(registers_t *regs) {
+static void syscall_sleep(registers_t *regs) {
 	unsigned long target = ticks + regs->ebx;
 	while (ticks <= target) {
 		switch_task();
 	}
 	regs->eax = 0;
-	return regs;
 }
 
-static void *syscall_dumpregs(registers_t *regs) {
+static void syscall_dumpregs(registers_t *regs) {
 	dump_regs(regs);
-	return regs;
 }
 
-static void *syscall_handler(registers_t *regs) {
+static void syscall_handler(registers_t *regs) {
 	switch (regs->eax) {
 		case 0x00:
-			return syscall_putc(regs);
+			syscall_putc(regs);
+			break;
 		case 0x01:
-			return syscall_getc(regs);
+			syscall_getc(regs);
+			break;
 		case 0x02:
-			return syscall_sleep(regs);
+			syscall_sleep(regs);
+			break;
 		case 0xFF:
-			return syscall_dumpregs(regs);
+			syscall_dumpregs(regs);
+			break;
 		default:
-			return regs;
+			break;
 	}
-	return regs;
 }
 
 void syscall_init() {

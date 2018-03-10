@@ -63,20 +63,19 @@ static unsigned char keyboard_map[128] = {
 static ringbuffer_t keyboard_ringbuffer;
 static unsigned char keybuffer[KEYBUFFER_LENGTH];
 
-static void *irq1_handler(registers_t *regs) {
+static void irq1_handler(registers_t *regs) {
 	uint8_t status = inb(0x64);
 	if (status & 0x01) {
 		char keycode = inb(0x60);
 		if (keycode < 0) {
 			irq_ack(regs->isr_num);
-			return regs;
+			return;
 		}
 
 		ringbuffer_write_byte(&keyboard_ringbuffer, keyboard_map[(unsigned int)keycode]);
 	}
 
 	irq_ack(regs->isr_num);
-	return regs;
 }
 
 void keyboard_init() {

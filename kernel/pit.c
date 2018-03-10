@@ -16,15 +16,13 @@
 
 unsigned long ticks = 0;
 
-static void *irq0_handler(registers_t *regs) {
+static void irq0_handler(registers_t *regs) {
 	if (ticks%FREQUENCY==0) {
 //		putc('.');
 	}
 	ticks++;
 	irq_ack(regs->isr_num);
 	switch_task();
-
-	return regs;
 }
 
 static void pit_setup_channel_zero(int frequency) {

@@ -13,10 +13,9 @@ static unsigned char serialbuffer[SERIALBUFFER_LENGTH];
 
 #define PORT 0x3F8
 
-static void *irq4_handler(registers_t *regs) {
+static void irq4_handler(registers_t *regs) {
 	ringbuffer_write_byte(&serial_ringbuffer, inb(PORT));
 	irq_ack(regs->isr_num);
-	return regs;
 }
 
 #define serial_is_transmit_ready() (inb(PORT + 5) & 0x20)

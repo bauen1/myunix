@@ -54,7 +54,7 @@ void map_pages(void *start, void *end, int flags, const char *name) {
 	}
 }
 
-void *page_fault(registers_t *regs) {
+void page_fault(registers_t *regs) {
 	uintptr_t address;
 	__asm__ __volatile__("mov %%cr2, %0" : "=r"(address));
 	printf("! page_fault !\n");

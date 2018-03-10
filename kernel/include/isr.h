@@ -6,7 +6,7 @@
 
 void isr_init();
 
-typedef void *(*isr_handler)(registers_t *regs);
+typedef void (*isr_handler)(registers_t *regs);
 
 void isr_set_handler(uint8_t i, isr_handler handler);
 void irq_ack(int isr);
