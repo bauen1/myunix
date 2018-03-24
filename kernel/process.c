@@ -135,6 +135,8 @@ process_t *process_init(uintptr_t start, uintptr_t end) {
 		uintptr_t userspace_heap = (uintptr_t)pmm_alloc_blocks_safe(1);
 		map_direct_kernel(userspace_heap);
 		memset((void *)userspace_heap, 0, BLOCK_SIZE);
+		map_page(get_table(userspace_heap, kernel_directory), userspace_heap,
+			0, 0);
 		map_page(get_table_alloc(virtaddr, process->pdir), virtaddr,
 			userspace_heap,
 			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE | PAGE_TABLE_USER);

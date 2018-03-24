@@ -4,25 +4,27 @@
 _start:
 	mov ecx, 0xDEADBEEF
 
-	mov eax, 0
-	mov bx, 'm'
-	int $80
-	mov bx, 'o'
-	int $80
-	mov bx, 'd'
-	int $80
-	mov bx, '0'
-	int $80
-	mov bx, '!'
-	int $80
-	mov bx, $0A
-	int $80
+	mov eax, 0x4
+	mov ebx, 1
+	mov ecx, msg
+	mov edx, msg.end - msg
+	int 0x80
+
 .loop:
-	mov eax, 1
+	mov eax, 0x4
+	mov ebx, 1
+	mov ecx, msg2
+	mov edx, msg2.end - msg2
 	int $80
-	mov eax, 0
-	int $80
-	mov eax, 0
-	mov ebx, '@'
+	mov eax, 0x2
+	mov ebx, 100
 	int $80
 	jmp .loop
+
+msg:
+	db "hello world!", $0A
+.end:
+
+msg2:
+	db "#"
+.end:

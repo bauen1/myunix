@@ -32,6 +32,10 @@ uint32_t *get_table_alloc(uintptr_t virtaddr, uint32_t *directory) {
 	return (uint32_t *)pt;
 }
 
+uint32_t get_page(uint32_t *table, uintptr_t virtaddr) {
+	return table[(uint32_t)virtaddr >> 12 & 0x3FF];
+}
+
 void map_page(uint32_t *table, uintptr_t virtaddr, uintptr_t physaddr, uint16_t flags) {
 	table[(uint32_t)virtaddr >> 12 & 0x3FF] = ((uint32_t)physaddr | flags);
 }
@@ -54,6 +58,37 @@ void map_pages(void *start, void *end, int flags, const char *name) {
 	}
 }
 
+// finds free (continous) virtual address space
+// n in blocks
+uintptr_t find_vspace(uint32_t *dir, size_t n) {
+//	printf("find_vspace(0x%x, 0x%x)\n", (uintptr_t)dir, n);
+	for (uintptr_t i = 0; i < 0x100000000 / BLOCK_SIZE; i++) {
+		uintptr_t virtaddr = i * BLOCK_SIZE;
+		uint32_t *table = get_table(virtaddr, dir);
+		assert(table != NULL);
+//		printf("  page[0x%x]: 0x%x\n", virtaddr, get_page(table, virtaddr));
+		if (get_page(table, virtaddr) == 0) {
+			uintptr_t start = virtaddr;
+			uintptr_t length = 1;
+			while (length < n) {
+//				printf("  page[0x%x]: 0x%x\n", virtaddr + length * BLOCK_SIZE, get_page(table, virtaddr + length * BLOCK_SIZE));
+				if (get_page(table, virtaddr + length*BLOCK_SIZE) == 0) {
+					length++;
+				} else {
+					break;
+				}
+			}
+			if (length == n) {
+				return start;
+			} else {
+				i = i + length;
+			}
+		}
+	}
+
+	return -1;
+}
+
 void page_fault(registers_t *regs) {
 	uintptr_t address;
 	__asm__ __volatile__("mov %%cr2, %0" : "=r"(address));
@@ -74,7 +109,6 @@ void page_fault(registers_t *regs) {
 void vmm_init() {
 	isr_set_handler(14, page_fault);
 
-	// TODO: dynamically alloc
 	for (int i = 0; i < 1024; i++) {
 		uint32_t pt = (uint32_t)kernel_tables[i];
 		kernel_directory[i] = pt |
