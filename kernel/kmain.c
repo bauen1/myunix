@@ -21,7 +21,6 @@
 #include <process.h>
 #include <syscall.h>
 #include <tty.h>
-#include <usermode.h>
 #include <vmm.h>
 #include <string.h>
 

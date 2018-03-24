@@ -7,7 +7,6 @@
 #include <idt.h>
 #include <pmm.h>
 #include <process.h>
-#include <usermode.h>
 #include <string.h>
 #include <vmm.h>
 #include <task.h>
