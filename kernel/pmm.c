@@ -82,20 +82,20 @@ inline uint32_t pmm_find_first_free_region(size_t size) {
 	return 0;
 }
 
-void *pmm_alloc_blocks(size_t size) {
+uintptr_t pmm_alloc_blocks(size_t size) {
 	assert(size != 0);
 	uint32_t block = pmm_find_first_free_region(size);
 	if (block == 0) {
-		return NULL;
+		return 0;
 	}
 
 	for (size_t i = 0; i < size; i++) {
 		pmm_set_block(block + i);
 	}
-	return (void *)(block * BLOCK_SIZE);
+	return block * BLOCK_SIZE;
 }
 
-void pmm_free_blocks(void *p, size_t size) {
+void pmm_free_blocks(uintptr_t p, size_t size) {
 	assert(size != 0);
 
 	uint32_t block = ((uint32_t)p) / BLOCK_SIZE;
@@ -105,8 +105,8 @@ void pmm_free_blocks(void *p, size_t size) {
 	}
 }
 
-void *pmm_alloc_blocks_safe(size_t size) {
-	void *v = pmm_alloc_blocks(size);
+uintptr_t pmm_alloc_blocks_safe(size_t size) {
+	uintptr_t v = pmm_alloc_blocks(size);
 	assert((uintptr_t)v != 0);
 	return v;
 }

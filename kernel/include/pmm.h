@@ -20,8 +20,8 @@ uint32_t pmm_count_free_blocks();
 
 uint32_t pmm_find_first_free();
 uint32_t pmm_find_first_free_region(size_t size);
-void *pmm_alloc_blocks(size_t size);
-void pmm_free_blocks(void *p, size_t size);
-void *pmm_alloc_blocks_safe(size_t size);
+uintptr_t pmm_alloc_blocks(size_t size);
+void pmm_free_blocks(uintptr_t p, size_t size);
+uintptr_t pmm_alloc_blocks_safe(size_t size);
 
 #endif
