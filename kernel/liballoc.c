@@ -106,7 +106,7 @@ void *liballoc_alloc(size_t pages) {
 		if (real_block == 0) {
 			printf("OOM!!\n");
 			if (i > 0) {
-				liballoc_free(v_start, i - 1);
+				liballoc_free((void *)v_start, i - 1);
 			}
 			halt();
 			return NULL;
