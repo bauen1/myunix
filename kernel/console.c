@@ -2,11 +2,39 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <console.h>
 #include <framebuffer.h>
 #include <itoa.h>
 #include <keyboard.h>
 #include <serial.h>
 #include <tty.h>
+#include <fs.h>
+
+uint32_t tty_read(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buf) {
+	(void)node;
+	(void)offset;
+	for (uintptr_t i = 0; i < size; i++) {
+		buf[i] = getc();
+	}
+	return size;
+}
+
+uint32_t tty_write(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buf) {
+	(void)node;
+	(void)offset;
+	for (uintptr_t i = 0; i < size; i++) {
+		putc(buf[i]);
+	}
+	return size;
+}
+
+fs_node_t tty_node = {
+	.name = "tty",
+	.object = NULL,
+	.length = 0,
+	.read = tty_read,
+	.write = tty_write,
+};
 
 void console_init() {
 	serial_init();
