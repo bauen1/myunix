@@ -1,12 +1,15 @@
+#include <assert.h>
 #include <console.h>
 #include <cpu.h>
 #include <isr.h>
 #include <pit.h>
-#include <process.h>
-#include <vmm.h>
 #include <pmm.h>
+#include <process.h>
+#include <string.h>
+#include <vmm.h>
 
 // 0 on success, size mapped on failure
+// TODO: CRTICAL FIXME: returns 0 incase of early failure
 static size_t map_userspace_to_kernel(uint32_t *pdir, uintptr_t ptr, uintptr_t kptr, size_t n) {
 //	printf("map_userspace_to_kernel(0x%x, 0x%x, 0x%x, 0x%x)\n", (uintptr_t)pdir, ptr, kptr, n);
 	for (uintptr_t i = 0; i < n; i++) {
@@ -19,7 +22,6 @@ static size_t map_userspace_to_kernel(uint32_t *pdir, uintptr_t ptr, uintptr_t k
 			return i;
 		}
 		uintptr_t page = get_page(table, u_virtaddr);
-//		printf(" page [0x%x]: 0x%x\n", u_virtaddr, page);
 		if (! (page && PAGE_TABLE_PRESENT)) {
 			printf(" not present; returning early: %u\n", i);
 			return i;
@@ -32,7 +34,6 @@ static size_t map_userspace_to_kernel(uint32_t *pdir, uintptr_t ptr, uintptr_t k
 			printf(" not user; returning early: %u\n", i);
 			return i;
 		}
-//		printf(" page[0x%x] = 0x%x\n", k_virtaddr, page);
 		map_page(get_table(k_virtaddr, kernel_directory), k_virtaddr, page, PAGE_TABLE_PRESENT);
 	}
 	return 0;
@@ -48,23 +49,26 @@ static void unmap_from_kernel(uintptr_t kptr, size_t n) {
 	}
 }
 
-// only call this with interrupts off or prepare for FUN
+// only copies if all data was sucessfully mapped
 __attribute__((used))
-static size_t copy_from_userspace(uint32_t *pdir, uintptr_t ptr, size_t n) {
-	uintptr_t kptr = find_vspace(kernel_directory, (n/BLOCK_SIZE)); // FIXME: handle overflow of pointer into extra block
-	size_t v =  map_userspace_to_kernel(pdir, ptr, kptr, n);
+static size_t copy_from_userspace(uint32_t *pdir, uintptr_t ptr, size_t n, void *buffer) {
+	size_t size_in_blocks = (BLOCK_SIZE - 1 + n) / BLOCK_SIZE;
+	uintptr_t kptr = find_vspace(kernel_directory, size_in_blocks);
+	if (kptr == 0) {
+		return -1;
+	}
+	size_t v = map_userspace_to_kernel(pdir, ptr, kptr, size_in_blocks);
 	if (v != 0) {
 		unmap_from_kernel(kptr, v);
 		return -1;
 	}
 
-	unmap_from_kernel(kptr, v);
-	return 0;
-}
+	uintptr_t kptr2 = kptr + (ptr & 0xFFF);
 
-/*
-static void syscall_putc(registers_t *regs) {
-	putc((char)regs->ebx);
+	memcpy(buffer, (void *)kptr2, n);
+
+	unmap_from_kernel(kptr, v);
+	return n;
 }
 
 static void syscall_getc(registers_t *regs) {
@@ -132,7 +136,7 @@ static void syscall_getpid(registers_t *regs) {
 
 static void syscall_exit(registers_t *regs) {
 	(void)regs;
-//	printf("exit(%u)\n", regs->ebx);
+	printf("pid %u exit(%u)\n", current_process->pid, regs->ebx);
 	while (1) {
 		switch_task();
 	}
@@ -150,7 +154,7 @@ static void syscall_close(registers_t *regs) {
 }
 
 static void syscall_read(registers_t *regs) {
-//	printf("read()\n");
+//	printf("read(%u, 0x%x, 0x%x) (eip = 0x%x)\n", regs->ebx, regs->ecx, regs->edx, regs->eip);
 	// regs->ebx int fd
 	// regs->ecx char *buf
 	// regs->edx int len
@@ -235,10 +239,7 @@ static void syscall_dumpregs(registers_t *regs) {
 
 static void syscall_handler(registers_t *regs) {
 	switch (regs->eax) {
-/*		case 0x00:
-			syscall_putc(regs);
-			break;
-*/		case 0x01:
+		case 0x01:
 			syscall_exit(regs);
 			break;
 		case 0x02:
