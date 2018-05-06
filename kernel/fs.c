@@ -77,6 +77,42 @@ struct fs_node *fs_finddir(struct fs_node *node, char *name) {
 	}
 }
 
+void fs_create (fs_node_t *node, char *name, uint16_t permissions) {
+	if (!node) {
+		return;
+	}
+
+	if (node->create) {
+		return node->create(node, name, permissions);
+	} else {
+		return;
+	}
+}
+
+void fs_unlink (fs_node_t *node, char *name) {
+	if (!node) {
+		return;
+	}
+
+	if (node->unlink) {
+		return node->unlink(node, name);
+	} else {
+		return;
+	}
+}
+
+void fs_mkdir(fs_node_t *node, char *name, uint16_t permission) {
+	if (node == NULL) {
+		return;
+	}
+
+	if (node->mkdir) {
+		return node->mkdir(node, name, permission);
+	} else {
+		return;
+	}
+}
+
 void fs_mount_root(fs_node_t *node) {
 	fs_root = node;
 }

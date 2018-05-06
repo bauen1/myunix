@@ -18,6 +18,9 @@ typedef void (*open_type_t) (struct fs_node *node, unsigned int flags);
 typedef void (*close_type_t) (struct fs_node *node);
 typedef struct dirent *(*readdir_type_t) (struct fs_node *node, uint32_t i);
 typedef struct fs_node *(*finddir_type_t) (struct fs_node *node, char *name);
+typedef void (*create_type_t) (struct fs_node *node, char *name, uint16_t permissions);
+typedef void (*unlink_type_t) (struct fs_node *node, char *name);
+typedef void (*mkdir_type_t) (struct fs_node *node, char *name, uint16_t permissions);
 
 typedef struct fs_node {
 	char name[256];
@@ -31,6 +34,9 @@ typedef struct fs_node {
 	close_type_t close;
 	readdir_type_t readdir;
 	finddir_type_t finddir;
+	create_type_t create;
+	unlink_type_t unlink;
+	mkdir_type_t mkdir;
 
 	// TODO: garbage collect
 } fs_node_t;
@@ -43,6 +49,9 @@ void fs_open(fs_node_t *node, unsigned int flags);
 void fs_close(fs_node_t *node);
 struct dirent *fs_readdir(struct fs_node *node, uint32_t i);
 struct fs_node *fs_finddir(struct fs_node *node, char *name);
+void fs_create (fs_node_t *node, char *name, uint16_t permissions);
+void fs_unlink (fs_node_t *node, char *name);
+void fs_mkdir(fs_node_t *node, char *name, uint16_t permission);
 
 void fs_mount_root(fs_node_t *node);
 
