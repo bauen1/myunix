@@ -1,4 +1,4 @@
-#ifndef RINGBUFFER
+#ifndef RINGBUFFER_H
 #define RINGBUFFER_H 1
 
 #include <stdint.h>

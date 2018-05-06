@@ -12,6 +12,7 @@
 #include <framebuffer.h>
 #include <fs.h>
 #include <gdt.h>
+#include <heap.h>
 #include <idt.h>
 #include <isr.h>
 #include <keyboard.h>
@@ -21,10 +22,10 @@
 #include <pmm.h>
 #include <process.h>
 #include <ramdisk.h>
+#include <string.h>
 #include <syscall.h>
 #include <tty.h>
 #include <vmm.h>
-#include <string.h>
 
 /* main kernel entry point */
 void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
