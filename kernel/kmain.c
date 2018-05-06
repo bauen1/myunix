@@ -10,6 +10,7 @@
 /* all other headers */
 #include <console.h>
 #include <framebuffer.h>
+#include <fs.h>
 #include <gdt.h>
 #include <idt.h>
 #include <isr.h>
@@ -19,6 +20,7 @@
 #include <pit.h>
 #include <pmm.h>
 #include <process.h>
+#include <ramdisk.h>
 #include <syscall.h>
 #include <tty.h>
 #include <vmm.h>
@@ -323,17 +325,23 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 
 	process_add(kidle_init(esp));
 
+	fs_node_t *ramdisk = NULL;
 	if (mbi->mods_count > 0) {
 		// we have modules
 		multiboot_module_t *mods = (multiboot_module_t *)mbi->mods_addr;
 		for (unsigned int i = 0; i < mbi->mods_count; i++) {
 			uintptr_t mod_start = mods[i].mod_start;
 			uintptr_t mod_end = mods[i].mod_end;
-			printf("process_init(mod[%u]) name='%s'\n", i, (char *)mods[i].cmdline);
-			process_t *p = process_init(mod_start, mod_end);
-			p->pid = i + 1;
-			p->name = (char *)mods[i].cmdline;
-			process_add(p);
+			if ((*(char *)mod_start) == 't') {
+				printf("ramdisk at 0x%x, length 0x%x\n", mod_start, mod_end-mod_start);
+				ramdisk = ramdisk_init(mod_start, mod_end-mod_start);
+			} else {
+				printf("process_init(mod[%u]) name='%s'\n", i, (char *)mods[i].cmdline);
+				process_t *p = process_init(mod_start, mod_end);
+				p->pid = i + 1;
+				p->name = (char *)mods[i].cmdline;
+				process_add(p);
+			}
 		}
 	}
 

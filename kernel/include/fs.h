@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define PATH_SEPERATOR '/'
+
 struct dirent {
 	uint32_t ino;
 	char name[256];
