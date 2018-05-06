@@ -98,6 +98,7 @@ int liballoc_unlock() {
  * \return NULL if the pages were not allocated.
  * \return A pointer to the allocated memory.
  */
+int liballoc_free(void *v, size_t pages);
 void *liballoc_alloc(size_t pages) {
 	uintptr_t v_start = find_vspace(kernel_directory, pages); // FIXME: blocks, not pages
 	for (size_t i = 0; i < pages; i++) {
