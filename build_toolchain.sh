@@ -46,6 +46,7 @@ if [ ! -f .downloaded_tinycc ]; then
 	echo "Cloning tinycc"
 	test -d tinycc || git clone "http://repo.or.cz/tinycc.git"
 	git -C tinycc checkout $TINYCC_TAG
+	git -C tinycc apply ../patches/tinycc_output_bss.patch
 	touch .downloaded_tinycc
 fi
 if [ ! -f .downloaded_perl ]; then

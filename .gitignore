@@ -1,4 +1,6 @@
-toolchain
+toolchain/*
+!/toolchain/patches/
+!/toolchain/patches/*
 *.o
 *.d
 kernel/kernel.bin

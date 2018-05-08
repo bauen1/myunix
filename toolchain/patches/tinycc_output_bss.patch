@@ -1,0 +1,18 @@
+diff --git a/tccelf.c b/tccelf.c
+index 70d47e1..f820fd4 100644
+--- a/tccelf.c
++++ b/tccelf.c
+@@ -1296,7 +1296,12 @@ static void tcc_output_binary(TCCState *s1, FILE *f,
+     offset = 0;
+     for(i=1;i<s1->nb_sections;i++) {
+         s = s1->sections[sec_order[i]];
+-        if (s->sh_type != SHT_NOBITS &&
++	if (strcmp(s->name, ".bss") == 0) {
++		while (offset < (s->sh_offset + s->sh_size)) {
++			fputc(0, f);
++			offset++;
++		}
++	} else if ((s->sh_type != SHT_NOBITS) &&
+             (s->sh_flags & SHF_ALLOC)) {
+             while (offset < s->sh_offset) {
+                 fputc(0, f);
