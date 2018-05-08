@@ -46,7 +46,7 @@ if [ ! -f .downloaded_tinycc ]; then
 	echo "Cloning tinycc"
 	test -d tinycc || git clone "http://repo.or.cz/tinycc.git"
 	git -C tinycc checkout $TINYCC_TAG
-	git -C tinycc apply ../patches/tinycc_output_bss.patch
+	git -C tinycc apply ../../patches/tinycc_output_bss.patch
 	touch .downloaded_tinycc
 fi
 if [ ! -f .downloaded_perl ]; then
@@ -67,12 +67,13 @@ if [ ! -f .downloaded_autoconf ]; then
 	tar -xvf autoconf-$AUTOCONF_VERSION.tar.gz
 	touch .downloaded_autoconf
 fi
-if [ ! -f .downloaded_newlib ]; then
-	echo "Cloning newlib"
-	test -d newlib || git clone "git://sourceware.org/git/newlib-cygwin.git" "newlib"
-	git -C newlib checkout $NEWLIB_TAG
-	touch .downloaded_newlib
-fi
+
+#if [ ! -f .downloaded_newlib ]; then
+#	echo "Cloning newlib"
+#	test -d newlib || git clone "git://sourceware.org/git/newlib-cygwin.git" "newlib"
+#	git -C newlib checkout $NEWLIB_TAG
+#	touch .downloaded_newlib
+#fi
 
 if [ ! -f .built_binutils ]; then
 	echo "Building Binutils"
