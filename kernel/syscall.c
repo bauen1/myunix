@@ -71,10 +71,10 @@ static size_t copy_from_userspace(uint32_t *pdir, uintptr_t ptr, size_t n, void 
 	return n;
 }
 
-static void syscall_getc(registers_t *regs) {
-	regs->ebx = (uint32_t)getc();
+__attribute__((used))
+static size_t copy_to_userspace(uint32_t *pdir, uintptr_t ptr, size_t n, void *buffer) {
+	// TODO: implement
 }
-*/
 
 /*
 static void syscall_execve(registers_t *regs) {
@@ -111,12 +111,59 @@ static void syscall_times(registers_t *regs) {
 //	printf("times()\n");
 	regs->eax = -1;
 }
-/*
-static void syscall_unlink(registers_t *regs) {
-//	printf("unlink()\n");
+
+static void syscall_mkdir(registers_t *regs) {
+	// regs->ebx 256 path
+	// regs->ecx mode
+	char buffer[256];
+	size_t r = copy_from_userspace(current_process->pdir, regs->ebx, 256, buffer); // FIXME: possible off by one error ?
+	if (r < 0) {
+		regs->eax = -1;
+		return;
+	}
+
+	// FIXME: creating directories not in the root would be cool
+	fs_mkdir(fs_root, buffer, regs->ecx);
+	regs->eax = 0;
+}
+
+static void syscall_rmdir(registers_t *regs) {
+	// regs->ebx path
+	// just call syscall_unlink ?
 	regs->eax = -1;
 }
-*/
+
+static void syscall_create(registers_t *regs) {
+	// regs->ebx path
+	// regs->ecx mode
+	char buffer[256];
+	size_t r = copy_from_userspace(current_process->pdir, regs->ebx, 256, buffer); // FIXME ^
+	if (r < 0) {
+		regs->eax = -1;
+		return;
+	}
+
+	// FIXME: creating directories not in the root would be cool
+	fs_create(fs_root, buffer, regs->ecx);
+	regs->eax = 0;
+	return;
+}
+
+static void syscall_unlink(registers_t *regs) {
+	// regs->ebx path
+	char buffer[256];
+	size_t r = copy_from_userspace(current_process->pdir, regs->ebx, 256, buffer); // FIXME: ^
+	if (r < 0) {
+		regs->eax = -1;
+		return;
+	}
+
+	// FIXME: creating directories not in the root would be cool
+	fs_unlink(fs_root, buffer);
+	regs->eax = 0;
+	return;
+}
+
 /*
 static void syscall_wait(registers_t *regs) {
 //	printf("wait()\n");
@@ -143,7 +190,6 @@ static void syscall_exit(registers_t *regs) {
 }
 
 static void syscall_open(registers_t *regs) {
-	// TODO: validate pointer
 //	printf("open()\n");
 	regs->eax = -1;
 }
@@ -158,32 +204,34 @@ static void syscall_read(registers_t *regs) {
 	// regs->ebx int fd
 	// regs->ecx char *buf
 	// regs->edx int len
-	// FIXME: validate pointers
-	if (regs->ebx != 0) {
+	if (current_process->fd_table) {
+		if (regs->ebx > 16) {
+			regs->eax = -1;
+			return;
+		}
+		if (current_process->fd_table->entries[regs->ebx]) {
+			uintptr_t ptr = regs->ecx;
+			size_t n = regs->edx;
+			size_t n_blocks = (BLOCK_SIZE - 1 + n) / BLOCK_SIZE;
+			uint32_t *pdir = current_process->pdir;
+			uintptr_t kptr = find_vspace(kernel_directory, n_blocks); // FIXME
+//			uintptr_t kptr2 = kptr + (ptr & 0xFFFF);
+			uintptr_t kptr2 = kptr + (ptr & 0xFFF);
+			size_t v = map_userspace_to_kernel(pdir, ptr, kptr, n_blocks);
+			if (v != 0) {
+				printf("v: %u\n", v);
+				unmap_from_kernel(kptr, v);
+				regs->eax = -1;
+				return;
+			}
+			fs_node_t *node = current_process->fd_table->entries[regs->ebx];
+			regs->eax = fs_read(node, 0, n, (uint8_t *)kptr2);
+			unmap_from_kernel(kptr, n_blocks);
+		}
+	} else {
 		regs->eax = -1;
 		return;
 	}
-
-	uintptr_t ptr = regs->ecx;
-	size_t n = regs->edx;
-	size_t n_blocks = (n / BLOCK_SIZE) + 1;
-	uint32_t *pdir = current_process->pdir;
-	uintptr_t kptr = find_vspace(kernel_directory, n_blocks); // FIXME: handle overflow of pointer into next block
-	uintptr_t kptr2 = kptr + (ptr & 0xFFFF);
-	size_t v =  map_userspace_to_kernel(pdir, ptr, kptr, n_blocks);
-	if (v != 0) {
-		printf("v: %u\n", v);
-		unmap_from_kernel(kptr, v);
-//		return -1;
-		return;
-	}
-
-	for (uintptr_t i = 0; i < n; i++) {
-		*(char *)(kptr2 + i) = getc();
-	}
-
-	unmap_from_kernel(kptr, v);
-	regs->eax = regs->edx;
 }
 
 static void syscall_write(registers_t *regs) {
@@ -191,38 +239,34 @@ static void syscall_write(registers_t *regs) {
 	// regs->ebx int fd
 	// regs->ecx char *buf
 	// regs->edx int len
-	// FIXME: validate pointers !!!!
-	if (regs->ebx == 0) {
-		regs->eax = 0;
-		return;
-	}
-	if (regs->ebx != 1) {
+	if (current_process->fd_table) {
+		if (regs->ebx > 16) {
+			regs->eax = -1;
+			return;
+		}
+		if (current_process->fd_table->entries[regs->ebx]) {
+			// FIXME: handle oveflow of pointer into next block correctly
+			uintptr_t ptr = regs->ecx;
+			size_t n = regs->edx;
+			size_t n_blocks = (BLOCK_SIZE - 1 + n) / BLOCK_SIZE;
+			uint32_t *pdir = current_process->pdir;
+			uintptr_t kptr = find_vspace(kernel_directory, n_blocks); // FIXME
+			uintptr_t kptr2 = kptr + (ptr & 0xFFF);
+			size_t v = map_userspace_to_kernel(pdir, ptr, kptr, n_blocks);
+			if (v != 0) {
+				printf("syscall_write early abort, v: %u\n", v);
+				unmap_from_kernel(kptr, v);
+				regs->eax = -1;
+				return;
+			}
+			fs_node_t *node = current_process->fd_table->entries[regs->ebx];
+			regs->eax = fs_write(node, 0, n, (uint8_t *)kptr2);
+			unmap_from_kernel(kptr, n_blocks);
+		}
+	} else {
 		regs->eax = -1;
 		return;
 	}
-
-	uintptr_t ptr = regs->ecx;
-	size_t n = regs->edx;
-	size_t n_blocks = (n / BLOCK_SIZE) + 1;
-	uint32_t *pdir = current_process->pdir;
-	uintptr_t kptr = find_vspace(kernel_directory, n_blocks); // FIXME: handle overflow of pointer into next block
-	uintptr_t kptr2 = kptr + (ptr & 0xFFFF);
-	size_t v =  map_userspace_to_kernel(pdir, ptr, kptr, n_blocks);
-	if (v != 0) {
-		printf("v: %u\n", v);
-		unmap_from_kernel(kptr, v);
-//		return -1;
-		return;
-	}
-
-	for (uintptr_t i = 0; i < n; i++) {
-		putc(*(char *)(kptr2 + i));
-	}
-
-
-	unmap_from_kernel(kptr, v);
-	regs->eax = regs->edx;
-//	return 0;
 }
 
 static void syscall_sleep(registers_t *regs) {
@@ -257,8 +301,20 @@ static void syscall_handler(registers_t *regs) {
 		case 0x06:
 			syscall_close(regs);
 			break;
+		case 0x08:
+			syscall_create(regs);
+			break;
+		case 0x0A:
+			syscall_unlink(regs);
+			break;
 		case 0x14:
 			syscall_getpid(regs);
+			break;
+		case 0x27:
+			syscall_mkdir(regs);
+			break;
+		case 0x28:
+			syscall_rmdir(regs);
 			break;
 		case 0x2b:
 			syscall_times(regs);
