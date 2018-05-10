@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#define PAGE_SIZE 4096
+
 #define PAGE_DIRECTORY_PRESENT 0x01
 #define PAGE_DIRECTORY_READWRITE 0x02
 #define PAGE_DIRECTORY_USER 0x04
@@ -19,6 +21,8 @@
 #define PAGE_TABLE_CACHE_DISABLE 0x10
 #define PAGE_TABLE_ACCESSED 0x20
 #define PAGE_TABLE_DIRTY 0x40
+
+#define PAGE_VALUE_GUARD 0xFFFFFFFF
 
 extern __attribute__((aligned(4096))) uint32_t kernel_directory[1024];
 extern __attribute__((aligned(4096))) uint32_t kernel_tables[1024][1024];
