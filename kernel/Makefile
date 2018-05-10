@@ -135,6 +135,10 @@ QEMUFLAGS?=-serial stdio -no-shutdown -no-reboot $(ARCH_QEMUFLAGS) $(EXTRA_QEMUF
 run-grub: iso/grub_iso.iso
 	$(QEMU) $(QEMUFLAGS) -cdrom $<
 
+.PHOYN: debug-grub
+debug-grub: iso/grub_iso.iso
+	$(QEMU) $(QEMUFLAGS) -cdrom $< -s -S
+
 .PHONY: run-qemu
 run-qemu: kernel.bin
 	$(QEMU) $(QEMUFLAGS) -kernel kernel.bin
@@ -155,6 +159,12 @@ gdb: kernel.elf .gdbinit
 .PHONY: cppcheck-tcc
 cppcheck-tcc:
 	cppcheck --enable=all $(CPPFLAGS) $(wildcard *.c) $(widlcard $(ARCHDIR)/*.c) -I ../toolchain/opt/lib/tcc/include $(EXTRA_CPPCHECKFLAGS)
+
+#
+
+.PHONY: todo
+todo:
+	egrep "TODO|XXX|FIXME" -r .
 
 #
 
