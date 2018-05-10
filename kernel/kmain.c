@@ -324,6 +324,8 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	vmm_enable();
 	printf("[%u] [OK] vmm_enable\n", (unsigned int)ticks);
 
+	liballoc_init();
+
 	assert(mbi->flags && MULTIBOOT_INFO_MODS);
 
 	process_add(kidle_init(esp));

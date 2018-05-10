@@ -61,8 +61,6 @@ unsigned int l_inuse = 0;
 
 // flag to indicate initializtion.
 static int l_initialized = 0;
-// individual page size
-static unsigned int l_pageSize = 4096; // FIXME: replace with PAGE_SIZE ?
 // minimum number of pages to allocate
 static unsigned int l_pageCount = 16; // FIXME: replace with #define ?
 
@@ -77,7 +75,7 @@ static unsigned int l_pageCount = 16; // FIXME: replace with #define ?
  */
 int liballoc_lock() {
 	// TODO: implement
-	return -1;
+	return 0;
 }
 
 /** This function unlocks what was previously locked by the liballoc_lock
@@ -88,7 +86,7 @@ int liballoc_lock() {
  */
 int liballoc_unlock() {
 	// TODO: implement
-	return -1;
+	return 0;
 }
 
 /** This is the hook into the local system which allocates pages. It
@@ -316,8 +314,8 @@ static struct boundary_tag* allocate_new_tag( unsigned int size )
 	usage  = size + sizeof(struct boundary_tag);
 
 	// Perfect amount of space
-	pages = usage / l_pageSize;
-	if ( (usage % l_pageSize) != 0 ) {
+	pages = usage / PAGE_SIZE;
+	if ( (usage % PAGE_SIZE) != 0 ) {
 		pages += 1;
 	}
 
@@ -334,7 +332,7 @@ static struct boundary_tag* allocate_new_tag( unsigned int size )
 
 	tag->magic 		= LIBALLOC_MAGIC;
 	tag->size 		= size;
-	tag->real_size 	= pages * l_pageSize;
+	tag->real_size 	= pages * PAGE_SIZE;
 	tag->index 		= -1;
 
 	tag->next		= NULL;
@@ -344,13 +342,25 @@ static struct boundary_tag* allocate_new_tag( unsigned int size )
 
 
 	#ifdef DEBUG
-	printf("Resource allocated %x of %i pages (%i bytes) for %i size.\n", tag, pages, pages * l_pageSize, size );
+	printf("Resource allocated %x of %i pages (%i bytes) for %i size.\n", tag, pages, pages * PAGE_SIZE, size );
 
-	l_allocated += pages * l_pageSize;
+	l_allocated += pages * PAGE_SIZE;
 
 	printf("Total memory usage = %i KB\n",  (int)((l_allocated / (1024))) );
 	#endif
 	return tag;
+}
+
+void liballoc_init(void) {
+	#ifdef DEBUG
+	printf("%s\n","liballoc initializing.");
+	#endif
+	for (unsigned int index = 0; index < MAXEXP; index++ ) {
+		l_freePages[index] = NULL;
+		l_completePages[index] = 0;
+	}
+
+	l_initialized = 1;
 }
 
 void *kmalloc(size_t size)
@@ -359,18 +369,9 @@ void *kmalloc(size_t size)
 	void *ptr;
 	struct boundary_tag *tag = NULL;
 
-	liballoc_lock();
+	assert(liballoc_lock() == 0);
 
-		if ( l_initialized == 0 ) {
-			#ifdef DEBUG
-			printf("%s\n","liballoc initializing.");
-			#endif
-			for ( index = 0; index < MAXEXP; index++ ) {
-				l_freePages[index] = NULL;
-				l_completePages[index] = 0;
-			}
-			l_initialized = 1;
-		}
+		assert(l_initialized != 0);
 
 		index = getexp( size ) + MODE;
 		if ( index < MINEXP ) {
@@ -397,7 +398,7 @@ void *kmalloc(size_t size)
 			// No page found. Make one.
 			if ( tag == NULL ) {
 				if ( (tag = allocate_new_tag( size )) == NULL ) {
-					liballoc_unlock();
+					assert(liballoc_unlock() == 0);
 					return NULL;
 				}
 				index = getexp( tag->real_size - sizeof(struct boundary_tag) );
@@ -445,7 +446,7 @@ void *kmalloc(size_t size)
 	dump_array();
 	#endif
 
-	liballoc_unlock();
+	assert(liballoc_unlock() == 0);
 	return ptr;
 }
 
@@ -458,12 +459,12 @@ void kfree(void *ptr)
 		return;
 	}
 
-	liballoc_lock();
+	assert(liballoc_lock() == 0);
 
 		tag = (struct boundary_tag*)((unsigned int)ptr - sizeof( struct boundary_tag ));
 
 		if ( tag->magic != LIBALLOC_MAGIC ) {
-			liballoc_unlock();		// release the lock
+			assert(liballoc_unlock() == 0);
 			return;
 		}
 
@@ -497,20 +498,20 @@ void kfree(void *ptr)
 		if ( (tag->split_left == NULL) && (tag->split_right == NULL) ) {
 			if ( l_completePages[ index ] == MAXCOMPLETE ) {
 				// Too many standing by to keep. Free this one.
-				unsigned int pages = tag->real_size / l_pageSize;
+				unsigned int pages = tag->real_size / PAGE_SIZE;
 
-				if ( (tag->real_size % l_pageSize) != 0 ) pages += 1;
+				if ( (tag->real_size % PAGE_SIZE) != 0 ) pages += 1;
 				if ( pages < l_pageCount ) pages = l_pageCount;
 
 				liballoc_free( tag, pages );
 
 				#ifdef DEBUG
-				l_allocated -= pages * l_pageSize;
+				l_allocated -= pages * PAGE_SIZE;
 				printf("Resource freeing %x of %i pages\n", tag, pages );
 				dump_array();
 				#endif
 
-				liballoc_unlock();
+				assert(liballoc_unlock() == 0);
 				return;
 			}
 
@@ -526,7 +527,7 @@ void kfree(void *ptr)
 		dump_array();
 		#endif
 
-	liballoc_unlock();
+	assert(liballoc_unlock() == 0);
 }
 
 void* kcalloc(size_t nobj, size_t size) {
@@ -552,10 +553,10 @@ void* krealloc(void *p, size_t size) {
 	}
 	if ( p == NULL ) return kmalloc( size );
 
-	liballoc_lock();
+	assert(liballoc_lock() == 0);
 		tag = (struct boundary_tag*)((unsigned int)p - sizeof( struct boundary_tag ));
 		real_size = tag->size;
-	liballoc_unlock();
+	assert(liballoc_unlock() == 0);
 
 	if ( real_size > size ) {
 		real_size = size;

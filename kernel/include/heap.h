@@ -3,6 +3,8 @@
 
 #include <stddef.h>
 
+void liballoc_init(void);
+
 void *kmalloc(size_t size);
 void kfree(void *ptr);
 void *kcalloc(size_t nmemb, size_t size);
