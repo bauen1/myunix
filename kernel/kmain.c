@@ -41,7 +41,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	console_init();
 	printf("early console init!\n");
 
-	if ((mbi->flags && MULTIBOOT_INFO_FRAMEBUFFER_INFO) && (mbi->framebuffer_addr != 0)) {
+	if ((mbi->flags & MULTIBOOT_INFO_FRAMEBUFFER_INFO) && (mbi->framebuffer_addr != 0)) {
 		if (mbi->framebuffer_type == MULTIBOOT_FRAMEBUFFER_TYPE_EGA_TEXT) {
 			fb_start = mbi->framebuffer_addr;
 			fb_size = (mbi->framebuffer_height + 1) * mbi->framebuffer_pitch;
@@ -89,18 +89,18 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 
 	printf("mbi->flags: 0x%x\n", (uint32_t)mbi->flags);
 
-	if (mbi->flags && MULTIBOOT_INFO_BOOT_LOADER_NAME) {
+	if (mbi->flags & MULTIBOOT_INFO_BOOT_LOADER_NAME) {
 		printf("mbi->boot_loader_name: '%s'\n", (char *)mbi->boot_loader_name);
 	}
 
-	if (mbi->flags && MULTIBOOT_INFO_ELF_SHDR) {
+	if (mbi->flags & MULTIBOOT_INFO_ELF_SHDR) {
 		printf("mbi->u.elf_sec.num: 0x%x\n", mbi->u.elf_sec.num);
 		printf("mbi->u.elf_sec.size: 0x%x\n", mbi->u.elf_sec.size);
 		printf("mbi->u.elf_sec.addr: 0x%x\n", mbi->u.elf_sec.addr);
 		printf("mbi->u.elf_sec.shndx: 0x%x\n", mbi->u.elf_sec.shndx);
 	}
 
-	if (mbi->flags && MULTIBOOT_INFO_VIDEO_INFO) {
+	if (mbi->flags & MULTIBOOT_INFO_VIDEO_INFO) {
 		printf("mbi->vbe_control_info: 0x%x\n", mbi->vbe_control_info);
 		printf("mbi->vbe_mode_info: 0x%x\n", mbi->vbe_mode_info);
 		printf("mbi->vbe_interface_seg: 0x%x\n", mbi->vbe_interface_seg);
@@ -132,13 +132,13 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	__asm__ __volatile__ ("sti");
 	printf("[%u] [OK] sti\n", (unsigned int)ticks);
 
-	if (mbi->flags && MULTIBOOT_INFO_MEMORY) {
+	if (mbi->flags & MULTIBOOT_INFO_MEMORY) {
 		printf("mem_lower: %ukb\n", mbi->mem_lower);
 		printf("mem_upper: %ukb\n", mbi->mem_upper);
 		mem_avail = 1024 * (1024 + mbi->mem_upper);
 	}
 
-	if (mbi->flags && MULTIBOOT_INFO_MODS) {
+	if (mbi->flags & MULTIBOOT_INFO_MODS) {
 		printf("[%u] %u modules\n", (unsigned int)ticks, mbi->mods_count);
 		if (mbi->mods_count > 0) {
 			// we have modules
@@ -172,7 +172,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 		}
 	}
 
-	if (mbi->flags && MULTIBOOT_INFO_CMDLINE) {
+	if (mbi->flags & MULTIBOOT_INFO_CMDLINE) {
 		printf("[%u] cmdline: '%s'\n", (unsigned int)ticks, (char *)mbi->cmdline);
 	}
 
@@ -193,7 +193,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	vmm_init();
 	printf("[%u] [OK] vmm_init\n", (unsigned int)ticks);
 
-	if (mbi->flags && MULTIBOOT_INFO_MEM_MAP) {
+	if (mbi->flags & MULTIBOOT_INFO_MEM_MAP) {
 		for (multiboot_memory_map_t *mmap = (multiboot_memory_map_t *)mbi->mmap_addr;
 			((uint32_t)mmap) < (mbi->mmap_addr + mbi->mmap_length);
 			mmap = (multiboot_memory_map_t *)((uint32_t)mmap + mmap->size + sizeof(mmap->size))) {
@@ -250,7 +250,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	// TODO: remember to free information once its no longer needed
 	printf("set 0x%x: multiboot info\n", (uintptr_t)mbi);
 	pmm_set_block(((uintptr_t)mbi)/BLOCK_SIZE);
-	if (mbi->flags && MULTIBOOT_INFO_CMDLINE) {
+	if (mbi->flags & MULTIBOOT_INFO_CMDLINE) {
 		for (uintptr_t i = (uintptr_t)mbi->cmdline;
 			i < ((uintptr_t)mbi->cmdline + (uintptr_t)strlen((char *)mbi->cmdline));
 			i += BLOCK_SIZE) {
@@ -259,7 +259,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 			map_direct_kernel(i);
 		}
 	}
-	if (mbi->flags && MULTIBOOT_INFO_MODS) {
+	if (mbi->flags & MULTIBOOT_INFO_MODS) {
 		for (uintptr_t i = (uintptr_t)mbi->mods_addr;
 			i < ((uintptr_t)mbi->mods_addr + ((uintptr_t)mbi->mods_count * sizeof(multiboot_module_t)));
 			i += BLOCK_SIZE) {
@@ -268,10 +268,10 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 			map_direct_kernel(i);
 		}
 	}
-	if (mbi->flags && MULTIBOOT_INFO_AOUT_SYMS) { // TODO: implement
-	} else if (mbi->flags && MULTIBOOT_INFO_ELF_SHDR) { // TODO: implement
+	if (mbi->flags & MULTIBOOT_INFO_AOUT_SYMS) { // TODO: implement
+	} else if (mbi->flags & MULTIBOOT_INFO_ELF_SHDR) { // TODO: implement
 	}
-	if (mbi->flags && MULTIBOOT_INFO_MEM_MAP) { // TODO: implement
+	if (mbi->flags & MULTIBOOT_INFO_MEM_MAP) { // TODO: implement
 		for (uintptr_t i = (uintptr_t)mbi->mmap_length;
 			i < ((uintptr_t)mbi->mmap_addr + (uintptr_t)mbi->mmap_length);
 			i += BLOCK_SIZE) {
@@ -280,8 +280,8 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 			map_direct_kernel(i);
 		}
 	}
-	if (mbi->flags && MULTIBOOT_INFO_CONFIG_TABLE) {} // TODO: implement (useless?)
-	if (mbi->flags && MULTIBOOT_INFO_BOOT_LOADER_NAME) {
+	if (mbi->flags & MULTIBOOT_INFO_CONFIG_TABLE) {} // TODO: implement (useless?)
+	if (mbi->flags & MULTIBOOT_INFO_BOOT_LOADER_NAME) {
 		for (uintptr_t i = (uintptr_t)mbi->boot_loader_name;
 			i < ((uintptr_t)mbi->boot_loader_name + (uintptr_t)strlen((char *)mbi->boot_loader_name));
 			i += BLOCK_SIZE) {
@@ -290,7 +290,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 			map_direct_kernel(i);
 		}
 	}
-	if (mbi->flags && MULTIBOOT_INFO_APM_TABLE) {} // TODO: implement
+	if (mbi->flags & MULTIBOOT_INFO_APM_TABLE) {} // TODO: implement
 
 	// you can use pmm_alloc_* atfer here
 
@@ -315,7 +315,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 		PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "pmm_map");
 
 	/* map the framebuffer / textbuffer */
-	if ((fb_start != 0) && (fb_size != 0)) {
+	if ((fb_start != 0) & (fb_size != 0)) {
 		map_pages((void *)fb_start, (void *)(fb_start + fb_size), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "framebuffer");
 //		map_pages((void *)fb_start, (void *)(fb_start + fb_size), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE | PAGE_TABLE_CACHE_DISABLE, "framebuffer");
 	}
@@ -326,7 +326,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 
 	liballoc_init();
 
-	assert(mbi->flags && MULTIBOOT_INFO_MODS);
+	assert(mbi->flags & MULTIBOOT_INFO_MODS);
 
 	process_add(kidle_init(esp));
 

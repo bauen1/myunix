@@ -13,7 +13,6 @@
 #include <task.h>
 #include <vmm.h>
 
-void __switch_direct();
 void __attribute__((noreturn)) __restore_process();
 
 process_t *current_process;
@@ -35,13 +34,13 @@ process_t *kidle_init() {
 	for (size_t i = 0; i < stack_size_blocks; i++) {
 		uintptr_t vaddr = v_stack + i*BLOCK_SIZE + BLOCK_SIZE;
 		uintptr_t block = pmm_alloc_blocks_safe(1);
-		map_page(get_table(vaddr, kernel_directory),  vaddr,
+		map_page(get_table_alloc(vaddr, kernel_directory),  vaddr,
 			block,
 			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
 	}
 
 	// guard
-	map_page(get_table(v_stack, kernel_directory), v_stack, PAGE_VALUE_GUARD, 0);
+	map_page(get_table_alloc(v_stack, kernel_directory), v_stack, PAGE_VALUE_GUARD, 0);
 
 	process->esp = v_stack + (BLOCK_SIZE * (stack_size_blocks + 1)) ;
 	process->ebp = process->esp;
@@ -206,7 +205,7 @@ void _switch_task() {
 
 // DESTRUCTIVE: don't save anything and NEVER return
 __attribute__((noreturn))
-void __switch_direct() {
+void __switch_direct(void) {
 	current_process = next_process();
 	__restore_process();
 }
@@ -235,10 +234,11 @@ void __restore_process() {
 }
 
 void process_remove(process_t *p) {
-	(void)p;
-	// TODO: implement
-	printf("process_remove not implemented!\n");
-	halt();
+	list_remove(process_list, p);
+	if (current_process == p) {
+		current_process_node = process_list->head;
+		current_process = current_process_node->value;
+	}
 }
 
 void process_add(process_t *p) {

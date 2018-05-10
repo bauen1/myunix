@@ -3,6 +3,7 @@
 
 extern void kidle(void);
 extern void switch_task(void);
+extern void __attribute__((noreturn)) __switch_direct(void);
 extern void __attribute__((noreturn)) return_to_regs(void);
 
 #endif

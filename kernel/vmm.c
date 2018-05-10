@@ -95,7 +95,7 @@ void page_fault(registers_t *regs) {
 	printf("eip: 0x%x\n", (uint32_t)(regs->eip));
 	printf("address: 0x%x\n", (uint32_t)(address));
 
-	if (regs->err_code && 0x4) {
+	if (regs->err_code & 0x4) {
 		printf("usermode\n");
 	} else {
 		printf("KERNEL MODE PAGE FAULT\n");
