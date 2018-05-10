@@ -1,7 +1,7 @@
 // FIXME: memory leaks
 
 #include <console.h>
-#include <ustar.h>
+#include <tar.h>
 #include <fs.h>
 #include <heap.h>
 #include <string.h>
@@ -78,7 +78,6 @@ static uintptr_t tar_lookup(fs_node_t *device, char *fname) {
 }
 
 uint32_t tar_read(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buffer) {
-	// FIXME: check for length;
 	if (offset > node->length) {
 		return 0;
 	}

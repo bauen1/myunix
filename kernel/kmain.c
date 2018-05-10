@@ -24,10 +24,12 @@
 #include <ramdisk.h>
 #include <string.h>
 #include <syscall.h>
+#include <tar.h>
 #include <tty.h>
 #include <vmm.h>
 
 /* main kernel entry point */
+__attribute__((used))
 void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	uintptr_t mem_avail = 0;
 	uintptr_t real_end = (uintptr_t)&_end;
