@@ -9,4 +9,6 @@ void __assert_failed(const char *exp, const char *file, int line);
 __attribute__((noreturn))
 void __stack_chk_fail();
 
+void print_stack_trace(unsigned int max_frames);
+
 #endif
