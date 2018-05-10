@@ -22,15 +22,15 @@ static size_t map_userspace_to_kernel(uint32_t *pdir, uintptr_t ptr, uintptr_t k
 			return i;
 		}
 		uintptr_t page = get_page(table, u_virtaddr);
-		if (! (page && PAGE_TABLE_PRESENT)) {
+		if (! (page & PAGE_TABLE_PRESENT)) {
 			printf(" not present; returning early: %u\n", i);
 			return i;
 		}
-		if (! (page && PAGE_TABLE_READWRITE)) {
+		if (! (page & PAGE_TABLE_READWRITE)) {
 			printf(" not read-write; returning early: %u\n", i);
 			return i;
 		}
-		if (! (page && PAGE_TABLE_USER)) {
+		if (! (page & PAGE_TABLE_USER)) {
 			printf(" not user; returning early: %u\n", i);
 			return i;
 		}

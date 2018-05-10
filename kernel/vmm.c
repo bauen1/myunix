@@ -1,5 +1,4 @@
 // TODO: dynamically allocate space for the kernel directory & tables
-// always keep ~32 pages preallocated and zeroed to avoid a loop-of-death
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -63,14 +62,15 @@ void map_pages(void *start, void *end, int flags, const char *name) {
 uintptr_t find_vspace(uint32_t *dir, size_t n) {
 	/* skip block 0 */
 	for (uintptr_t i = 1; i < (0x100000000 / BLOCK_SIZE); i++) {
-		uintptr_t virtaddr = i * BLOCK_SIZE;
-		uint32_t *table = get_table(virtaddr, dir);
-		assert(table != NULL);
-		if (get_page(table, virtaddr) == 0) {
-			uintptr_t start = virtaddr;
+		uintptr_t v_addr = i * BLOCK_SIZE;
+		uint32_t *table = get_table(v_addr, dir);
+		if ((table == NULL) || (get_page(table, v_addr) == 0)) {
+			uintptr_t start = v_addr;
 			uintptr_t length = 1;
 			while (length < n) {
-				if (get_page(table, virtaddr + length*BLOCK_SIZE) == 0) {
+				uintptr_t v_addr2 = v_addr + length*BLOCK_SIZE;
+				table = get_table(v_addr2, dir);
+				if ((table == NULL) || (get_page(table, v_addr2) == 0)) {
 					length++;
 				} else {
 					break;

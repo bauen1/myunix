@@ -26,6 +26,7 @@ inline bool pmm_test_block(uintptr_t block) {
 	return (block_map[block / 32] & (1 << (block % 32)));
 }
 
+/* find the first free block */
 inline uint32_t pmm_find_first_free() {
 	for (uint32_t i = 0; i < block_map_size; i++) {
 		if (block_map[i] != 0xFFFFFFFF) {
@@ -41,6 +42,7 @@ inline uint32_t pmm_find_first_free() {
 	return 0;
 }
 
+// TODO: optimise
 inline uint32_t pmm_find_first_free_region(size_t size) {
 	assert(size != 0);
 
@@ -60,7 +62,6 @@ inline uint32_t pmm_find_first_free_region(size_t size) {
 					uint32_t start = i*32+j;
 					uint32_t len = 1;
 					while (len < size) {
-						// TODO: optimize 0x00000000 case
 						if (pmm_test_block(start + len)) {
 							// block used
 							break;

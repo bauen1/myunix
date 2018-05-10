@@ -426,14 +426,10 @@ void *kmalloc(size_t size)
 			{
 				#ifdef DEBUG
 				printf("Seems to be splittable: %i >= 2^%i .. %i\n", remainder, childIndex, (1<<childIndex) );
-				#endif
-
 				struct boundary_tag *new_tag = split_tag( tag );
-
-				new_tag = new_tag;	// Get around the compiler warning about unused variables.
-
-				#ifdef DEBUG
 				printf("Old tag has become %i bytes, new tag is now %i bytes (%i exp)\n", tag->real_size, new_tag->real_size, new_tag->index );
+				#else
+				split_tag(tag);
 				#endif
 			}
 		}
