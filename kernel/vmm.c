@@ -61,17 +61,15 @@ void map_pages(void *start, void *end, int flags, const char *name) {
 // finds free (continous) virtual address space
 // n in blocks
 uintptr_t find_vspace(uint32_t *dir, size_t n) {
-//	printf("find_vspace(0x%x, 0x%x)\n", (uintptr_t)dir, n);
-	for (uintptr_t i = 0; i < 0x100000000 / BLOCK_SIZE; i++) {
+	/* skip block 0 */
+	for (uintptr_t i = 1; i < (0x100000000 / BLOCK_SIZE); i++) {
 		uintptr_t virtaddr = i * BLOCK_SIZE;
 		uint32_t *table = get_table(virtaddr, dir);
 		assert(table != NULL);
-//		printf("  page[0x%x]: 0x%x\n", virtaddr, get_page(table, virtaddr));
 		if (get_page(table, virtaddr) == 0) {
 			uintptr_t start = virtaddr;
 			uintptr_t length = 1;
 			while (length < n) {
-//				printf("  page[0x%x]: 0x%x\n", virtaddr + length * BLOCK_SIZE, get_page(table, virtaddr + length * BLOCK_SIZE));
 				if (get_page(table, virtaddr + length*BLOCK_SIZE) == 0) {
 					length++;
 				} else {

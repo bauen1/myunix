@@ -6,6 +6,7 @@
 #include <gdt.h>
 #include <heap.h>
 #include <idt.h>
+#include <list.h>
 #include <pmm.h>
 #include <process.h>
 #include <string.h>
@@ -16,9 +17,8 @@ void __switch_direct();
 void __attribute__((noreturn)) __restore_process();
 
 process_t *current_process;
-unsigned int curr_process;
-//process_t **process_list;
-process_t *process_list[20];
+node_t *current_process_node;
+list_t *process_list;
 
 extern void *isrs_start;
 extern void *isrs_end;
@@ -171,11 +171,13 @@ process_t *process_init(uintptr_t start, uintptr_t end) {
 
 process_t *next_process() {
 	assert(process_list != NULL);
-	curr_process++;
-	if (process_list[curr_process] == 0) {
-		curr_process = 0;
+	node_t *n = current_process_node->next;
+	if (n == NULL) {
+		n = process_list->head;
 	}
-	return process_list[curr_process];
+	current_process_node = n;
+	current_process = current_process_node->value;
+	return current_process;
 }
 
 extern uintptr_t read_eip();
@@ -240,21 +242,18 @@ void process_remove(process_t *p) {
 }
 
 void process_add(process_t *p) {
-	for (int i = 0; i < 19; i++) {
-		if (process_list[i] == 0) {
-			process_list[i] = p;
-			process_list[i+1] = 0;
-			return;
-		}
+	if (process_list == NULL) {
+		process_list = list_init();
 	}
-	printf("process_add failure!\n");
-	halt();
+	list_insert(process_list, p);
+	return;
 }
 
 __attribute__((noreturn))
 void process_enable(void) {
-	current_process = process_list[0];
-	curr_process = 0;
+	current_process_node = process_list->head;
+	current_process = current_process_node->value;
+	assert(current_process != NULL);
 	__asm__ __volatile__ ("cli");
 	__restore_process();
 }
