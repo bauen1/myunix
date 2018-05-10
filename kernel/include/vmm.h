@@ -22,7 +22,7 @@
 #define PAGE_TABLE_ACCESSED 0x20
 #define PAGE_TABLE_DIRTY 0x40
 
-#define PAGE_VALUE_GUARD 0xFFFFFFFF
+#define PAGE_VALUE_GUARD 0xFFFFF000
 
 extern __attribute__((aligned(4096))) uint32_t kernel_directory[1024];
 extern __attribute__((aligned(4096))) uint32_t kernel_tables[1024][1024];

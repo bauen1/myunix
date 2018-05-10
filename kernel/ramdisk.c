@@ -13,7 +13,7 @@ uint32_t ramdisk_read(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *
 		size = node->length - offset;
 	}
 
-	memcpy(buffer, (void *)(node->object + offset), size);
+	memcpy(buffer, (void *)(((uintptr_t)node->object) + offset), size);
 	return size;
 }
 
@@ -25,7 +25,7 @@ uint32_t ramdisk_write(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t 
 	if (offset + size > node->length) {
 		size = node->length - offset;
 	}
-	memcpy((void *)(node->object + offset), buffer, size);
+	memcpy((void *)(((uintptr_t)node->object) + offset), buffer, size);
 	return size;
 }
 
