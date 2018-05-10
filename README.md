@@ -1,8 +1,22 @@
 # myunix
 A unix-like kernel+userspace, for SCIENCE!
 
-To build (for i386):
+# build
+1. build the toolchain
+
+this will build the tcc (tiny c compiler), gcc, bintuils and grub.
+
 ```
-cd kernel
-make TARGET=myunix2-i686 all
+./build_toolchain.sh
 ```
+
+2. build the kernel
+
+this will build a bootable iso / cdrom
+
+```
+make -C kernel TARGET=myunix-i686 iso
+```
+
+# License
+See `LICENCE.md`
