@@ -251,9 +251,10 @@ void process_add(process_t *p) {
 
 __attribute__((noreturn))
 void process_enable(void) {
+	__asm__ __volatile__ ("cli");
 	current_process_node = process_list->head;
 	current_process = current_process_node->value;
 	assert(current_process != NULL);
-	__asm__ __volatile__ ("cli");
+
 	__restore_process();
 }

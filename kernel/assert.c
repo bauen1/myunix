@@ -20,6 +20,7 @@ void __stack_chk_fail() {
 }
 
 void print_stack_trace(unsigned int max_frames) {
+	// FIXME: this can page fault
 	uintptr_t ebp_r = 0;
 	__asm__ __volatile__ (
 		"mov %%ebp, %0"
@@ -30,11 +31,11 @@ void print_stack_trace(unsigned int max_frames) {
 	printf("stack trace:\n");
 	for (unsigned int frame = 0; frame < max_frames; frame++) {
 		uintptr_t eip = ebp[1];
-		if (ebp[0] == 0) {
+		if ((ebp[0] == 0) || (eip == 0)) {
 			printf("\n");
 			return;
 		}
 		ebp = (uintptr_t *)ebp[0];
-		printf(" 0x%x\n", eip);
+		printf(" eip: 0x%x (ebp: 0x%x)\n", eip, ebp[0]);
 	}
 }
