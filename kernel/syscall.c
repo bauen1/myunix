@@ -51,7 +51,7 @@ static void unmap_from_kernel(uintptr_t kptr, size_t n) {
 
 // only copies if all data was sucessfully mapped
 __attribute__((used))
-static size_t copy_from_userspace(uint32_t *pdir, uintptr_t ptr, size_t n, void *buffer) {
+static ssize_t copy_from_userspace(uint32_t *pdir, uintptr_t ptr, size_t n, void *buffer) {
 	size_t size_in_blocks = (BLOCK_SIZE - 1 + n) / BLOCK_SIZE;
 	uintptr_t kptr = find_vspace(kernel_directory, size_in_blocks);
 	if (kptr == 0) {
@@ -72,7 +72,7 @@ static size_t copy_from_userspace(uint32_t *pdir, uintptr_t ptr, size_t n, void 
 }
 
 __attribute__((used))
-static size_t copy_to_userspace(uint32_t *pdir, uintptr_t ptr, size_t n, void *buffer) {
+static ssize_t copy_to_userspace(uint32_t *pdir, uintptr_t ptr, size_t n, void *buffer) {
 	// TODO: implement
 }
 
@@ -116,7 +116,7 @@ static void syscall_mkdir(registers_t *regs) {
 	// regs->ebx 256 path
 	// regs->ecx mode
 	char buffer[256];
-	size_t r = copy_from_userspace(current_process->pdir, regs->ebx, 256, buffer); // FIXME: possible off by one error ?
+	ssize_t r = copy_from_userspace(current_process->pdir, regs->ebx, 256, buffer); // FIXME: possible off by one error ?
 	if (r < 0) {
 		regs->eax = -1;
 		return;
@@ -137,7 +137,7 @@ static void syscall_create(registers_t *regs) {
 	// regs->ebx path
 	// regs->ecx mode
 	char buffer[256];
-	size_t r = copy_from_userspace(current_process->pdir, regs->ebx, 256, buffer); // FIXME ^
+	ssize_t r = copy_from_userspace(current_process->pdir, regs->ebx, 256, buffer); // FIXME ^
 	if (r < 0) {
 		regs->eax = -1;
 		return;
@@ -152,7 +152,7 @@ static void syscall_create(registers_t *regs) {
 static void syscall_unlink(registers_t *regs) {
 	// regs->ebx path
 	char buffer[256];
-	size_t r = copy_from_userspace(current_process->pdir, regs->ebx, 256, buffer); // FIXME: ^
+	ssize_t r = copy_from_userspace(current_process->pdir, regs->ebx, 256, buffer); // FIXME: ^
 	if (r < 0) {
 		regs->eax = -1;
 		return;
@@ -181,8 +181,8 @@ static void syscall_getpid(registers_t *regs) {
 	regs->eax = (uint32_t)current_process->pid;
 }
 
+__attribute__((noreturn))
 static void syscall_exit(registers_t *regs) {
-	(void)regs;
 	printf("pid %u exit(%u)\n", current_process->pid, regs->ebx);
 	while (1) {
 		switch_task();
