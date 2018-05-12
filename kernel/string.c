@@ -45,16 +45,3 @@ void *memset(void *dest, int c, size_t len) {
 	}
 	return dest;
 }
-
-void *memcpy(void *dest, const void *src, size_t len) {
-	assert(dest != NULL);
-	assert(src != NULL);
-	assert(len != 0);
-	char *d = (char *)dest;
-	char *s = (char *)src;
-
-	while (len--) {
-		*d++ = *s++;
-	}
-	return dest;
-}
