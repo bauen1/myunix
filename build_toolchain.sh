@@ -83,7 +83,8 @@ if [ ! -f .built_tinycc ]; then
 		../tinycc/configure \
 			--prefix="$PREFIX/opt" \
 			--strip-binaries \
-			--sysroot='$PREFIX/opt/sysroot'
+			--sysroot='$PREFIX/opt/sysroot' \
+			--config-musl
 
 		#../configure \
 		#	--prefix="$PREFIX" \
