@@ -5,6 +5,7 @@
 #include <fs.h>
 #include <heap.h>
 #include <string.h>
+#include <oct2bin.h>
 
 uint32_t tar_read(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buffer);
 uint32_t tar_write(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buffer);
@@ -12,16 +13,6 @@ void tar_open(fs_node_t *node, unsigned int flags);
 void tar_close(fs_node_t *node);
 struct dirent *tar_readdir(struct fs_node *node, uint32_t i);
 fs_node_t *tar_finddir(struct fs_node *node, char *name);
-
-static unsigned int oct2bin(unsigned char *str, int size) {
-	int n = 0;
-	while (size-- > 0) {
-		n *= 8;
-		n += *str - '0';
-		str++;
-	}
-	return n;
-}
 
 struct tar_header {
 	char name[100];

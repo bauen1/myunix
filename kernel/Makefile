@@ -25,7 +25,10 @@ CPPFLAGS:=$(CPPFLAGS) -D__myunix_kernel -I./include -I$(ARCHDIR)
 LDFLAGS:=$(LDFLAGS) -static
 LIBS:=$(LIBS) -nostdlib
 ASFLAGS:=$(ASFLAGS) -f elf -w+orphan-labels
-OBJS:=$(subst .c,.o,$(wildcard *.c)) $(subst .s,.o,$(wildcard *.s))
+SRC_DIRS = . misc
+SRC_GLOBS = $(addsuffix /*.c,$(SRC_DIRS)) $(addsuffix /*.s,$(SRC_DIRS))
+SRCS = $(sort $(wildcard $(BASE_GLOBS)))
+OBJS:= $(subst .c,.o,$(subst .s,.o,$(BASE_SRCS)))
 
 # default tools
 
