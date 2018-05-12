@@ -48,6 +48,16 @@ node_t *list_insert(list_t *list, void *v) {
 	return node;
 }
 
+void list_remove(list_t *list, void *v) {
+	for (node_t *i = list->head; i != NULL; i = i->next) {
+		if (i->value == v) {
+			list_delete(list, i);
+			kfree(i);
+			break;
+		}
+	}
+}
+
 void list_delete(list_t *list, node_t *v) {
 	assert(v->owner == list);
 	if (v == list->head) {
