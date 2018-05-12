@@ -26,9 +26,9 @@ LDFLAGS:=$(LDFLAGS) -static
 LIBS:=$(LIBS) -nostdlib
 ASFLAGS:=$(ASFLAGS) -f elf -w+orphan-labels
 SRC_DIRS = . misc
-SRC_GLOBS = $(addsuffix /*.c,$(SRC_DIRS)) $(addsuffix /*.s,$(SRC_DIRS))
-SRCS = $(sort $(wildcard $(BASE_GLOBS)))
-OBJS:= $(subst .c,.o,$(subst .s,.o,$(BASE_SRCS)))
+SRCS_GLOBS = $(addsuffix /*.c,$(SRC_DIRS)) $(addsuffix /*.s,$(SRC_DIRS))
+SRCS = $(sort $(wildcard $(SRCS_GLOBS)))
+OBJS:= $(subst .c,.o,$(subst .s,.o,$(SRCS)))
 
 # default tools
 
