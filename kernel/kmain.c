@@ -326,9 +326,10 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 
 	liballoc_init();
 
+	process_add(kidle_init());
+
 	assert(mbi->flags & MULTIBOOT_INFO_MODS);
 
-	process_add(kidle_init(esp));
 
 	fs_node_t *ramdisk = NULL;
 	if (mbi->mods_count > 0) {
