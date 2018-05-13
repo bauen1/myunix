@@ -5,9 +5,9 @@
 
 void liballoc_init(void);
 
-void *kmalloc(size_t size);
-void kfree(void *ptr);
-void *kcalloc(size_t nmemb, size_t size);
+void * __attribute__((malloc)) kmalloc(size_t size);
+void * __attribute__((malloc)) kcalloc(size_t nmemb, size_t size);
 void *krealloc(void *ptr, size_t size);
+void kfree(void *ptr);
 
 #endif

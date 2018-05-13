@@ -363,7 +363,7 @@ void liballoc_init(void) {
 	l_initialized = 1;
 }
 
-void *kmalloc(size_t size)
+void * __attribute__((malloc)) kmalloc(size_t size)
 {
 	int index;
 	void *ptr;
@@ -526,7 +526,7 @@ void kfree(void *ptr)
 	assert(liballoc_unlock() == 0);
 }
 
-void* kcalloc(size_t nobj, size_t size) {
+void * __attribute__((malloc)) kcalloc(size_t nobj, size_t size) {
        int real_size;
        void *p;
 
