@@ -1,0 +1,3 @@
+cppcheck:
+  script:
+    - make -C kernel cppcheck-tcc
