@@ -25,6 +25,7 @@
 #include <string.h>
 #include <syscall.h>
 #include <tar.h>
+#include <tmpfs.h>
 #include <tty.h>
 #include <vmm.h>
 
