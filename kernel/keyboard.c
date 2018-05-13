@@ -71,8 +71,8 @@ static void irq1_handler(registers_t *regs) {
 			irq_ack(regs->isr_num);
 			return;
 		}
-
-		ringbuffer_write_byte(&keyboard_ringbuffer, keyboard_map[(unsigned int)keycode]);
+		unsigned char c = keyboard_map[(unsigned int)keycode];
+		ringbuffer_write_byte(&keyboard_ringbuffer, c);
 	}
 
 	irq_ack(regs->isr_num);

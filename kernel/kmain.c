@@ -9,6 +9,7 @@
 
 /* all other headers */
 #include <console.h>
+#include <dev_null.h>
 #include <framebuffer.h>
 #include <fs.h>
 #include <gdt.h>
@@ -308,7 +309,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	} else if (mbi->flags & MULTIBOOT_INFO_ELF_SHDR) {
 		// TODO: implement
 	}
-	if (mbi->flags & MULTIBOOT_INFO_MEM_MAP) { // TODO: implement
+	if (mbi->flags & MULTIBOOT_INFO_MEM_MAP) {
 		for (uintptr_t i = (uintptr_t)mbi->mmap_addr;
 			i < ((uintptr_t)mbi->mmap_addr + (uintptr_t)mbi->mmap_length);
 			i += BLOCK_SIZE) {
@@ -330,7 +331,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	}
 
 	/* map the complete kernel directly (including modules) read-only */
-	map_pages((uintptr_t)&_start, (uintptr_t)real_end, PAGE_TABLE_PRESENT, "kern");
+	map_pages((uintptr_t)&_start, (uintptr_t)real_end, PAGE_TABLE_PRESENT, "kern"); // TODO: <- disable
 
 	/* map the code section read-only */
 	printf("__text_start: 0x%x; __text_end: 0x%x;\n", (uintptr_t)&__text_start, (uintptr_t)&__text_end);

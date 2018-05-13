@@ -3,9 +3,11 @@
 
 #include <stddef.h>
 #include <stdint.h>
+
 #include <cpu.h>
 #include <task.h>
 #include <fs.h>
+#include <vmm.h>
 
 typedef unsigned int pid_t;
 
@@ -23,7 +25,7 @@ typedef struct process {
 	fd_table_t *fd_table;
 } process_t;
 
-process_t *current_process;
+extern process_t *current_process;
 
 process_t *kidle_init(void);
 process_t *process_init(uintptr_t start, uintptr_t end);

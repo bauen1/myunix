@@ -2,7 +2,7 @@
 #define CONSOLE_H 1
 
 #include <fs.h>
-fs_node_t tty_node;
+extern fs_node_t tty_node;
 
 void console_init();
 
