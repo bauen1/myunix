@@ -123,15 +123,6 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	pit_init();
 	printf("[%u] [OK] pit_init\n", (unsigned int)ticks);
 
-	syscall_init();
-	printf("[%u] [OK] syscall_init\n", (unsigned int)ticks);
-
-	keyboard_init();
-	printf("[%u] [OK] keyboard_init\n", (unsigned int)ticks);
-
-	__asm__ __volatile__ ("sti");
-	printf("[%u] [OK] sti\n", (unsigned int)ticks);
-
 	if (mbi->flags & MULTIBOOT_INFO_MEMORY) {
 		printf("mem_lower: %ukb\n", mbi->mem_lower);
 		printf("mem_upper: %ukb\n", mbi->mem_upper);
@@ -176,12 +167,10 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 		printf("[%u] cmdline: '%s'\n", (unsigned int)ticks, (char *)mbi->cmdline);
 	}
 
-	printf("kernel mem starts at:          0x%x\n", (uintptr_t)&_start);
-	printf("kernel mem ends at:            0x%x\n", (uintptr_t)&_end);
-	printf("kernel mem really ends at:     0x%x\n", real_end);
-
 	real_end = (real_end+0xFFF) & 0xFFFFF000;
-	printf("kernel mem really ends at (2): 0x%x\n", real_end);
+	printf("kernel mem starts at:      0x%x\n", (uintptr_t)&_start);
+	printf("kernel mem ends at:        0x%x\n", (uintptr_t)&_end);
+	printf("kernel mem really ends at: 0x%x\n", real_end);
 
 	// TODO: calulate the highest end of free memory and pass it to pmm_init instead of mem_lower and mem_upper
 	// overflow or no value
@@ -190,8 +179,6 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	}
 	pmm_init((void *)real_end, mem_avail);
 	printf("[%u] [OK] pmm_init\n", (unsigned int)ticks);
-	vmm_init();
-	printf("[%u] [OK] vmm_init\n", (unsigned int)ticks);
 
 	if (mbi->flags & MULTIBOOT_INFO_MEM_MAP) {
 		for (multiboot_memory_map_t *mmap = (multiboot_memory_map_t *)mbi->mmap_addr;
@@ -249,7 +236,8 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	// TODO: copy everything of intrest out of the multiboot info to a known, safe location
 	// TODO: remember to free information once its no longer needed
 	printf("set 0x%x: multiboot info\n", (uintptr_t)mbi);
-	pmm_set_block(((uintptr_t)mbi)/BLOCK_SIZE);
+	pmm_set_block(((uintptr_t)mbi) / BLOCK_SIZE);
+
 	if (mbi->flags & MULTIBOOT_INFO_CMDLINE) {
 		for (uintptr_t i = (uintptr_t)mbi->cmdline;
 			i < ((uintptr_t)mbi->cmdline + (uintptr_t)strlen((char *)mbi->cmdline));
@@ -268,8 +256,10 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 			map_direct_kernel(i);
 		}
 	}
-	if (mbi->flags & MULTIBOOT_INFO_AOUT_SYMS) { // TODO: implement
-	} else if (mbi->flags & MULTIBOOT_INFO_ELF_SHDR) { // TODO: implement
+	if (mbi->flags & MULTIBOOT_INFO_AOUT_SYMS) {
+		// TODO: implement (if needed)
+	} else if (mbi->flags & MULTIBOOT_INFO_ELF_SHDR) {
+		// TODO: implement
 	}
 	if (mbi->flags & MULTIBOOT_INFO_MEM_MAP) { // TODO: implement
 		for (uintptr_t i = (uintptr_t)mbi->mmap_length;
@@ -280,7 +270,9 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 			map_direct_kernel(i);
 		}
 	}
-	if (mbi->flags & MULTIBOOT_INFO_CONFIG_TABLE) {} // TODO: implement (useless?)
+	if (mbi->flags & MULTIBOOT_INFO_CONFIG_TABLE) {
+		// TODO: implement (useless?)
+	}
 	if (mbi->flags & MULTIBOOT_INFO_BOOT_LOADER_NAME) {
 		for (uintptr_t i = (uintptr_t)mbi->boot_loader_name;
 			i < ((uintptr_t)mbi->boot_loader_name + (uintptr_t)strlen((char *)mbi->boot_loader_name));
@@ -290,34 +282,38 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 			map_direct_kernel(i);
 		}
 	}
-	if (mbi->flags & MULTIBOOT_INFO_APM_TABLE) {} // TODO: implement
-
+	if (mbi->flags & MULTIBOOT_INFO_APM_TABLE) {
+		// TODO: implement (if needed)
+	}
 	// you can use pmm_alloc_* atfer here
 
+
+	vmm_init();
+	printf("[%u] [OK] vmm_init\n", (unsigned int)ticks);
+
 	/* map the complete kernel directly (including modules) read-only */
-	map_pages(&_start, (void *)real_end, PAGE_TABLE_PRESENT, "kern");
+	map_pages((uintptr_t)&_start, (uintptr_t)real_end, PAGE_TABLE_PRESENT, "kern");
 
 	/* map the code section read-only */
-	map_pages(&__text_start, &__text_end, PAGE_TABLE_PRESENT, ".text");
+	printf("__text_start: 0x%x; __text_end: 0x%x;\n", (uintptr_t)&__text_start, (uintptr_t)&__text_end);
+	map_pages((uintptr_t)&__text_start, (uintptr_t)&__text_end, PAGE_TABLE_PRESENT, ".text");
 
 	/* map the data section read-write */
-	map_pages(&__data_start, &__data_end, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, ".data");
+	printf("__data_start: 0x%x; __data_end: 0x%x\n", (uintptr_t)&__data_start, (uintptr_t)&__data_end);
+	map_pages((uintptr_t)&__data_start, (uintptr_t)&__data_end, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, ".data");
 
 	/* map the bss section read-write */
-	map_pages(&__bss_start, &__bss_end, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, ".bss");
+	printf("__bss_start: 0x%x; __bss_end: 0x%x\n", (uintptr_t)&__bss_start, (uintptr_t)&__bss_end);
+	map_pages((uintptr_t)&__bss_start, (uintptr_t)&__bss_end, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, ".bss");
 
 	/* directly map the pmm block map */
 	printf("pmm block_map: 0x%x - 0x%x\n", (uintptr_t)block_map, ((uintptr_t)block_map + block_map_size / 8));
-	map_pages(block_map,
-		(void *)(
-			(uintptr_t)block_map + (block_map_size / 8)
-		),
+	map_pages((uintptr_t)block_map, (uintptr_t)block_map + (block_map_size / 8),
 		PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "pmm_map");
 
 	/* map the framebuffer / textbuffer */
 	if ((fb_start != 0) & (fb_size != 0)) {
-		map_pages((void *)fb_start, (void *)(fb_start + fb_size), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "framebuffer");
-//		map_pages((void *)fb_start, (void *)(fb_start + fb_size), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE | PAGE_TABLE_CACHE_DISABLE, "framebuffer");
+		map_pages(fb_start, (fb_start + fb_size), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "framebuffer");
 	}
 
 	/* enable paging */
@@ -325,6 +321,15 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	printf("[%u] [OK] vmm_enable\n", (unsigned int)ticks);
 
 	liballoc_init();
+
+	syscall_init();
+	printf("[%u] [OK] syscall_init\n", (unsigned int)ticks);
+
+	keyboard_init();
+	printf("[%u] [OK] keyboard_init\n", (unsigned int)ticks);
+
+	__asm__ __volatile__ ("sti");
+	printf("[%u] [OK] sti\n", (unsigned int)ticks);
 
 	process_add(kidle_init());
 
@@ -338,7 +343,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 		for (unsigned int i = 0; i < mbi->mods_count; i++) {
 			uintptr_t mod_start = mods[i].mod_start;
 			uintptr_t mod_end = mods[i].mod_end;
-			if ((*(char *)mod_start) == 't') {
+			if (memcmp((void *)mods[i].cmdline, (void *)"initrd", 6) == 0) {
 				printf("ramdisk at 0x%x, length 0x%x\n", mod_start, mod_end-mod_start);
 				ramdisk = ramdisk_init(mod_start, mod_end-mod_start);
 			} else {

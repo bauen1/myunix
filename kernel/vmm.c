@@ -41,7 +41,7 @@ void map_page(uint32_t *table, uintptr_t virtaddr, uintptr_t physaddr, uint16_t 
 
 /* helper function */
 // directly maps from including start to end
-void map_pages(void *start, void *end, int flags, const char *name) {
+void map_pages(uintptr_t start, uintptr_t end, int flags, const char *name) {
 	if (name != NULL) {
 		if (((uintptr_t)end - (uintptr_t)start) > 0x8000) {
 			printf("%s: 0x%x - 0x%x => 0x%x - 0x%x flags: 0x%x\n", name, (uintptr_t)start, (uintptr_t)end, (uintptr_t)start, (uintptr_t)end, flags);

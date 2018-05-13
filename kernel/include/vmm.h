@@ -32,7 +32,7 @@ uint32_t *get_table_alloc(uintptr_t virtaddr, uint32_t *directory);
 uint32_t get_page(uint32_t *table, uintptr_t virtaddr);
 // behaviour undefined when (virtaddr & 0xFFF) != 0
 void map_page(uint32_t *table, uintptr_t virtaddr, uintptr_t physaddr, uint16_t flags);
-void map_pages(void *start, void *end, int flags, const char *name);
+void map_pages(uintptr_t start, uintptr_t end, int flags, const char *name);
 
 // directly map a range into the kernel directory
 void map_direct_kernel(uintptr_t v);
