@@ -12,8 +12,8 @@
 #include <string.h>
 #include <vmm.h>
 
-__attribute__((aligned(4096))) uint32_t kernel_directory[1024];
-__attribute__((aligned(4096))) uint32_t kernel_tables[1024][1024];
+pdir_t kernel_directory;
+ptable_t kernel_tables[1024];
 
 uint32_t *get_table(uintptr_t virtaddr, uint32_t *directory) {
 	return (uint32_t *)(directory[virtaddr >> 22] & ~0xFFF);
@@ -64,7 +64,7 @@ void map_direct_kernel(uintptr_t v) {
 }
 
 // TODO: optimise the next 2 functions by walking in page table increments
-// finds free (continous) virtual address space
+// finds free (continous) virtual address space and maps it to PAGE_VALUE_RESERVED
 // n in blocks
 // FIXME: allocates tables for ranges that will be too small
 uintptr_t find_vspace(uint32_t *dir, size_t n) {
@@ -86,6 +86,14 @@ uintptr_t find_vspace(uint32_t *dir, size_t n) {
 				}
 			}
 			if (length == n) {
+				for (uintptr_t i = start;
+						i < start + (length*BLOCK_SIZE);
+						i += BLOCK_SIZE) {
+					// it should be impossible for get_table to return NULL if it does we're fucked anyway
+					map_page(get_table(i, dir), i,
+						PAGE_VALUE_RESERVED, 0);
+				}
+//				printf(" = 0x%x\n", start);
 				return start;
 			} else {
 				i = i + length;

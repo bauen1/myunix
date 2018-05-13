@@ -23,9 +23,13 @@
 #define PAGE_TABLE_DIRTY 0x40
 
 #define PAGE_VALUE_GUARD 0xFFFFF000
+#define PAGE_VALUE_RESERVED 0xFFFF100
 
-extern __attribute__((aligned(4096))) uint32_t kernel_directory[1024];
-extern __attribute__((aligned(4096))) uint32_t kernel_tables[1024][1024];
+typedef __attribute__((aligned(4096))) uint32_t pdir_t[1024];
+typedef __attribute__((aligned(4096))) uint32_t ptable_t[1024];
+
+extern pdir_t kernel_directory;
+extern ptable_t kernel_tables[1024];
 
 uint32_t *get_table(uintptr_t virtaddr, uint32_t *directory);
 uint32_t *get_table_alloc(uintptr_t virtaddr, uint32_t *directory);

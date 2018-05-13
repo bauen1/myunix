@@ -1,4 +1,6 @@
 #include <assert.h>
+#include <stddef.h>
+
 #include <console.h>
 #include <cpu.h>
 #include <isr.h>
@@ -10,7 +12,7 @@
 
 // 0 on success, size mapped on failure
 // TODO: CRTICAL FIXME: returns 0 incase of early failure
-static size_t map_userspace_to_kernel(uint32_t *pdir, uintptr_t ptr, uintptr_t kptr, size_t n) {
+static intptr_t map_userspace_to_kernel(uint32_t *pdir, uintptr_t ptr, uintptr_t kptr, size_t n) {
 //	printf("map_userspace_to_kernel(0x%x, 0x%x, 0x%x, 0x%x)\n", (uintptr_t)pdir, ptr, kptr, n);
 	for (uintptr_t i = 0; i < n; i++) {
 		uintptr_t u_virtaddr = ptr + (i * BLOCK_SIZE);
@@ -51,13 +53,13 @@ static void unmap_from_kernel(uintptr_t kptr, size_t n) {
 
 // only copies if all data was sucessfully mapped
 __attribute__((used))
-static ssize_t copy_from_userspace(uint32_t *pdir, uintptr_t ptr, size_t n, void *buffer) {
+static intptr_t copy_from_userspace(uint32_t *pdir, uintptr_t ptr, size_t n, void *buffer) {
 	size_t size_in_blocks = (BLOCK_SIZE - 1 + n) / BLOCK_SIZE;
 	uintptr_t kptr = find_vspace(kernel_directory, size_in_blocks);
 	if (kptr == 0) {
 		return -1;
 	}
-	size_t v = map_userspace_to_kernel(pdir, ptr, kptr, size_in_blocks);
+	intptr_t v = map_userspace_to_kernel(pdir, ptr, kptr, size_in_blocks);
 	if (v != 0) {
 		unmap_from_kernel(kptr, v);
 		return -1;
@@ -72,8 +74,13 @@ static ssize_t copy_from_userspace(uint32_t *pdir, uintptr_t ptr, size_t n, void
 }
 
 __attribute__((used))
-static ssize_t copy_to_userspace(uint32_t *pdir, uintptr_t ptr, size_t n, void *buffer) {
+static intptr_t copy_to_userspace(uint32_t *pdir, uintptr_t ptr, size_t n, void *buffer) {
+	(void)pdir;
+	(void)ptr;
+	(void)n;
+	(void)buffer;
 	// TODO: implement
+	return -1;
 }
 
 /*
@@ -116,7 +123,7 @@ static void syscall_mkdir(registers_t *regs) {
 	// regs->ebx 256 path
 	// regs->ecx mode
 	char buffer[256];
-	ssize_t r = copy_from_userspace(current_process->pdir, regs->ebx, 256, buffer); // FIXME: possible off by one error ?
+	intptr_t r = copy_from_userspace(current_process->pdir, regs->ebx, 256, buffer); // FIXME: possible off by one error ?
 	if (r < 0) {
 		regs->eax = -1;
 		return;
@@ -137,7 +144,7 @@ static void syscall_create(registers_t *regs) {
 	// regs->ebx path
 	// regs->ecx mode
 	char buffer[256];
-	ssize_t r = copy_from_userspace(current_process->pdir, regs->ebx, 256, buffer); // FIXME ^
+	intptr_t r = copy_from_userspace(current_process->pdir, regs->ebx, 256, buffer); // FIXME ^
 	if (r < 0) {
 		regs->eax = -1;
 		return;
@@ -152,7 +159,7 @@ static void syscall_create(registers_t *regs) {
 static void syscall_unlink(registers_t *regs) {
 	// regs->ebx path
 	char buffer[256];
-	ssize_t r = copy_from_userspace(current_process->pdir, regs->ebx, 256, buffer); // FIXME: ^
+	intptr_t r = copy_from_userspace(current_process->pdir, regs->ebx, 256, buffer); // FIXME: ^
 	if (r < 0) {
 		regs->eax = -1;
 		return;

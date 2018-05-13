@@ -25,12 +25,14 @@
 #include <string.h>
 #include <syscall.h>
 #include <tar.h>
+#include <tmpfs.h>
 #include <tty.h>
 #include <vmm.h>
 
 /* main kernel entry point */
 __attribute__((used))
 void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
+	(void)esp;
 	uintptr_t mem_avail = 0;
 	uintptr_t real_end = (uintptr_t)&_end;
 	uintptr_t fb_start = 0;
@@ -237,14 +239,12 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	// TODO: remember to free information once its no longer needed
 	printf("set 0x%x: multiboot info\n", (uintptr_t)mbi);
 	pmm_set_block(((uintptr_t)mbi) / BLOCK_SIZE);
-
 	if (mbi->flags & MULTIBOOT_INFO_CMDLINE) {
 		for (uintptr_t i = (uintptr_t)mbi->cmdline;
 			i < ((uintptr_t)mbi->cmdline + (uintptr_t)strlen((char *)mbi->cmdline));
 			i += BLOCK_SIZE) {
 			printf("set 0x%x: cmdline\n", i);
 			pmm_set_block(i / BLOCK_SIZE);
-			map_direct_kernel(i);
 		}
 	}
 	if (mbi->flags & MULTIBOOT_INFO_MODS) {
@@ -253,7 +253,6 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 			i += BLOCK_SIZE) {
 			printf("set 0x%x: modinfo\n", i);
 			pmm_set_block(i / BLOCK_SIZE);
-			map_direct_kernel(i);
 		}
 	}
 	if (mbi->flags & MULTIBOOT_INFO_AOUT_SYMS) {
@@ -261,13 +260,12 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	} else if (mbi->flags & MULTIBOOT_INFO_ELF_SHDR) {
 		// TODO: implement
 	}
-	if (mbi->flags & MULTIBOOT_INFO_MEM_MAP) { // TODO: implement
-		for (uintptr_t i = (uintptr_t)mbi->mmap_length;
+	if (mbi->flags & MULTIBOOT_INFO_MEM_MAP) {
+		for (uintptr_t i = (uintptr_t)mbi->mmap_addr;
 			i < ((uintptr_t)mbi->mmap_addr + (uintptr_t)mbi->mmap_length);
 			i += BLOCK_SIZE) {
 			printf("set 0x%x: mmap\n", i);
 			pmm_set_block(i / BLOCK_SIZE);
-			map_direct_kernel(i);
 		}
 	}
 	if (mbi->flags & MULTIBOOT_INFO_CONFIG_TABLE) {
@@ -279,17 +277,57 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 			i += BLOCK_SIZE) {
 			printf("set 0x%x: bootloader name\n", i);
 			pmm_set_block(i / BLOCK_SIZE);
-			map_direct_kernel(i);
 		}
 	}
 	if (mbi->flags & MULTIBOOT_INFO_APM_TABLE) {
 		// TODO: implement (if needed)
 	}
+
 	// you can use pmm_alloc_* atfer here
-
-
 	vmm_init();
 	printf("[%u] [OK] vmm_init\n", (unsigned int)ticks);
+
+	// directly map the multiboot structure
+	map_direct_kernel(((uintptr_t)mbi) & ~0xFFF);
+	if (mbi->flags & MULTIBOOT_INFO_CMDLINE) {
+		for (uintptr_t i = (uintptr_t)mbi->cmdline;
+			i < ((uintptr_t)mbi->cmdline + (uintptr_t)strlen((char *)mbi->cmdline));
+			i += BLOCK_SIZE) {
+			map_direct_kernel(i & ~0xFFF);
+		}
+	}
+	if (mbi->flags & MULTIBOOT_INFO_MODS) {
+		for (uintptr_t i = (uintptr_t)mbi->mods_addr;
+			i < ((uintptr_t)mbi->mods_addr + ((uintptr_t)mbi->mods_count * sizeof(multiboot_module_t)));
+			i += BLOCK_SIZE) {
+			map_direct_kernel(i & ~0xFFF);
+		}
+	}
+	if (mbi->flags & MULTIBOOT_INFO_AOUT_SYMS) {
+		// TODO: implement
+	} else if (mbi->flags & MULTIBOOT_INFO_ELF_SHDR) {
+		// TODO: implement
+	}
+	if (mbi->flags & MULTIBOOT_INFO_MEM_MAP) { // TODO: implement
+		for (uintptr_t i = (uintptr_t)mbi->mmap_addr;
+			i < ((uintptr_t)mbi->mmap_addr + (uintptr_t)mbi->mmap_length);
+			i += BLOCK_SIZE) {
+			map_direct_kernel(i & ~0xFFF);
+		}
+	}
+	if (mbi->flags & MULTIBOOT_INFO_CONFIG_TABLE) {
+		// TODO: implement (useless?)
+	}
+	if (mbi->flags & MULTIBOOT_INFO_BOOT_LOADER_NAME) {
+		for (uintptr_t i = (uintptr_t)mbi->boot_loader_name;
+			i < ((uintptr_t)mbi->boot_loader_name + (uintptr_t)strlen((char *)mbi->boot_loader_name));
+			i += BLOCK_SIZE) {
+			map_direct_kernel(i & ~0xFFF);
+		}
+	}
+	if (mbi->flags & MULTIBOOT_INFO_APM_TABLE) {
+		// TODO: implement
+	}
 
 	/* map the complete kernel directly (including modules) read-only */
 	map_pages((uintptr_t)&_start, (uintptr_t)real_end, PAGE_TABLE_PRESENT, "kern");
@@ -345,6 +383,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 			uintptr_t mod_end = mods[i].mod_end;
 			if (memcmp((void *)mods[i].cmdline, (void *)"initrd", 6) == 0) {
 				printf("ramdisk at 0x%x, length 0x%x\n", mod_start, mod_end-mod_start);
+				map_pages(mod_start, mod_end, PAGE_TABLE_PRESENT, "ramdisk");
 				ramdisk = ramdisk_init(mod_start, mod_end-mod_start);
 			} else {
 				printf("process_init(mod[%u]) name='%s'\n", i, (char *)mods[i].cmdline);
