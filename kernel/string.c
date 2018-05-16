@@ -1,8 +1,7 @@
 #include <assert.h>
 #include <stddef.h>
 
-__attribute__((pure))
-size_t strlen(const char *str) {
+size_t __attribute__((pure)) strlen(const char *str) {
 	assert(str != NULL);
 	size_t len = 0;
 	while (str[len] != 0) {
@@ -11,14 +10,11 @@ size_t strlen(const char *str) {
 	return len;
 }
 
-char *strcpy(char *dest, const char *src) {
+char *strncpy(char *dest, const char *src, size_t n) {
 	assert(dest != NULL);
 	assert(src != NULL);
-
-	size_t i = 0;
-	while (src[i] != 0) {
+	for (size_t i = 0; (i < n) && (src[i]); i++) {
 		dest[i] = src[i];
-		i++;
 	}
 	return dest;
 }
