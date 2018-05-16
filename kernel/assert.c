@@ -4,16 +4,13 @@
 #include <console.h>
 #include <cpu.h>
 
-__attribute__((noreturn))
-void __assert_failed(const char *exp, const char *file, int line) {
+void __attribute__((noreturn)) __assert_failed(const char *exp, const char *file, int line) {
 	printf("%s:%i assertion failed: '%s'\n", file, line, exp);
 	print_stack_trace(-1);
 	halt();
 }
 
-__attribute__((used))
-__attribute__((noreturn))
-void __stack_chk_fail() {
+void __attribute__((noreturn)) __attribute__((used)) __stack_chk_fail() {
 	printf("__stack_chk_fail!\n");
 //	print_stack_trace(-1); // TODO: this isn't safe, since values on the stack have been modified
 	halt();
