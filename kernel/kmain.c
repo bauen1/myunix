@@ -175,7 +175,8 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	printf("kernel mem ends at:        0x%x\n", (uintptr_t)&_end);
 	printf("kernel mem really ends at: 0x%x\n", real_end);
 
-	// TODO: calulate the highest end of free memory and pass it to pmm_init instead of mem_lower and mem_upper
+	// TODO: calculate the highest end of free memory and pass it to pmm_init instead of mem_lower and mem_upper
+
 	// overflow or no value
 	if (mem_avail == 0) {
 		mem_avail = 0xFFFFFFFF;
@@ -236,7 +237,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	// special purpose
 	pmm_set_block(0);
 
-	// TODO: copy everything of intrest out of the multiboot info to a known, safe location
+	// TODO: copy everything of interest out of the multiboot info to a known, safe location
 	// TODO: remember to free information once its no longer needed
 	printf("set 0x%x: multiboot info\n", (uintptr_t)mbi);
 	pmm_set_block(((uintptr_t)mbi) / BLOCK_SIZE);

@@ -110,13 +110,13 @@ struct dirent *tar_readdir(struct fs_node *node, uint32_t i) {
 	if (i == 0) {
 		struct dirent *v = (struct dirent *)kcalloc(1, sizeof(struct dirent));
 		v->ino = 0;
-		strcpy(v->name, ".");
+		strncpy(v->name, ".", 255);
 		return v;
 	}
 	if (i == 1) {
 		struct dirent *v = (struct dirent *)kcalloc(1, sizeof(struct dirent));
 		v->ino = 0;
-		strcpy(v->name, "..");
+		strncpy(v->name, "..", 255);
 		return v;
 	}
 
@@ -160,7 +160,7 @@ fs_node_t *mount_tar(fs_node_t *device) {
 	tar_root_obj->device = device;
 	tar_root_obj->offset = 0;
 
-	strcpy(tar_root->name, "tar_root");
+	strncpy(tar_root->name, "tar_root", 255);
 	tar_root->read = tar_read;
 	tar_root->write = tar_write;
 	tar_root->open = tar_open;

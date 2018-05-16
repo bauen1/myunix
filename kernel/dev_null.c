@@ -30,7 +30,7 @@ static uint32_t zero_read(fs_node_t *node, uint32_t offset, uint32_t size, uint8
 
 fs_node_t *null_create() {
 	fs_node_t *f = kcalloc(1, sizeof(fs_node_t));
-	strcpy(f->name, "null");
+	strncpy(f->name, "null", 255);
 	f->read = null_read;
 	f->write = null_write;
 	return f;
@@ -38,7 +38,7 @@ fs_node_t *null_create() {
 
 fs_node_t *zero_create() {
 	fs_node_t *f = kcalloc(1, sizeof(fs_node_t));
-	strcpy(f->name, "zero");
+	strncpy(f->name, "zero", 255);
 	f->read = zero_read;
 	f->write = null_write;
 	return f;
