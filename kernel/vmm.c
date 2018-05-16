@@ -1,4 +1,3 @@
-// TODO: dynamically allocate space for the kernel directory & tables
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -12,31 +11,36 @@
 #include <string.h>
 #include <vmm.h>
 
-pdir_t kernel_directory;
-ptable_t kernel_tables[1024];
+page_directory_t __attribute__((aligned(4096))) *kernel_directory;
 
-uint32_t *get_table(uintptr_t virtaddr, uint32_t *directory) {
-	return (uint32_t *)(directory[virtaddr >> 22] & ~0xFFF);
+page_table_t *get_table(uintptr_t virtaddr, page_directory_t *directory) {
+	return (page_table_t *)((uintptr_t)(directory->tables[virtaddr >> 22]) & ~0x3FF);
 }
 
-uint32_t *get_table_alloc(uintptr_t virtaddr, uint32_t *directory) {
-	uintptr_t pt = (uintptr_t)get_table(virtaddr, directory);
-	if (pt == 0) {
-		pt = (uintptr_t)pmm_alloc_blocks_safe(1);
-		map_direct_kernel(pt);
-		memset((void *)pt, 0, BLOCK_SIZE);
-		directory[virtaddr >> 22] = (uint32_t)pt |
-			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE | PAGE_TABLE_USER;
+page_table_t *get_table_alloc(uintptr_t virtaddr, page_directory_t *directory) {
+	page_table_t *table = get_table(virtaddr, directory);
+	if (table == 0) {
+		uintptr_t v = vmm_find_dma_region(1);
+		assert(v != 0);
+		pmm_set_block(v);
+		table = (page_table_t *)(v * BLOCK_SIZE);
+		map_direct_kernel((uintptr_t)table);
+		memset((void *)table, 0, BLOCK_SIZE);
+		directory->tables[virtaddr >> 22] = ((uintptr_t)table |
+			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE | PAGE_TABLE_USER);
 	}
-	return (uint32_t *)pt;
+	return table;
 }
 
-uint32_t get_page(uint32_t *table, uintptr_t virtaddr) {
-	return table[(uint32_t)virtaddr >> 12 & 0x3FF];
+page_t get_page(page_table_t *table, uintptr_t virtaddr) {
+	return table->pages[virtaddr >> 12 & 0x3FF];
 }
 
-void map_page(uint32_t *table, uintptr_t virtaddr, uintptr_t physaddr, uint16_t flags) {
-	table[(uint32_t)virtaddr >> 12 & 0x3FF] = ((uint32_t)physaddr | flags);
+void map_page(page_table_t *table, uintptr_t virtaddr, uintptr_t physaddr, uint16_t flags) {
+	assert((virtaddr & 0xFFF) == 0);
+	assert(table != NULL);
+	assert(((uintptr_t)table & 0xFFF) == 0);
+	table->pages[(uint32_t)virtaddr >> 12 & 0x3FF] = (page_t)((uint32_t)physaddr | flags);
 }
 
 /* helper function */
@@ -63,16 +67,59 @@ void map_direct_kernel(uintptr_t v) {
 	map_page(get_table_alloc(v, kernel_directory), v, v, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
 }
 
+// TODO: optimise
+// WARNING: this is awfully slow
+// TODO: mark found pages with PAGE_VALUE_RESERVED
+uintptr_t vmm_find_dma_region(size_t size) {
+	if (size == 0) {
+		return 0;
+	}
+
+	for (uint32_t i = 0; i < block_map_size; i++) {
+		if (block_map[i] != 0xFFFFFFFF) {
+			for (uint8_t j = 0; j < 32; j++) {
+				uint32_t bit = (1 << j);
+				if ( ! (block_map[i] & bit)) {
+					uint32_t start = i*32+j;
+					uint32_t len = 0;
+					while (len < size) {
+						if (pmm_test_block(start + len)) {
+							// block used
+							break;
+						} else {
+							uintptr_t v_addr = (start + len) * BLOCK_SIZE;
+
+							if (get_page(get_table(v_addr, kernel_directory), v_addr) == 0) {
+								len++;
+							} else {
+								break;
+							}
+						}
+					}
+					if (len == size) {
+						return start;
+					} else {
+						i = i + len / 32;
+						j = j + len;
+					}
+				}
+			}
+		}
+	}
+
+	return 0;
+}
+
 // TODO: optimise the next 2 functions by walking in page table increments
-// finds free (continous) virtual address space and maps it to PAGE_VALUE_RESERVED
+// finds free (continuous) virtual address space and maps it to PAGE_VALUE_RESERVED
 // n in blocks
 // FIXME: allocates tables for ranges that will be too small
-uintptr_t find_vspace(uint32_t *dir, size_t n) {
+uintptr_t find_vspace(page_directory_t *dir, size_t n) {
 	/* skip block 0 */
 	for (uintptr_t i = 1; i < (0x100000000 / BLOCK_SIZE); i++) {
 		uintptr_t v_addr = i * BLOCK_SIZE;
 		// FIXME: depends on the fact that all kernel tables are pre-allocated to avoid calling get_table_alloc which could modify the directory 'dir'
-		uint32_t *table = get_table_alloc(v_addr, dir);
+		page_table_t *table = get_table_alloc(v_addr, dir);
 		if (get_page(table, v_addr) == 0) {
 			uintptr_t start = v_addr;
 			uintptr_t length = 1;
@@ -124,18 +171,31 @@ void page_fault(registers_t *regs) {
 void vmm_init() {
 	isr_set_handler(14, page_fault);
 
+	uintptr_t p = pmm_alloc_blocks_safe(1);
+	printf("kernel directory: 0x%x\n", p);
+	kernel_directory = (page_directory_t *)p;
+	memset((void *)kernel_directory, 0, BLOCK_SIZE);
+
 	for (int i = 0; i < 1024; i++) {
-		uint32_t pt = (uint32_t)kernel_tables[i];
-		kernel_directory[i] = pt |
+		uintptr_t pt = pmm_alloc_blocks_safe(1);
+		memset((void *)pt, 0, BLOCK_SIZE);
+		kernel_directory->tables[i] = (uintptr_t)(pt |
 			PAGE_DIRECTORY_PRESENT | PAGE_DIRECTORY_READWRITE | PAGE_DIRECTORY_USER |
-			PAGE_DIRECTORY_WRITE_THROUGH | PAGE_DIRECTORY_CACHE_DISABLE;
+			PAGE_DIRECTORY_WRITE_THROUGH | PAGE_DIRECTORY_CACHE_DISABLE);
 	}
+
+	for (unsigned int i = 0; i < 1024; i++) {
+		uintptr_t pt = (uintptr_t)kernel_directory->tables[i];
+		map_direct_kernel(pt & ~0xFFF);
+	}
+
+	map_direct_kernel((uintptr_t)kernel_directory);
 
 	// catch NULL pointer derefrences
 	map_page(get_table(0, kernel_directory), 0, 0, 0);
 }
 
 void vmm_enable() {
-	load_page_directory((uint32_t)kernel_directory);
+	load_page_directory((uintptr_t)kernel_directory);
 	enable_paging();
 }

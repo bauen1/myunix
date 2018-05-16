@@ -125,13 +125,13 @@ void *liballoc_alloc(size_t pages) {
  * \return 0 if the memory was successfully freed.
  */
 int liballoc_free(void *v, size_t pages) {
-	assert(v != NULL); // unecessary ?
+	assert(v != NULL); // unnecessary ?
 	for (size_t i = 0; i < pages; i++) {
 		uintptr_t vaddr = (uintptr_t)v + i * BLOCK_SIZE;
-		uint32_t *table = get_table(vaddr, kernel_directory);
+		page_table_t *table = get_table(vaddr, kernel_directory);
 		assert(table != NULL);
-		uint32_t ptr = table[vaddr >> 12 & 0x3FF];
-		uintptr_t block = ptr & ~0xFFF;
+		page_t page = get_page(table, vaddr);
+		uintptr_t block = page & ~0xFFF;
 		map_page(table, vaddr, 0, 0);
 		pmm_free_blocks(block, 1);
 	}

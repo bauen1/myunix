@@ -11,14 +11,14 @@
 #include <vmm.h>
 
 // 0 on success, size mapped on failure
-// TODO: CRTICAL FIXME: returns 0 incase of early failure
-static intptr_t map_userspace_to_kernel(uint32_t *pdir, uintptr_t ptr, uintptr_t kptr, size_t n) {
+// TODO: CRITICAL FIXME: returns 0 incase of early failure
+static intptr_t map_userspace_to_kernel(page_directory_t *pdir, uintptr_t ptr, uintptr_t kptr, size_t n) {
 //	printf("map_userspace_to_kernel(0x%x, 0x%x, 0x%x, 0x%x)\n", (uintptr_t)pdir, ptr, kptr, n);
 	for (uintptr_t i = 0; i < n; i++) {
 		uintptr_t u_virtaddr = ptr + (i * BLOCK_SIZE);
 		uintptr_t k_virtaddr = kptr + (i * BLOCK_SIZE);
 
-		uint32_t *table = get_table(u_virtaddr, pdir);
+		page_table_t *table = get_table(u_virtaddr, pdir);
 		if (table == NULL) {
 			printf(" table == NULL; returning early: %u\n", i);
 			return i;
@@ -51,9 +51,9 @@ static void unmap_from_kernel(uintptr_t kptr, size_t n) {
 	}
 }
 
-// only copies if all data was sucessfully mapped
+// only copies if all data was successfully mapped
 __attribute__((used))
-static intptr_t copy_from_userspace(uint32_t *pdir, uintptr_t ptr, size_t n, void *buffer) {
+static intptr_t copy_from_userspace(page_directory_t *pdir, uintptr_t ptr, size_t n, void *buffer) {
 	size_t size_in_blocks = (BLOCK_SIZE - 1 + n) / BLOCK_SIZE;
 	uintptr_t kptr = find_vspace(kernel_directory, size_in_blocks);
 	if (kptr == 0) {
@@ -74,7 +74,7 @@ static intptr_t copy_from_userspace(uint32_t *pdir, uintptr_t ptr, size_t n, voi
 }
 
 __attribute__((used))
-static intptr_t copy_to_userspace(uint32_t *pdir, uintptr_t ptr, size_t n, void *buffer) {
+static intptr_t copy_to_userspace(page_directory_t *pdir, uintptr_t ptr, size_t n, void *buffer) {
 	(void)pdir;
 	(void)ptr;
 	(void)n;
@@ -220,7 +220,7 @@ static void syscall_read(registers_t *regs) {
 			uintptr_t ptr = regs->ecx;
 			size_t n = regs->edx;
 			size_t n_blocks = (BLOCK_SIZE - 1 + n) / BLOCK_SIZE;
-			uint32_t *pdir = current_process->pdir;
+			page_directory_t *pdir = current_process->pdir;
 			uintptr_t kptr = find_vspace(kernel_directory, n_blocks); // FIXME
 //			uintptr_t kptr2 = kptr + (ptr & 0xFFFF);
 			uintptr_t kptr2 = kptr + (ptr & 0xFFF);
@@ -256,7 +256,7 @@ static void syscall_write(registers_t *regs) {
 			uintptr_t ptr = regs->ecx;
 			size_t n = regs->edx;
 			size_t n_blocks = (BLOCK_SIZE - 1 + n) / BLOCK_SIZE;
-			uint32_t *pdir = current_process->pdir;
+			page_directory_t *pdir = current_process->pdir;
 			uintptr_t kptr = find_vspace(kernel_directory, n_blocks); // FIXME
 			uintptr_t kptr2 = kptr + (ptr & 0xFFF);
 			size_t v = map_userspace_to_kernel(pdir, ptr, kptr, n_blocks);

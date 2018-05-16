@@ -25,23 +25,29 @@
 #define PAGE_VALUE_GUARD 0xFFFFF000
 #define PAGE_VALUE_RESERVED 0xFFFF100
 
-typedef __attribute__((aligned(4096))) uint32_t pdir_t[1024];
-typedef __attribute__((aligned(4096))) uint32_t ptable_t[1024];
+typedef uint32_t page_t;
+typedef struct page_table {
+	page_t pages[1024] __attribute__((packed)) __attribute__((aligned(4096)));
+} page_table_t;
+typedef struct page_directory {
+	/* page_table_t */
+	uintptr_t tables[1024] __attribute__((packed)) __attribute__((aligned(4096)));
+} page_directory_t;
 
-extern pdir_t kernel_directory;
-extern ptable_t kernel_tables[1024];
+extern page_directory_t *kernel_directory;
 
-uint32_t *get_table(uintptr_t virtaddr, uint32_t *directory);
-uint32_t *get_table_alloc(uintptr_t virtaddr, uint32_t *directory);
-uint32_t get_page(uint32_t *table, uintptr_t virtaddr);
+page_table_t *get_table(uintptr_t virtaddr, page_directory_t *directory);
+page_table_t *get_table_alloc(uintptr_t virtaddr, page_directory_t *directory);
+page_t get_page(page_table_t *table, uintptr_t virtaddr);
 // behaviour undefined when (virtaddr & 0xFFF) != 0
-void map_page(uint32_t *table, uintptr_t virtaddr, uintptr_t physaddr, uint16_t flags);
+void map_page(page_table_t *table, uintptr_t virtaddr, uintptr_t physaddr, uint16_t flags);
 void map_pages(uintptr_t start, uintptr_t end, int flags, const char *name);
 
 // directly map a range into the kernel directory
 void map_direct_kernel(uintptr_t v);
 
-uintptr_t find_vspace(uint32_t *dir, size_t n); // size in blocks
+uintptr_t find_vspace(page_directory_t *dir, size_t n); // size in blocks
+uintptr_t vmm_find_dma_region(size_t size);
 
 void vmm_init();
 
