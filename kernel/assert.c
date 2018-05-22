@@ -12,12 +12,12 @@ void __attribute__((noreturn)) __assert_failed(const char *exp, const char *file
 
 void __attribute__((noreturn)) __attribute__((used)) __stack_chk_fail() {
 	printf("__stack_chk_fail!\n");
-//	print_stack_trace(-1); // TODO: this isn't safe, since values on the stack have been modified
+	print_stack_trace(-1); // should be safe since we only read
 	halt();
 }
 
+// FIXME: this can page fault
 void print_stack_trace(unsigned int max_frames) {
-	// FIXME: this can page fault
 	uintptr_t ebp_r = 0;
 	__asm__ __volatile__ (
 		"mov %%ebp, %0"

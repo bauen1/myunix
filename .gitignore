@@ -7,3 +7,4 @@ toolchain/*
 kernel/kernel.bin
 kernel/kernel.sym
 kernel/kernel.elf
+tar_root/init

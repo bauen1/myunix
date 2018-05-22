@@ -1,3 +1,4 @@
+// FIXME: use invlpg
 #include <assert.h>
 #include <stddef.h>
 
@@ -123,7 +124,7 @@ static void syscall_mkdir(registers_t *regs) {
 	// regs->ebx 256 path
 	// regs->ecx mode
 	char buffer[256];
-	intptr_t r = copy_from_userspace(current_process->pdir, regs->ebx, 256, buffer); // FIXME: possible off by one error ?
+	intptr_t r = copy_from_userspace(current_process->pdir, regs->ebx, 255, buffer);
 	if (r < 0) {
 		regs->eax = -1;
 		return;
@@ -144,7 +145,7 @@ static void syscall_create(registers_t *regs) {
 	// regs->ebx path
 	// regs->ecx mode
 	char buffer[256];
-	intptr_t r = copy_from_userspace(current_process->pdir, regs->ebx, 256, buffer); // FIXME ^
+	intptr_t r = copy_from_userspace(current_process->pdir, regs->ebx, 255, buffer);
 	if (r < 0) {
 		regs->eax = -1;
 		return;
@@ -159,7 +160,7 @@ static void syscall_create(registers_t *regs) {
 static void syscall_unlink(registers_t *regs) {
 	// regs->ebx path
 	char buffer[256];
-	intptr_t r = copy_from_userspace(current_process->pdir, regs->ebx, 256, buffer); // FIXME: ^
+	intptr_t r = copy_from_userspace(current_process->pdir, regs->ebx, 255, buffer);
 	if (r < 0) {
 		regs->eax = -1;
 		return;

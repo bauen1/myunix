@@ -146,8 +146,8 @@ debug-grub: iso/grub_iso.iso
 run-qemu: kernel.bin
 	$(QEMU) $(QEMUFLAGS) -kernel kernel.bin
 
-.PHONY: run-debug
-run-debug: kernel.bin
+.PHONY: debug-qemu
+debug-qemu: kernel.bin
 	$(QEMU) $(QEMUFLAGS) -s -S -kernel kernel.bin
 
 .PHONY: run
@@ -167,7 +167,9 @@ cppcheck-tcc:
 
 .PHONY: todo
 todo:
-	egrep "TODO|XXX|FIXME" -r .
+	grep --color=always "TODO" -r .
+	grep --color=always "XXX" -r .
+	grep --color=always "FIXME" -r .
 
 #
 

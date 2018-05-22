@@ -149,7 +149,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 				printf("mods[%u].mod_add: 0x%x\n", i, mods[i].pad);
 
 				/* some sanity checks */
-				assert(mod_start < mod_end);
+				assert(mod_start <= mod_end);
 				if (mod_start == mod_end) {
 					printf("WARNING: module size = 0\n");
 				}
@@ -242,11 +242,13 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	printf("set 0x%x: multiboot info\n", (uintptr_t)mbi);
 	pmm_set_block(((uintptr_t)mbi) / BLOCK_SIZE);
 	if (mbi->flags & MULTIBOOT_INFO_CMDLINE) {
-		for (uintptr_t i = (uintptr_t)mbi->cmdline;
-			i < ((uintptr_t)mbi->cmdline + (uintptr_t)strlen((char *)mbi->cmdline));
-			i += BLOCK_SIZE) {
-			printf("set 0x%x: cmdline\n", i);
-			pmm_set_block(i / BLOCK_SIZE);
+		if (mbi->cmdline != 0) {
+			for (uintptr_t i = (uintptr_t)mbi->cmdline;
+				i < ((uintptr_t)mbi->cmdline + (uintptr_t)strlen((char *)mbi->cmdline));
+				i += BLOCK_SIZE) {
+				printf("set 0x%x: cmdline\n", i);
+				pmm_set_block(i / BLOCK_SIZE);
+			}
 		}
 	}
 	if (mbi->flags & MULTIBOOT_INFO_MODS) {
@@ -255,6 +257,9 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 			i += BLOCK_SIZE) {
 			printf("set 0x%x: modinfo\n", i);
 			pmm_set_block(i / BLOCK_SIZE);
+			if (((multiboot_module_t *)i)->cmdline != 0) {
+				pmm_set_block(((multiboot_module_t *)i)->cmdline / BLOCK_SIZE);
+			}
 		}
 	}
 	if (mbi->flags & MULTIBOOT_INFO_AOUT_SYMS) {
@@ -292,10 +297,12 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	// directly map the multiboot structure
 	map_direct_kernel(((uintptr_t)mbi) & ~0xFFF);
 	if (mbi->flags & MULTIBOOT_INFO_CMDLINE) {
-		for (uintptr_t i = (uintptr_t)mbi->cmdline;
-			i < ((uintptr_t)mbi->cmdline + (uintptr_t)strlen((char *)mbi->cmdline));
-			i += BLOCK_SIZE) {
-			map_direct_kernel(i & ~0xFFF);
+		if (mbi->cmdline != 0) {
+			for (uintptr_t i = (uintptr_t)mbi->cmdline;
+				i < ((uintptr_t)mbi->cmdline + (uintptr_t)strlen((char *)mbi->cmdline));
+				i += BLOCK_SIZE) {
+				map_direct_kernel(i & ~0xFFF);
+			}
 		}
 	}
 	if (mbi->flags & MULTIBOOT_INFO_MODS) {
@@ -303,6 +310,9 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 			i < ((uintptr_t)mbi->mods_addr + ((uintptr_t)mbi->mods_count * sizeof(multiboot_module_t)));
 			i += BLOCK_SIZE) {
 			map_direct_kernel(i & ~0xFFF);
+			if (((multiboot_module_t *)i)->cmdline != 0) {
+				map_direct_kernel(((multiboot_module_t *)i)->cmdline & ~0xFFF);
+			}
 		}
 	}
 	if (mbi->flags & MULTIBOOT_INFO_AOUT_SYMS) {
@@ -330,9 +340,6 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	if (mbi->flags & MULTIBOOT_INFO_APM_TABLE) {
 		// TODO: implement
 	}
-
-	/* map the complete kernel directly (including modules) read-only */
-	map_pages((uintptr_t)&_start, (uintptr_t)real_end, PAGE_TABLE_PRESENT, "kern"); // TODO: <- disable
 
 	/* map the code section read-only */
 	printf("__text_start: 0x%x; __text_end: 0x%x;\n", (uintptr_t)&__text_start, (uintptr_t)&__text_end);
@@ -383,18 +390,78 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 		for (unsigned int i = 0; i < mbi->mods_count; i++) {
 			uintptr_t mod_start = mods[i].mod_start;
 			uintptr_t mod_end = mods[i].mod_end;
-			if (memcmp((void *)mods[i].cmdline, (void *)"initrd", 6) == 0) {
-				printf("ramdisk at 0x%x, length 0x%x\n", mod_start, mod_end-mod_start);
-				map_pages(mod_start, mod_end, PAGE_TABLE_PRESENT, "ramdisk");
-				ramdisk = ramdisk_init(mod_start, mod_end-mod_start);
+			char *s = (char *)mods[i].cmdline;
+			unsigned int type = 0; // 0: random program; 1: ramdisk
+			if (s != NULL) {
+				size_t j = 0;
+				while (s[j]) {
+					if (s[j] == ' ') {
+						break;
+					} else if (s[j] == 'i') { // FIXME: breaks for /hello/initrd/test_program
+						if (memcmp((void *)(s + j), (void *)"initrd", 6) == 0) {
+							type = 1;
+							break;
+						}
+					} else if (s[j] == 'I') { // FIXME: ^
+						if (memcmp((void *)(s + j), (void *)"INITRD", 6) == 0) {
+							type = 1;
+							break;
+						}
+					}
+					j++;
+				}
 			} else {
-				printf("process_init(mod[%u]) name='%s'\n", i, (char *)mods[i].cmdline);
-				process_t *p = process_init(mod_start, mod_end);
-				p->pid = i + 1;
-				p->name = (char *)mods[i].cmdline;
-				process_add(p);
+				type = 0;
+			}
+
+			switch(type) {
+				case 1:
+					printf("ramdisk at 0x%x, length 0x%x\n", mod_start, mod_end-mod_start);
+					map_pages(mod_start, mod_end, PAGE_TABLE_PRESENT, "ramdisk");
+					ramdisk = ramdisk_init(mod_start, mod_end-mod_start);
+					break;
+				default:
+/*					printf("process_init(mods[%u]) name='%s'\n", i, s);
+					printf("process_init(mods[%u]);\n", i);
+					process_t *p = process_init(mod_start, mod_end);
+					p->pid = i + 1;
+					p->name = (char *)mods[i].cmdline;
+					process_add(p);
+*/					break;
 			}
 		}
+	}
+
+	if (ramdisk == NULL) {
+		printf("no ramdisk found! unable to continue !\n");
+		halt();
+	}
+
+	fs_node_t *tar_root = mount_tar(ramdisk);
+	assert(tar_root != NULL);
+	fs_mount_root(tar_root);
+
+	{
+		printf("ls test\n");
+		struct dirent *v;
+		int i = 0;
+		do {
+			v = fs_readdir(fs_root, i);
+			if (v == NULL) {
+				break;
+			}
+			printf("%u: %s\n", v->ino, v->name);
+			kfree(v);
+			i++;
+		} while (1);
+	}
+
+	{
+		process_t *p = process_exec(fs_finddir(fs_root, "init"));
+		p->pid = 1;
+		p->name = kmalloc(5);
+		strncpy(p->name, "init", 5);
+		process_add(p);
 	}
 
 	process_enable();

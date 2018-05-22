@@ -155,6 +155,7 @@ process_t *process_exec(fs_node_t *f) {
 		uintptr_t block = (uintptr_t)pmm_alloc_blocks_safe(1);
 		map_page(get_table(k_tmp, kernel_directory), k_tmp, block,
 			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
+		__asm__ __volatile__ ("invlpg (%0)" : : "b" (k_tmp) : "memory");
 		memset((void *)k_tmp, 0, BLOCK_SIZE);
 		map_page(get_table(k_tmp, kernel_directory), k_tmp, 0, 0);
 		map_page(get_table_alloc(virtaddr, process->pdir), virtaddr,
@@ -169,6 +170,7 @@ process_t *process_exec(fs_node_t *f) {
 		map_page(get_table(k_tmp, kernel_directory),
 			k_tmp,
 			block, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
+		__asm__ __volatile__ ("invlpg (%0)" : : "b" (k_tmp) : "memory");
 		uint32_t j = fs_read(f, i, BLOCK_SIZE, (uint8_t *)k_tmp);
 		printf("user: 0x%x => 0x%x (puw) 0x%x\n", u_vaddr, block, j);
 		map_page(get_table_alloc(u_vaddr, process->pdir),

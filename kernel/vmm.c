@@ -7,6 +7,7 @@
 #include <cpu.h>
 #include <isr.h>
 #include <paging.h>
+#include <process.h>
 #include <pmm.h>
 #include <string.h>
 #include <vmm.h>
@@ -47,24 +48,17 @@ void map_page(page_table_t *table, uintptr_t virtaddr, uintptr_t physaddr, uint1
 // directly maps from including start to end
 void map_pages(uintptr_t start, uintptr_t end, int flags, const char *name) {
 	if (name != NULL) {
-		if (((uintptr_t)end - (uintptr_t)start) > 0x8000) {
-			printf("%s: 0x%x - 0x%x => 0x%x - 0x%x flags: 0x%x\n", name, (uintptr_t)start, (uintptr_t)end, (uintptr_t)start, (uintptr_t)end, flags);
-		}
+		printf("%s: 0x%x - 0x%x => 0x%x - 0x%x flags: 0x%x\n", name, (uintptr_t)start, (uintptr_t)end, (uintptr_t)start, (uintptr_t)end, flags);
 	}
-	for (uintptr_t i = ((uintptr_t)start & 0xFFFFF000); i < (uintptr_t)end; i += 0x1000) {
-		if (name != NULL) {
-			if (!(((uintptr_t)end - (uintptr_t)start) > 0x8000)) {
-				printf("%s: 0x%x => 0x%x flags: 0x%x\n", name, i, i, flags);
-			}
-		}
-		map_page(get_table_alloc(i, kernel_directory), i, i, flags);
+	for (uintptr_t i = (start & 0xFFFFF000); i < end; i += BLOCK_SIZE) {
+		map_page(get_table(i, kernel_directory), i, i, flags);
 	}
 }
 
 
 // Don't use this method it will break stuff
 void map_direct_kernel(uintptr_t v) {
-	map_page(get_table_alloc(v, kernel_directory), v, v, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
+	map_page(get_table(v, kernel_directory), v, v, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
 }
 
 // TODO: optimise
@@ -136,7 +130,7 @@ uintptr_t find_vspace(page_directory_t *dir, size_t n) {
 				for (uintptr_t i = start;
 						i < start + (length*BLOCK_SIZE);
 						i += BLOCK_SIZE) {
-					// it should be impossible for get_table to return NULL if it does we're fucked anyway
+					// get_table can't return NULL here
 					map_page(get_table(i, dir), i,
 						PAGE_VALUE_RESERVED, 0);
 				}
@@ -161,14 +155,45 @@ void page_fault(registers_t *regs) {
 
 	if (regs->err_code & 0x4) {
 		printf("usermode\n");
+		printf("current_process: 0x%x\n", current_process);
+		printf("current_process->kstack: 0x%x\n", current_process->kstack);
+		printf("current_process->kstack_size: 0x%x\n", current_process->kstack_size);
+		printf("current_process->regs: 0x%x\n", current_process->regs);
+		printf("current_process->esp: 0x%x\n", current_process->esp);
+		printf("current_process->ebp: 0x%x\n", current_process->ebp);
+		printf("current_process->eip: 0x%x\n", current_process->eip);
+		printf("current_process->pdir: 0x%x\n", current_process->pdir);
+		printf("current_process->name: '%s'\n", current_process->name);
+		printf("current_process->pid: 0x%x\n", current_process->pid);
+		printf("current_process->fd_table: 0x%x\n", current_process->fd_table);
+		printf("-- pdir: 0x%x --\n", current_process->pdir);
+		for (uintptr_t table_i = 0; table_i < 1024; table_i++) {
+			uintptr_t table_p = current_process->pdir->tables[table_i];
+			if (table_p != 0) {
+				printf(" 0x%8x table: 0x%x\n", table_i << 22, table_p);
+				if (table_p & PAGE_DIRECTORY_PRESENT) {
+					page_table_t *table = (page_table_t *)(table_p & ~0x3FF);
+					for (uintptr_t page_i = 0; page_i < 1024; page_i++) {
+						page_t page = table->pages[page_i];
+						if (page != 0) {
+							printf("  0x%8x => 0x%x ()\n", (table_i << 22) | (page_i << 12), (uintptr_t)page);
+						}
+					}
+				}
+			} else {
+				printf("");
+			}
+		}
 	} else {
 		printf("KERNEL MODE PAGE FAULT\n");
+		print_stack_trace(20);
 		halt();
 	}
 	halt();
 }
 
 void vmm_init() {
+	// XXX: a lot of code depends on all the kernel tables being pre-allocated to avoid calling get_table_alloc (which could result in an infinite loop)
 	isr_set_handler(14, page_fault);
 
 	uintptr_t p = pmm_alloc_blocks_safe(1);
