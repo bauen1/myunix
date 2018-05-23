@@ -31,8 +31,7 @@
 #include <vmm.h>
 
 /* main kernel entry point */
-__attribute__((used))
-void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
+void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	(void)esp;
 	uintptr_t mem_avail = 0;
 	uintptr_t real_end = (uintptr_t)&_end;
@@ -381,7 +380,7 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	process_add(kidle_init());
 
 	assert(mbi->flags & MULTIBOOT_INFO_MODS);
-
+	printf("we have modules!\n");
 
 	fs_node_t *ramdisk = NULL;
 	if (mbi->mods_count > 0) {
@@ -443,10 +442,9 @@ void kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 
 	{
 		printf("ls test\n");
-		struct dirent *v;
 		int i = 0;
 		do {
-			v = fs_readdir(fs_root, i);
+			struct dirent *v = fs_readdir(fs_root, i);
 			if (v == NULL) {
 				break;
 			}

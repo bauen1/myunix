@@ -7,6 +7,7 @@ GCC_VERSION=7.3.0
 GRUB_VERSION=2.02
 TINYCC_TAG=release_0_9_27
 PERL_VERSION=5.20.3
+MUSL_VERSION=v1.1.19
 
 mkdir -p toolchain
 export PREFIX="$PWD/toolchain"
@@ -52,6 +53,16 @@ if [ ! -f .downloaded_perl ]; then
 	tar -xvf perl-$PERL_VERSION.tar.gz
 	touch .downloaded_perl
 fi
+if [ ! -f .downloaded_musl ]; then
+	echo "Cloning musl"
+	test -d musl || git clone "git://git.musl-libc.org/musl"
+	git -C musl checkout -- .
+	git -C musl checkout $MUSL_VERSION
+	git -C musl apply ../../patches/musl.patch
+	touch .downloaded_musl
+fi
+
+# Compile
 
 if [ ! -f .built_binutils ]; then
 	echo "Building Binutils"
@@ -83,7 +94,7 @@ if [ ! -f .built_tinycc ]; then
 		../tinycc/configure \
 			--prefix="$PREFIX/opt" \
 			--strip-binaries \
-			--sysroot='$PREFIX/opt/sysroot' \
+			--sysroot='$PREFIX/sysroot' \
 			--config-musl
 
 		#../configure \
@@ -155,4 +166,30 @@ if [ ! -f .built_perl ]; then
 		make -j$JOBS install
 	)
 	touch .built_perl
+fi
+
+if [ ! -f .built_musl ]; then
+	echo "Building musl"
+	rm -rf musl-build
+	mkdir -p musl-build
+	rm -rf ../musl-install || true
+	(cd musl-build
+		make -C ../musl distclean
+		CROSS_COMPILE="$PWD/../../../toolchain/bin/i686-elf-" \
+		CC="$PWD/../../../toolchain/opt/bin/i386-tcc" \
+		CFLAGS="-I$PWD/../../../toolchain/opt/lib/tcc/include/ -g" \
+		../musl/configure \
+			--prefix=/usr \
+			--target=i386-myunix \
+			--host=i386-myunix \
+			--disable-shared
+		make -j$JOBS all
+		make -j$JOBS install DESTDIR="$PWD/../../musl-install"
+	)
+
+	echo "Cleaning up build directory"
+	rm -rf musl-build
+	touch .built_musl
+	echo "Linking toolchain/sysroot to installed musl libc"
+	ln -svf musl-install ../sysroot
 fi

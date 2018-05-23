@@ -37,7 +37,8 @@ static intptr_t map_userspace_to_kernel(page_directory_t *pdir, uintptr_t ptr, u
 			printf(" not user; returning early: %u\n", i);
 			return i;
 		}
-		map_page(get_table(k_virtaddr, kernel_directory), k_virtaddr, page, PAGE_TABLE_PRESENT);
+		map_page(get_table(k_virtaddr, kernel_directory), k_virtaddr, page, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
+		__asm__ __volatile__ ("invlpg (%0)" : : "b" (k_virtaddr) : "memory");
 	}
 	return 0;
 }
@@ -53,9 +54,8 @@ static void unmap_from_kernel(uintptr_t kptr, size_t n) {
 }
 
 // only copies if all data was successfully mapped
-__attribute__((used))
 static intptr_t copy_from_userspace(page_directory_t *pdir, uintptr_t ptr, size_t n, void *buffer) {
-	size_t size_in_blocks = (BLOCK_SIZE - 1 + n) / BLOCK_SIZE;
+	size_t size_in_blocks = (BLOCK_SIZE - 1 + n + (ptr & 0xfff)) / BLOCK_SIZE;
 	uintptr_t kptr = find_vspace(kernel_directory, size_in_blocks);
 	if (kptr == 0) {
 		return -1;
@@ -74,14 +74,30 @@ static intptr_t copy_from_userspace(page_directory_t *pdir, uintptr_t ptr, size_
 	return n;
 }
 
-__attribute__((used))
 static intptr_t copy_to_userspace(page_directory_t *pdir, uintptr_t ptr, size_t n, void *buffer) {
-	(void)pdir;
-	(void)ptr;
-	(void)n;
-	(void)buffer;
-	// TODO: implement
-	return -1;
+	printf("copy_to_userspace(pdir: 0x%x, ptr: 0x%x, n: 0x%x, buffer: 0x%x);\n", pdir, ptr, n, buffer);
+//	size_t size_in_blocks = (BLOCK_SIZE - 1 + n) / BLOCK_SIZE;
+	size_t size_in_blocks = (BLOCK_SIZE - 1 + n + (ptr & 0xfff)) / BLOCK_SIZE;
+	printf("size_in_blocks: %u\n", size_in_blocks);
+	uintptr_t kptr = find_vspace(kernel_directory, size_in_blocks);
+	if (kptr == 0) {
+		printf("kptr == 0\n");
+		return -1;
+	}
+	intptr_t v = map_userspace_to_kernel(pdir, ptr, kptr, size_in_blocks);
+	printf("v: %u\n", v);
+	if (v != 0) {
+		unmap_from_kernel(kptr, v);
+		return -1;
+	}
+
+	uintptr_t kptr2 = kptr + (ptr & 0xFFF);
+
+	printf("memcpy(dest: 0x%x, src: 0x%x, len: 0x%x);\n", kptr2, buffer, n);
+	memcpy((void *)kptr2, buffer, n);
+
+	unmap_from_kernel(kptr, v);
+	return n;
 }
 
 /*
@@ -189,8 +205,7 @@ static void syscall_getpid(registers_t *regs) {
 	regs->eax = (uint32_t)current_process->pid;
 }
 
-__attribute__((noreturn))
-static void syscall_exit(registers_t *regs) {
+static void __attribute__((noreturn)) syscall_exit(registers_t *regs) {
 	printf("pid %u exit(%u)\n", current_process->pid, regs->ebx);
 	while (1) {
 		switch_task();
@@ -277,6 +292,92 @@ static void syscall_write(registers_t *regs) {
 	}
 }
 
+static void syscall_mmap_anon(registers_t *regs) {
+	// FIXME: validate len etc...
+	uintptr_t addr = regs->ebx;
+	size_t len = regs->ecx;
+	// regs->edx prot
+	printf("mmap_anon(addr: 0x%x, len: 0x%x, prot: %u)\n", addr, len, regs->edx);
+	if (len > BLOCK_SIZE*200) {
+		regs->eax = -1;
+		return;
+	}
+
+	len = len / BLOCK_SIZE;
+
+	if (addr == 0) {
+		addr = find_vspace(current_process->pdir, len);
+	}
+
+	uint32_t prot;
+	switch (regs->edx) {
+		case (1):
+			prot = PAGE_TABLE_PRESENT | PAGE_TABLE_USER;
+			break;;
+		case (3):
+			prot = PAGE_TABLE_PRESENT | PAGE_TABLE_USER | PAGE_TABLE_READWRITE;
+			break;;
+		default:
+		case (0):
+			prot = PAGE_TABLE_PRESENT | PAGE_TABLE_USER;
+			break;;
+	}
+
+	printf("addr: 0x%x prot: 0x%x\n", addr, prot);
+
+	uintptr_t kptr = find_vspace(kernel_directory, 1);
+	assert(kptr != 0);
+	for (size_t i = 0; i < len; i++) {
+		uintptr_t virtaddr = addr + i * BLOCK_SIZE;
+		uintptr_t block = pmm_alloc_blocks_safe(1); // FIXME: this can panic
+		// FIXME: free already mapped pages
+		assert(get_page(get_table(virtaddr, current_process->pdir), virtaddr) == PAGE_VALUE_RESERVED);
+
+		printf("u_virtaddr: 0x%x block: 0x%x\n", virtaddr, block);
+		map_page(get_table(kptr, kernel_directory), kptr, block, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
+		memset((void *)kptr, 0, BLOCK_SIZE);
+		map_page(get_table(kptr, kernel_directory), kptr, 0, 0);
+		__asm__ __volatile__ ("invlpg (%0)" : : "b" (kptr) : "memory");
+		map_page(get_table(virtaddr, current_process->pdir), virtaddr,
+			block,
+			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE | PAGE_TABLE_USER);
+	}
+
+	regs->eax = addr;
+}
+
+static void syscall_munmap(registers_t *regs) {
+	// regs->ebx addr
+	// regs->ecx length
+	printf("munmap(0x%x, 0x%x);\n", regs->ebx, regs->ecx);
+	if (((regs->ebx & 0xFFF) != 0) || (regs->ecx == 0)) {
+		regs->eax = -1;
+	}
+
+	uintptr_t len = regs->ecx;
+	if ((len & 0xFFF) > 0) {
+		len = (len & 0xFFF) + 0x1000;
+	}
+
+	for (uintptr_t i = 0; i < len; i += BLOCK_SIZE) {
+		page_t p = get_page(get_table(i, current_process->pdir), i);
+		if (p == 0) {
+			continue;
+		}
+
+		if (p & PAGE_TABLE_USER) {
+			pmm_free_blocks(p & ~0xFFF, 1);
+			map_page(get_table(i, current_process->pdir), i, 0, 0);
+			continue;
+		}
+
+		assert(0);
+		regs->eax = -1;
+		return;
+	}
+	regs->eax = 0;
+}
+
 static void syscall_sleep(registers_t *regs) {
 	unsigned long target = ticks + regs->ebx;
 	while (ticks <= target) {
@@ -332,6 +433,12 @@ static void syscall_handler(registers_t *regs) {
 			break;
 		case 0xFF:
 			syscall_dumpregs(regs);
+			break;
+		case 0x200:
+			syscall_mmap_anon(regs);
+			break;
+		case 0x201:
+			syscall_munmap(regs);
 			break;
 		default:
 			break;

@@ -155,17 +155,18 @@ void page_fault(registers_t *regs) {
 
 	if (regs->err_code & 0x4) {
 		printf("usermode\n");
-		printf("current_process: 0x%x\n", current_process);
+		printf("current_process: 0x%x\n", (uintptr_t)current_process);
 		printf("current_process->kstack: 0x%x\n", current_process->kstack);
-		printf("current_process->kstack_size: 0x%x\n", current_process->kstack_size);
-		printf("current_process->regs: 0x%x\n", current_process->regs);
+		printf("current_process->kstack_size: 0x%x\n", (uintptr_t)current_process->kstack_size);
+		printf("current_process->regs: 0x%x\n", (uintptr_t)current_process->regs);
 		printf("current_process->esp: 0x%x\n", current_process->esp);
 		printf("current_process->ebp: 0x%x\n", current_process->ebp);
 		printf("current_process->eip: 0x%x\n", current_process->eip);
-		printf("current_process->pdir: 0x%x\n", current_process->pdir);
+		printf("current_process->pdir: 0x%x\n", (uintptr_t)current_process->pdir);
 		printf("current_process->name: '%s'\n", current_process->name);
 		printf("current_process->pid: 0x%x\n", current_process->pid);
-		printf("current_process->fd_table: 0x%x\n", current_process->fd_table);
+		printf("current_process->fd_table: 0x%x\n", (uintptr_t)current_process->fd_table);
+		printf("\n");
 		printf("-- pdir: 0x%x --\n", current_process->pdir);
 		for (uintptr_t table_i = 0; table_i < 1024; table_i++) {
 			uintptr_t table_p = current_process->pdir->tables[table_i];

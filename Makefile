@@ -17,4 +17,4 @@ kernel/iso/modules/initrd.tar: tar_root tar_root/init
 all: kernel/iso/modules/initrd.tar
 .PHONY: clean
 clean:
-	rm -f kernel/iso/modules/initrd.tar
+	rm -f init.o kernel/iso/modules/initrd.tar
