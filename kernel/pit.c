@@ -38,6 +38,8 @@ void pit_init() {
 }
 
 void _sleep(unsigned long miliseconds) {
+	// FIXME: assert when interrupts are disabled
+
 	unsigned long target_ticks = ticks + miliseconds;
 	while (ticks < target_ticks) {
 		hlt();

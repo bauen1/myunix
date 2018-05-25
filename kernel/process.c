@@ -31,6 +31,7 @@ process_t *kidle_init() {
 	process->pdir = kernel_directory;
 	process->pid = 0;
 	process->fd_table = kcalloc(1, sizeof(fd_table_t));
+	printf("kidle->fd_table: 0x%x\n", process->fd_table);
 
 	// kstack
 	size_t kstack_size = 4; // FIXME: hardcoded
@@ -39,14 +40,12 @@ process_t *kidle_init() {
 	for (size_t i = 0; i <= kstack_size; i++) {
 		uintptr_t v_kaddr = v_kstack + (i + 1)*BLOCK_SIZE;
 		uintptr_t block = pmm_alloc_blocks_safe(1);
-		printf(" kern: 0x%x => 0x%x\n", v_kaddr, block);
 		map_page(get_table_alloc(v_kaddr, kernel_directory), v_kaddr,
 			block,
 			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
 	}
 
 	// kstack guard
-	printf(" kern: 0x%x => GUARD\n", v_kstack);
 	map_page(get_table_alloc(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
 
 	memset((void *)(v_kstack + BLOCK_SIZE), 0, (kstack_size+1) * BLOCK_SIZE);
@@ -57,6 +56,7 @@ process_t *kidle_init() {
 	process->ebp = 0/*process->esp*/;
 	process->eip = (uintptr_t)kidle;
 	process->name = kmalloc(6);
+	assert(process->name != NULL);
 	strncpy(process->name, "kidle", 255);
 	return process;
 }
@@ -126,7 +126,6 @@ process_t *process_exec(fs_node_t *f) {
 	for (size_t i = 0; i <= kstack_size; i++) {
 		uintptr_t v_kaddr = v_kstack + (i + 1)*BLOCK_SIZE;
 		uintptr_t block = pmm_alloc_blocks_safe(1);
-		printf(" k & u: 0x%x => 0x%x\n", v_kaddr, block);
 		map_page(get_table_alloc(v_kaddr, kernel_directory), v_kaddr,
 			block,
 			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
@@ -172,7 +171,7 @@ process_t *process_exec(fs_node_t *f) {
 			block, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
 		__asm__ __volatile__ ("invlpg (%0)" : : "b" (k_tmp) : "memory");
 		uint32_t j = fs_read(f, i, BLOCK_SIZE, (uint8_t *)k_tmp);
-		printf("user: 0x%x => 0x%x (puw) 0x%x\n", u_vaddr, block, j);
+		assert(j != (unsigned)-1);
 		map_page(get_table_alloc(u_vaddr, process->pdir),
 			u_vaddr,
 			block,
@@ -242,7 +241,6 @@ process_t *process_init(uintptr_t start, uintptr_t end) {
 	for (size_t i = 0; i <= kstack_size; i++) {
 		uintptr_t v_kaddr = v_kstack + (i + 1)*BLOCK_SIZE;
 		uintptr_t block = pmm_alloc_blocks_safe(1);
-		printf(" k & u: 0x%x => 0x%x\n", v_kaddr, block);
 		map_page(get_table_alloc(v_kaddr, kernel_directory), v_kaddr,
 			block,
 			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
@@ -383,6 +381,8 @@ void __attribute__((noreturn)) __restore_process() {
 }
 
 void process_remove(process_t *p) {
+	assert(process_list != NULL);
+	assert(p != NULL);
 	list_remove(process_list, p);
 	if (current_process == p) {
 		current_process_node = process_list->head;
@@ -391,6 +391,7 @@ void process_remove(process_t *p) {
 }
 
 void process_add(process_t *p) {
+	assert(p != NULL);
 	if (process_list == NULL) {
 		process_list = list_init();
 	}
@@ -404,6 +405,18 @@ void __attribute__((noreturn)) process_enable(void) {
 	current_process_node = process_list->head;
 	current_process = current_process_node->value;
 	assert(current_process != NULL);
-
+/*
+	printf("current_process: 0x%x\n", (uintptr_t)current_process);
+	printf("current_process->kstack: 0x%x\n", current_process->kstack);
+	printf("current_process->kstack_size: 0x%x\n", current_process->kstack_size);
+	printf("current_process->regs: 0x%x\n", (uintptr_t)current_process->regs);
+	printf("current_process->esp: 0x%x\n", current_process->esp);
+	printf("current_process->ebp: 0x%x\n", current_process->ebp);
+	printf("current_process->eip: 0x%x\n", current_process->eip);
+	printf("current_process->pdir: 0x%x\n", (uintptr_t)current_process->pdir);
+	printf("current_process->name: '%s'\n", current_process->name);
+	printf("current_process->pid: 0x%x\n", current_process->pid);
+	printf("current_process->fd_table: 0x%x\n", (uintptr_t)current_process->fd_table);
+*/
 	__restore_process();
 }

@@ -58,16 +58,36 @@ void map_pages(uintptr_t start, uintptr_t end, int flags, const char *name) {
 
 // Don't use this method it will break stuff
 void map_direct_kernel(uintptr_t v) {
+//	if ((v & 0xFFF) != 0) {
+//		printf("WARN: map_direct_kernel pointer not aligned! (0x%x)\n", v);
+//	}
+//	page_table_t *table = get_table(v, kernel_directory);
+//	page_t o_page = get_page(table, v);
+//	if (o_page != 0) {
+//		if ((o_page & ~0xFFF) == v) {
+//			if (o_page == (v | PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE)) {
+//				printf(" mapped using same value 0x%x => 0x%x\n", v, v);
+//			} else {
+//				printf("already mapped ?!! v: 0x%x page: 0x%x\n", v, o_page);
+//			}
+//		} else {
+//			printf("we're in deep trouble!\n");
+//			printf("v: 0x%x page: 0x%x\n", v, get_page(table, v));
+//			assert(0);
+//		}
+//	}
+//
 	map_page(get_table(v, kernel_directory), v, v, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
+	__asm__ __volatile__ ("invlpg (%0)" : : "b" (v) : "memory");
 }
 
 // TODO: optimise
 // WARNING: this is awfully slow
 // TODO: mark found pages with PAGE_VALUE_RESERVED
-uintptr_t vmm_find_dma_region(size_t size) {
-	if (size == 0) {
-		return 0;
-	}
+// TODO: optimise
+inline uintptr_t vmm_find_dma_region(size_t size) {
+	assert(size != 0);
+	if (size == 0) {return 0;}
 
 	for (uint32_t i = 0; i < block_map_size; i++) {
 		if (block_map[i] != 0xFFFFFFFF) {
@@ -77,17 +97,13 @@ uintptr_t vmm_find_dma_region(size_t size) {
 					uint32_t start = i*32+j;
 					uint32_t len = 0;
 					while (len < size) {
-						if (pmm_test_block(start + len)) {
+						uintptr_t v_addr = (start + len) * BLOCK_SIZE;
+						if (pmm_test_block(start + len) ||
+							(get_page(get_table(v_addr, kernel_directory), v_addr) != 0)) {
 							// block used
 							break;
 						} else {
-							uintptr_t v_addr = (start + len) * BLOCK_SIZE;
-
-							if (get_page(get_table(v_addr, kernel_directory), v_addr) == 0) {
-								len++;
-							} else {
-								break;
-							}
+							len++;
 						}
 					}
 					if (len == size) {

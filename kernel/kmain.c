@@ -18,6 +18,7 @@
 #include <isr.h>
 #include <keyboard.h>
 #include <multiboot.h>
+#include <pci.h>
 #include <pic.h>
 #include <pit.h>
 #include <pmm.h>
@@ -251,13 +252,22 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 		}
 	}
 	if (mbi->flags & MULTIBOOT_INFO_MODS) {
-		for (uintptr_t i = (uintptr_t)mbi->mods_addr;
-			i < ((uintptr_t)mbi->mods_addr + ((uintptr_t)mbi->mods_count * sizeof(multiboot_module_t)));
-			i += BLOCK_SIZE) {
-			printf("set 0x%x: modinfo\n", i);
-			pmm_set_block(i / BLOCK_SIZE);
-			if (((multiboot_module_t *)i)->cmdline != 0) {
-				pmm_set_block(((multiboot_module_t *)i)->cmdline / BLOCK_SIZE);
+		multiboot_module_t *mods = (multiboot_module_t *)mbi->mods_addr;
+		for (unsigned int i = 0; i < mbi->mods_count; i++) {
+			uintptr_t mods_i_block = (uintptr_t)(&mods[i]) / BLOCK_SIZE;
+			printf("set 0x%x: modinfo\n", mods_i_block);
+			pmm_set_block(mods_i_block);
+			if (mods[i].cmdline != 0) {
+				// FIXME: handle cmdline bigger than 4kb
+				printf("set 0x%x: modinfo->cmdline\n", mods[i].cmdline / BLOCK_SIZE);
+				pmm_set_block(mods[i].cmdline / BLOCK_SIZE);
+			}
+
+			printf("set 0x%x - 0x%x: mod\n", mods[i].mod_start, mods[i].mod_end);
+
+			assert(mods[i].mod_start <= mods[i].mod_end);
+			for (uintptr_t v = mods[i].mod_start; v <= mods[i].mod_end; v += BLOCK_SIZE) {
+				pmm_set_block(v / BLOCK_SIZE);
 			}
 		}
 	}
@@ -305,13 +315,15 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 		}
 	}
 	if (mbi->flags & MULTIBOOT_INFO_MODS) {
-		for (uintptr_t i = (uintptr_t)mbi->mods_addr;
-			i < ((uintptr_t)mbi->mods_addr + ((uintptr_t)mbi->mods_count * sizeof(multiboot_module_t)));
-			i += BLOCK_SIZE) {
-			map_direct_kernel(i & ~0xFFF);
-			if (((multiboot_module_t *)i)->cmdline != 0) {
-				map_direct_kernel(((multiboot_module_t *)i)->cmdline & ~0xFFF);
+		multiboot_module_t *mods = (multiboot_module_t *)mbi->mods_addr;
+		for (unsigned int i = 0; i < mbi->mods_count; i++) {
+			map_direct_kernel(((uintptr_t)(&mods[i])) & ~0xFFF);
+			if (mods[i].cmdline != 0) {
+				// FIXME: handle cmdline bigger than 4kb
+				map_direct_kernel((uintptr_t)mods[i].cmdline & ~0xFFF);
 			}
+
+			map_pages(mods[i].mod_start, mods[i].mod_end, PAGE_TABLE_PRESENT, "mod");
 		}
 	}
 	if (mbi->flags & MULTIBOOT_INFO_AOUT_SYMS) {
@@ -374,9 +386,16 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	keyboard_init();
 	printf("[%u] [OK] keyboard_init\n", (unsigned int)ticks);
 
+	/* enable interrupts */
 	__asm__ __volatile__ ("sti");
 	printf("[%u] [OK] sti\n", (unsigned int)ticks);
 
+
+	/* scan for device and initialise them */
+	pci_init();
+	printf("[%u] [OK] pci_init\n", (unsigned int)ticks);
+
+	/* start processes */
 	process_add(kidle_init());
 
 	assert(mbi->flags & MULTIBOOT_INFO_MODS);
@@ -416,7 +435,6 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 			switch(type) {
 				case 1:
 					printf("ramdisk at 0x%x, length 0x%x\n", mod_start, mod_end-mod_start);
-					map_pages(mod_start, mod_end, PAGE_TABLE_PRESENT, "ramdisk");
 					ramdisk = ramdisk_init(mod_start, mod_end-mod_start);
 					break;
 				default:

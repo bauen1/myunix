@@ -98,7 +98,7 @@ void pci_scan(pci_callback_t f, void *extra) {
 
 static void pci_print(uint32_t device, uint16_t vendorid, uint16_t deviceid, void *extra) {
 	(void)extra;
-	printf("device: 0x%x vendorid: 0x%x deviceid: 0x%x\n", device, vendorid, deviceid);
+	printf("device: 0x%4x vendorid: 0x%4x deviceid: 0x%4x\n", device, vendorid, deviceid);
 }
 
 void pci_init() {

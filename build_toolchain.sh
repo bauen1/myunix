@@ -177,12 +177,14 @@ if [ ! -f .built_musl ]; then
 		make -C ../musl distclean
 		CROSS_COMPILE="$PWD/../../../toolchain/bin/i686-elf-" \
 		CC="$PWD/../../../toolchain/opt/bin/i386-tcc" \
-		CFLAGS="-I$PWD/../../../toolchain/opt/lib/tcc/include/ -g" \
+		CFLAGS="-I$PWD/../../../toolchain/opt/lib/tcc/include/" \
 		../musl/configure \
 			--prefix=/usr \
 			--target=i386-myunix \
 			--host=i386-myunix \
-			--disable-shared
+			--disable-shared \
+			--enable-debug \
+			--enable-warnings
 		make -j$JOBS all
 		make -j$JOBS install DESTDIR="$PWD/../../musl-install"
 	)

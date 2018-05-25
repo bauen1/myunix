@@ -1,3 +1,7 @@
+.DEFAULT: all
+.PHONY: all
+all: kernel/iso/modules/initrd.tar
+
 CC:=./toolchain/opt/bin/i386-tcc
 LD:=$(CC)
 

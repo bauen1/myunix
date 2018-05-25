@@ -11,6 +11,7 @@
 
 list_t *list_init() {
 	list_t *v = kcalloc(1, sizeof(list_t));
+	assert(v != NULL);
 	return v;
 }
 

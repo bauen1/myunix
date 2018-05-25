@@ -1,3 +1,4 @@
+// TODO: rewrite inline's as macro's to ensure they get inlined
 #include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -45,10 +46,6 @@ inline uint32_t pmm_find_first_free() {
 // TODO: optimise
 inline uint32_t pmm_find_first_free_region(size_t size) {
 	assert(size != 0);
-
-	if (size == 0) {
-		return 0;
-	}
 
 	if (size == 1) {
 		return pmm_find_first_free();

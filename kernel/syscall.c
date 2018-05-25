@@ -1,4 +1,5 @@
 // FIXME: use invlpg
+// FIXME: handle overflow into next page in copy_{from,to}_userspace
 #include <assert.h>
 #include <stddef.h>
 
@@ -75,10 +76,7 @@ static intptr_t copy_from_userspace(page_directory_t *pdir, uintptr_t ptr, size_
 }
 
 static intptr_t copy_to_userspace(page_directory_t *pdir, uintptr_t ptr, size_t n, void *buffer) {
-	printf("copy_to_userspace(pdir: 0x%x, ptr: 0x%x, n: 0x%x, buffer: 0x%x);\n", pdir, ptr, n, buffer);
-//	size_t size_in_blocks = (BLOCK_SIZE - 1 + n) / BLOCK_SIZE;
 	size_t size_in_blocks = (BLOCK_SIZE - 1 + n + (ptr & 0xfff)) / BLOCK_SIZE;
-	printf("size_in_blocks: %u\n", size_in_blocks);
 	uintptr_t kptr = find_vspace(kernel_directory, size_in_blocks);
 	if (kptr == 0) {
 		printf("kptr == 0\n");
