@@ -5,7 +5,7 @@
 #include <cpu.h>
 #include <pci.h>
 
-void pci_config_write(uint32_t device, uint8_t offset, uint32_t value) {
+void pci_config_writew(uint32_t device, uint8_t offset, uint32_t value) {
 	outl(PCI_CONFIG_ADDRESS, pci_address(device, offset));
 	outl(PCI_CONFIG_DATA, value);
 }
@@ -98,7 +98,7 @@ void pci_scan(pci_callback_t f, void *extra) {
 
 static void pci_print(uint32_t device, uint16_t vendorid, uint16_t deviceid, void *extra) {
 	(void)extra;
-	printf("device: 0x%4x vendorid: 0x%4x deviceid: 0x%4x\n", device, vendorid, deviceid);
+	printf("device: 0x%6x vendorid: 0x%4x deviceid: 0x%4x\n", device, vendorid, deviceid);
 }
 
 void pci_init() {

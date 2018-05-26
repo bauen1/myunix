@@ -29,6 +29,7 @@
 #include <tar.h>
 #include <tmpfs.h>
 #include <tty.h>
+#include <usb/usb.h>
 #include <vmm.h>
 
 /* main kernel entry point */
@@ -230,7 +231,6 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	printf("pmm block_map: 0x%x - 0x%x\n", (uintptr_t)block_map, ((uintptr_t)block_map + block_map_size / 8));
 
 	for (uintptr_t i = (uintptr_t)block_map; i < (uintptr_t)((uintptr_t)block_map + block_map_size/8); i += BLOCK_SIZE) {
-		printf("pmm block_map: 0x%x\n", i);
 		pmm_set_block((i)/BLOCK_SIZE);
 	}
 
@@ -353,19 +353,15 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	}
 
 	/* map the code section read-only */
-	printf("__text_start: 0x%x; __text_end: 0x%x;\n", (uintptr_t)&__text_start, (uintptr_t)&__text_end);
 	map_pages((uintptr_t)&__text_start, (uintptr_t)&__text_end, PAGE_TABLE_PRESENT, ".text");
 
 	/* map the data section read-write */
-	printf("__data_start: 0x%x; __data_end: 0x%x\n", (uintptr_t)&__data_start, (uintptr_t)&__data_end);
 	map_pages((uintptr_t)&__data_start, (uintptr_t)&__data_end, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, ".data");
 
 	/* map the bss section read-write */
-	printf("__bss_start: 0x%x; __bss_end: 0x%x\n", (uintptr_t)&__bss_start, (uintptr_t)&__bss_end);
 	map_pages((uintptr_t)&__bss_start, (uintptr_t)&__bss_end, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, ".bss");
 
 	/* directly map the pmm block map */
-	printf("pmm block_map: 0x%x - 0x%x\n", (uintptr_t)block_map, ((uintptr_t)block_map + block_map_size / 8));
 	map_pages((uintptr_t)block_map, (uintptr_t)block_map + (block_map_size / 8),
 		PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "pmm_map");
 
@@ -394,6 +390,9 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	/* scan for device and initialise them */
 	pci_init();
 	printf("[%u] [OK] pci_init\n", (unsigned int)ticks);
+
+	usb_init();
+	printf("[%u] [OK] usb_init\n", (unsigned int)ticks);
 
 	/* start processes */
 	process_add(kidle_init());
