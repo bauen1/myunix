@@ -42,6 +42,7 @@ void map_page(page_table_t *table, uintptr_t virtaddr, uintptr_t physaddr, uint1
 	assert(table != NULL);
 	assert(((uintptr_t)table & 0xFFF) == 0);
 	table->pages[(uint32_t)virtaddr >> 12 & 0x3FF] = (page_t)((uint32_t)physaddr | flags);
+	// FIXME: should probably call invlpg here
 }
 
 /* helper function */
@@ -119,6 +120,20 @@ inline uintptr_t vmm_find_dma_region(size_t size) {
 
 	return 0;
 }
+
+void *dma_malloc(size_t m) {
+	size_t n = (BLOCK_SIZE - 1 + m) / BLOCK_SIZE;
+	uintptr_t v = vmm_find_dma_region(n);
+	assert(v != 0);
+	for (size_t i = 0; i < n; i++) {
+		pmm_set_block(v + i);
+		map_direct_kernel((v + i) * BLOCK_SIZE);
+		memset((void *)((v + i) * BLOCK_SIZE), 0, BLOCK_SIZE);
+	}
+
+	return (void *)(v * BLOCK_SIZE);
+}
+
 
 // TODO: optimise the next 2 functions by walking in page table increments
 // finds free (continuous) virtual address space and maps it to PAGE_VALUE_RESERVED
@@ -222,8 +237,9 @@ void vmm_init() {
 		uintptr_t pt = pmm_alloc_blocks_safe(1);
 		memset((void *)pt, 0, BLOCK_SIZE);
 		kernel_directory->tables[i] = (uintptr_t)(pt |
-			PAGE_DIRECTORY_PRESENT | PAGE_DIRECTORY_READWRITE | PAGE_DIRECTORY_USER |
+			PAGE_DIRECTORY_PRESENT | PAGE_DIRECTORY_READWRITE |
 			PAGE_DIRECTORY_WRITE_THROUGH | PAGE_DIRECTORY_CACHE_DISABLE);
+		// Don't map page tables with USER bit set, since no usercode should ever need to use the kernel directory
 	}
 
 	for (unsigned int i = 0; i < 1024; i++) {

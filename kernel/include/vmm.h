@@ -48,6 +48,7 @@ void map_direct_kernel(uintptr_t v);
 
 uintptr_t find_vspace(page_directory_t *dir, size_t n); // size in blocks
 uintptr_t vmm_find_dma_region(size_t size);
+void *dma_malloc(size_t m);
 
 void vmm_init();
 

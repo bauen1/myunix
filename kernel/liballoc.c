@@ -98,7 +98,7 @@ int liballoc_unlock() {
  */
 int liballoc_free(void *v, size_t pages);
 void *liballoc_alloc(size_t pages) {
-	uintptr_t v_start = find_vspace(kernel_directory, pages); // FIXME: blocks, not pages
+	uintptr_t v_start = find_vspace(kernel_directory, pages);
 	for (size_t i = 0; i < pages; i++) {
 		uintptr_t real_block = pmm_alloc_blocks(1);
 		if (real_block == 0) {
@@ -399,6 +399,7 @@ void * __attribute__((malloc)) kmalloc(size_t size)
 			if ( tag == NULL ) {
 				if ( (tag = allocate_new_tag( size )) == NULL ) {
 					assert(liballoc_unlock() == 0);
+					assert(0);
 					return NULL;
 				}
 				index = getexp( tag->real_size - sizeof(struct boundary_tag) );

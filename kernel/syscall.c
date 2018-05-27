@@ -1,5 +1,5 @@
 // FIXME: use invlpg
-// FIXME: handle overflow into next page in copy_{from,to}_userspace
+// FIXME: handle overflow everywhere (copy_{from,to}_userspace should already be correct)
 #include <assert.h>
 #include <stddef.h>
 
@@ -91,7 +91,7 @@ static intptr_t copy_to_userspace(page_directory_t *pdir, uintptr_t ptr, size_t 
 
 	uintptr_t kptr2 = kptr + (ptr & 0xFFF);
 
-	printf("memcpy(dest: 0x%x, src: 0x%x, len: 0x%x);\n", kptr2, buffer, n);
+	printf("memcpy(dest: 0x%x, src: 0x%x, len: 0x%x);\n", kptr2, (uintptr_t)buffer, n);
 	memcpy((void *)kptr2, buffer, n);
 
 	unmap_from_kernel(kptr, v);
@@ -99,108 +99,107 @@ static intptr_t copy_to_userspace(page_directory_t *pdir, uintptr_t ptr, size_t 
 }
 
 /*
-static void syscall_execve(registers_t *regs) {
+static uint32_t syscall_execve(registers_t *regs) {
 //	printf("execve()\n");
-	regs->eax = -1;
+	return -1;
 }
 
-static void syscall_fork(registers_t *regs) {
+static uint32_t syscall_fork(registers_t *regs) {
 //	printf("fork()\n");
-	regs->eax = -1;
+	return = -1;
 }
 
-static void syscall_fstat(registers_t *regs) {
+static uint32_t syscall_fstat(registers_t *regs) {
 //	printf("fstat()\n");
-	regs->eax = 0;
+	return -1;
 }
 
-static void syscall_stat(registers_t *regs) {
+static uint32_t syscall_stat(registers_t *regs) {
 //	printf("stat()\n");
-	regs->eax = 0;
+	return -1;
 }
 
-static void syscall_link(registers_t *regs) {
+static uint32_t syscall_link(registers_t *regs) {
 //	printf("link()\n");
-	regs->eax = -1;
+	return -1;
 }
 
-static void syscall_lseek(registers_t *regs) {
+static uint32_t syscall_lseek(registers_t *regs) {
 //	printf("lseek()\n");
-	regs->eax = 0;
+	return -1;
 }
 */
-static void syscall_times(registers_t *regs) {
+static uint32_t syscall_times(registers_t *regs) {
+	(void)regs;
 //	printf("times()\n");
-	regs->eax = -1;
+	return -1;
 }
 
-static void syscall_mkdir(registers_t *regs) {
+static uint32_t syscall_mkdir(registers_t *regs) {
 	// regs->ebx 256 path
 	// regs->ecx mode
 	char buffer[256];
 	intptr_t r = copy_from_userspace(current_process->pdir, regs->ebx, 255, buffer);
 	if (r < 0) {
-		regs->eax = -1;
-		return;
+		return -1;
 	}
 
 	// FIXME: creating directories not in the root would be cool
 	fs_mkdir(fs_root, buffer, regs->ecx);
-	regs->eax = 0;
+	return 0;
 }
 
-static void syscall_rmdir(registers_t *regs) {
+static uint32_t syscall_rmdir(registers_t *regs) {
+	(void)regs;
 	// regs->ebx path
 	// just call syscall_unlink ?
-	regs->eax = -1;
+	return -1;
 }
 
-static void syscall_create(registers_t *regs) {
+static uint32_t syscall_create(registers_t *regs) {
 	// regs->ebx path
 	// regs->ecx mode
 	char buffer[256];
 	intptr_t r = copy_from_userspace(current_process->pdir, regs->ebx, 255, buffer);
 	if (r < 0) {
-		regs->eax = -1;
-		return;
+		return -1;
 	}
 
-	// FIXME: creating directories not in the root would be cool
+	// FIXME: creating files not in the root would be cool
 	fs_create(fs_root, buffer, regs->ecx);
-	regs->eax = 0;
-	return;
+	return 0;
 }
 
-static void syscall_unlink(registers_t *regs) {
+static uint32_t syscall_unlink(registers_t *regs) {
 	// regs->ebx path
 	char buffer[256];
 	intptr_t r = copy_from_userspace(current_process->pdir, regs->ebx, 255, buffer);
 	if (r < 0) {
-		regs->eax = -1;
-		return;
+		return -1;
 	}
 
-	// FIXME: creating directories not in the root would be cool
+	// FIXME: unlinking not in the root would be cool
 	fs_unlink(fs_root, buffer);
-	regs->eax = 0;
-	return;
+	return 0;
 }
 
 /*
-static void syscall_wait(registers_t *regs) {
+static uint32_t syscall_wait(registers_t *regs) {
 //	printf("wait()\n");
-	regs->eax = -1;
+	return -1;
 }
 */
 
-static void syscall_gettimeofday(registers_t *regs) {
+static uint32_t syscall_gettimeofday(registers_t *regs) {
+	(void)regs;
 //	printf("gettimeofday()\n");
-	regs->eax = -1;
+	return -1;
 }
 
-static void syscall_getpid(registers_t *regs) {
+static uint32_t syscall_getpid(registers_t *regs) {
+	(void)regs;
 //	printf("getpid()\n");
-	regs->eax = (uint32_t)current_process->pid;
+	return (uint32_t)current_process->pid;
 }
 
 static void __attribute__((noreturn)) syscall_exit(registers_t *regs) {
@@ -210,25 +209,26 @@ static void __attribute__((noreturn)) syscall_exit(registers_t *regs) {
 	}
 }
 
-static void syscall_open(registers_t *regs) {
+static uint32_t syscall_open(registers_t *regs) {
+	(void)regs;
 //	printf("open()\n");
-	regs->eax = -1;
+	return -1;
 }
 
-static void syscall_close(registers_t *regs) {
+static uint32_t syscall_close(registers_t *regs) {
+	(void)regs;
 //	printf("close()\n");
-	regs->eax = -1;
+	return -1;
 }
 
-static void syscall_read(registers_t *regs) {
+static uint32_t syscall_read(registers_t *regs) {
 //	printf("read(%u, 0x%x, 0x%x) (eip = 0x%x)\n", regs->ebx, regs->ecx, regs->edx, regs->eip);
 	// regs->ebx int fd
 	// regs->ecx char *buf
 	// regs->edx int len
 	if (current_process->fd_table) {
 		if (regs->ebx > 16) {
-			regs->eax = -1;
-			return;
+			return -1;
 		}
 		if (current_process->fd_table->entries[regs->ebx]) {
 			uintptr_t ptr = regs->ecx;
@@ -242,28 +242,28 @@ static void syscall_read(registers_t *regs) {
 			if (v != 0) {
 				printf("v: %u\n", v);
 				unmap_from_kernel(kptr, v);
-				regs->eax = -1;
-				return;
+				return -1;
 			}
 			fs_node_t *node = current_process->fd_table->entries[regs->ebx];
-			regs->eax = fs_read(node, 0, n, (uint8_t *)kptr2);
+			uint32_t r = fs_read(node, 0, n, (uint8_t *)kptr2);
 			unmap_from_kernel(kptr, n_blocks);
+			return r;
+		} else {
+			return -1;
 		}
 	} else {
-		regs->eax = -1;
-		return;
+		return -1;
 	}
 }
 
-static void syscall_write(registers_t *regs) {
+static uint32_t syscall_write(registers_t *regs) {
 //	printf("write(%u, 0x%x, 0x%x) (eip = 0x%x)\n", regs->ebx, regs->ecx, regs->edx, regs->eip);
 	// regs->ebx int fd
 	// regs->ecx char *buf
 	// regs->edx int len
 	if (current_process->fd_table) {
 		if (regs->ebx > 16) {
-			regs->eax = -1;
-			return;
+			return -1;
 		}
 		if (current_process->fd_table->entries[regs->ebx]) {
 			// FIXME: handle oveflow of pointer into next block correctly
@@ -277,28 +277,28 @@ static void syscall_write(registers_t *regs) {
 			if (v != 0) {
 				printf("syscall_write early abort, v: %u\n", v);
 				unmap_from_kernel(kptr, v);
-				regs->eax = -1;
-				return;
+				return -1;
 			}
 			fs_node_t *node = current_process->fd_table->entries[regs->ebx];
-			regs->eax = fs_write(node, 0, n, (uint8_t *)kptr2);
+			uint32_t r = fs_write(node, 0, n, (uint8_t *)kptr2);
 			unmap_from_kernel(kptr, n_blocks);
+			return r;
+		} else {
+			return -1;
 		}
 	} else {
-		regs->eax = -1;
-		return;
+		return -1;
 	}
 }
 
-static void syscall_mmap_anon(registers_t *regs) {
+static uint32_t syscall_mmap_anon(registers_t *regs) {
 	// FIXME: validate len etc...
 	uintptr_t addr = regs->ebx;
 	size_t len = regs->ecx;
 	// regs->edx prot
 	printf("mmap_anon(addr: 0x%x, len: 0x%x, prot: %u)\n", addr, len, regs->edx);
 	if (len > BLOCK_SIZE*200) {
-		regs->eax = -1;
-		return;
+		return -1;
 	}
 
 	len = len / BLOCK_SIZE;
@@ -341,15 +341,15 @@ static void syscall_mmap_anon(registers_t *regs) {
 			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE | PAGE_TABLE_USER);
 	}
 
-	regs->eax = addr;
+	return addr;
 }
 
-static void syscall_munmap(registers_t *regs) {
+static uint32_t syscall_munmap(registers_t *regs) {
 	// regs->ebx addr
 	// regs->ecx length
 	printf("munmap(0x%x, 0x%x);\n", regs->ebx, regs->ecx);
 	if (((regs->ebx & 0xFFF) != 0) || (regs->ecx == 0)) {
-		regs->eax = -1;
+		return -1;
 	}
 
 	uintptr_t len = regs->ecx;
@@ -370,22 +370,22 @@ static void syscall_munmap(registers_t *regs) {
 		}
 
 		assert(0);
-		regs->eax = -1;
-		return;
+		return -1;
 	}
-	regs->eax = 0;
+	return 0;
 }
 
-static void syscall_sleep(registers_t *regs) {
+static uint32_t syscall_sleep(registers_t *regs) {
 	unsigned long target = ticks + regs->ebx;
 	while (ticks <= target) {
 		switch_task();
 	}
-	regs->eax = 0;
+	return 0;
 }
 
-static void syscall_dumpregs(registers_t *regs) {
+static uint32_t syscall_dumpregs(registers_t *regs) {
 	dump_regs(regs);
+	return 0;
 }
 
 static void syscall_handler(registers_t *regs) {
@@ -394,51 +394,52 @@ static void syscall_handler(registers_t *regs) {
 			syscall_exit(regs);
 			break;
 		case 0x02:
-			syscall_sleep(regs);
+			regs->eax = syscall_sleep(regs);
 			break;
 		case 0x03:
-			syscall_read(regs);
+			regs->eax = syscall_read(regs);
 			break;
 		case 0x04:
-			syscall_write(regs);
+			regs->eax = syscall_write(regs);
 			break;
 		case 0x05:
-			syscall_open(regs);
+			regs->eax = syscall_open(regs);
 			break;
 		case 0x06:
-			syscall_close(regs);
+			regs->eax = syscall_close(regs);
 			break;
 		case 0x08:
-			syscall_create(regs);
+			regs->eax = syscall_create(regs);
 			break;
 		case 0x0A:
-			syscall_unlink(regs);
+			regs->eax = syscall_unlink(regs);
 			break;
 		case 0x14:
-			syscall_getpid(regs);
+			regs->eax = syscall_getpid(regs);
 			break;
 		case 0x27:
-			syscall_mkdir(regs);
+			regs->eax = syscall_mkdir(regs);
 			break;
 		case 0x28:
-			syscall_rmdir(regs);
+			regs->eax = syscall_rmdir(regs);
 			break;
 		case 0x2b:
-			syscall_times(regs);
+			regs->eax =syscall_times(regs);
 			break;
 		case 0x4e:
-			syscall_gettimeofday(regs);
+			regs->eax = syscall_gettimeofday(regs);
 			break;
 		case 0xFF:
-			syscall_dumpregs(regs);
+			regs->eax = syscall_dumpregs(regs);
 			break;
 		case 0x200:
-			syscall_mmap_anon(regs);
+			regs->eax = syscall_mmap_anon(regs);
 			break;
 		case 0x201:
-			syscall_munmap(regs);
+			regs->eax = syscall_munmap(regs);
 			break;
 		default:
+			regs->eax = (uint32_t)-1;
 			break;
 	}
 }
