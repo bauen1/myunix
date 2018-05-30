@@ -183,9 +183,9 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 				uintptr_t mmap_end = mmap->addr + mmap->len;
 				printf("mmap_end: 0x%x\n", mmap_end);
 				if (mmap_end > mem_avail) {
-					printf("old mmap_avail: 0x%x\n");
+					printf("old mmap_avail: 0x%x\n", mem_avail);
 					mem_avail = mmap->addr + mmap->len;
-					printf("new mmap_avail: 0x%x\n");
+					printf("new mmap_avail: 0x%x\n", mem_avail);
 				}
 			}
 		}
