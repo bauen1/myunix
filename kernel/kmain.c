@@ -81,6 +81,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 			halt();
 		}
 	} else {
+		printf("no framebuffer found assuming default i386 vga text mode\n");
 		fb_start = TTY_DEFAULT_VMEM_ADDR;
 		fb_size = TTY_DEFAULT_HEIGHT * 2 * TTY_DEFAULT_WIDTH;
 		tty_init((uintptr_t)fb_start,
@@ -88,10 +89,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 			TTY_DEFAULT_HEIGHT,
 			8 * 2,
 			TTY_DEFAULT_WIDTH * 2);
-		printf("no framebuffer found assuming default i386 vga text mode\n");
 	}
-
-	printf("mbi->flags: 0x%x\n", (uint32_t)mbi->flags);
 
 	if (mbi->flags & MULTIBOOT_INFO_BOOT_LOADER_NAME) {
 		printf("mbi->boot_loader_name: '%s'\n", (char *)mbi->boot_loader_name);
@@ -176,7 +174,25 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	printf("kernel mem ends at:        0x%x\n", (uintptr_t)&_end);
 	printf("kernel mem really ends at: 0x%x\n", real_end);
 
-	// TODO: calculate the highest end of free memory and pass it to pmm_init instead of mem_lower and mem_upper
+	if (mbi->flags & MULTIBOOT_INFO_MEM_MAP) {
+		uintptr_t mem_avail_old = mem_avail;
+		for (multiboot_memory_map_t *mmap = (multiboot_memory_map_t *)mbi->mmap_addr;
+			((uint32_t)mmap) < (mbi->mmap_addr + mbi->mmap_length);
+			mmap = (multiboot_memory_map_t *)((uint32_t)mmap + mmap->size + sizeof(mmap->size))) {
+			if (mmap->type == MULTIBOOT_MEMORY_AVAILABLE) {
+				uintptr_t mmap_end = mmap->addr + mmap->len;
+				printf("mmap_end: 0x%x\n", mmap_end);
+				if (mmap_end > mem_avail) {
+					printf("old mmap_avail: 0x%x\n");
+					mem_avail = mmap->addr + mmap->len;
+					printf("new mmap_avail: 0x%x\n");
+				}
+			}
+		}
+		if (mem_avail != mem_avail_old) {
+			printf("mem_avail_old: 0x%x; mem_avail: 0x%x\n", mem_avail_old, mem_avail);
+		}
+	}
 
 	// overflow or no value
 	if (mem_avail == 0) {
@@ -362,12 +378,13 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	map_pages((uintptr_t)&__bss_start, (uintptr_t)&__bss_end, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, ".bss");
 
 	/* directly map the pmm block map */
-	map_pages((uintptr_t)block_map, (uintptr_t)block_map + (block_map_size / 8),
-		PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "pmm_map");
+	map_pages((uintptr_t)block_map, (uintptr_t)block_map + (block_map_size / 8), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "pmm_map");
 
 	/* map the framebuffer / textbuffer */
 	if ((fb_start != 0) & (fb_size != 0)) {
 		map_pages(fb_start, (fb_start + fb_size), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "framebuffer");
+	} else {
+		printf("WARNING: not mapping framebuffer!\n");
 	}
 
 	/* enable paging */
