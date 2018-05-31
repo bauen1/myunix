@@ -1,5 +1,6 @@
 // TODO: use a kernel task for async init
 // TODO: use suspend on the ports to get interrupts when device connect
+// FIXME: less magic numbers
 #include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -17,14 +18,8 @@
 #include <usb/usb.h>
 #include <usb/uhci.h>
 
-static void iowait (void) {
-	__asm__ __volatile__("outb %%al, $0x80" : : "a"(0));
-	__asm__ __volatile__("outb %%al, $0x80" : : "a"(0));
-}
-
-
-#define MAX_QH 4
-#define MAX_TD 32
+#define MAX_QH 16
+#define MAX_TD 128
 
 #define REG_CMD       0x00
 #define REG_STS       0x02
@@ -133,7 +128,6 @@ static uint8_t uhci_reg_readb(uhci_controller_t *hc, uint16_t reg) {
 	return inb(hc->iobase + reg);
 }
 
-__attribute__((unused))
 static void uhci_reg_writeb(uhci_controller_t *hc, uint16_t reg, uint8_t data) {
 	outl(hc->iobase + reg, data);
 	iowait();
@@ -154,103 +148,8 @@ static void uhci_port_unset(uhci_controller_t *hc, uint16_t reg, uint16_t data) 
 	uhci_reg_writew(hc, reg, v);
 }
 
-// FIXME: this may be broken (like not clearing old flags of the state register)
-static uint16_t uhci_reset_port(uhci_controller_t *hc, uint16_t port) {
-	// TODO: just dump the state of 'port' every single fucking line
-	// reset ports
-	// FIXME: ack old status flags
-/*	uhci_port_set(port, PORT_RESET);
-///	_sleep(50);
-	_sleep(100);
-	uhci_port_unset(port, PORT_RESET);
-*/
-/*
-	uhci_port_set(hc, port, PORT_RESET | PORT_ENABLE);
-	iowait();
-	_sleep(50);
-
-	uhci_port_set(hc, port, PORT_ENABLE);
-	_sleep(50);
-
-	uint16_t status = 0;
-	// FIXME: don't we need to wait before polling the status ?
-	// try to enable the port for 110ms
-	for (unsigned int i = 0; i < 11; i++) {
-		_sleep(10);
-		status = uhci_reg_readw(hc, port);
-		printf("i: %u status: 0x%x\n", i, status);
-		if (~status & PORT_CONNECT) {
-			printf("no device connected\n");
-			break;
-		}
-
-		// ack change in status
-		if (status & PORT_CONNECT_CHANGE) {
-			printf("PORT_CONNECT_CHANGE to 0x%x \n", status & PORT_CONNECT);
-		}
-		if (status & PORT_ENABLE_CHANGE) {
-			printf("PORT_ENABLE_CHANGE: to 0x%x \n", status & PORT_ENABLE);
-		}
-		if (status & (PORT_CONNECT_CHANGE | PORT_ENABLE_CHANGE)) {
-			uhci_port_unset(hc, port, PORT_CONNECT_CHANGE | PORT_ENABLE_CHANGE);
-		}
-
-		if (status & PORT_ENABLE) {
-			printf("status & PORT_ENABLE!\n");
-			break;
-		}
-
-		uhci_port_set(hc, port, PORT_ENABLE);
-	}
-
-	status = uhci_reg_readw(hc, port);
-	printf("loop failed, status: 0x%x\n", status);
-
-	return status;
-*/
-//	printf("resetting port: ");
-	uhci_port_set(hc, port, PORT_RESET);
-	_sleep(50);
-	uhci_port_unset(hc, port, PORT_RESET);
-	while (1) {
-		uint16_t port_status = uhci_reg_readw(hc, port);
-		if (port_status & PORT_RESET) {
-			_sleep(1);
-//			printf(".");
-		} else {
-//			printf("reset finished\n");
-			break;
-		}
-	}
-
-	{
-//		printf("trying to enable: \n");
-		uint16_t port_status = uhci_reg_readw(hc, port);
-		port_status |= PORT_ENABLE;
-		uhci_reg_writew(hc, port, port_status);
-		do {
-			port_status = uhci_reg_readw(hc, port);
-//			printf("status: 0x%x\n", port_status);
-			if (port_status & PORT_CONNECT) {
-//				printf("connected\n");
-			} else {
-				return port_status;
-			}
-
-			if (port_status & PORT_ENABLE) {
-				return port_status;
-			} else {
-//				printf(".");
-				_sleep(1);
-			}
-		} while (1);
-	}
-
-	return 0;
-}
-
 static uhci_td_t *uhci_alloc_td(struct uhci_controller *hc) {
-	for (unsigned int i = 0; i < MAX_QH; i++) {
+	for (unsigned int i = 0; i < MAX_TD; i++) {
 		if (!hc->transfer_descriptors[i].active) {
 			uhci_td_t *td = &hc->transfer_descriptors[i];
 			td->active = 1;
@@ -287,7 +186,7 @@ static void uhci_init_td(uhci_td_t *td, uhci_td_t *prev, unsigned int speed, uin
 	assert((data_toggle & ~0x1) == 0);
 	assert((packet_type == 0x69) || (packet_type == 0xE1) || (packet_type == 0x2D));
 
-	printf("uhci_init_td(td: 0x%8x, prev: 0x%8x, speed: 0x%x, addr: 0x%x, endpt: 0x%x, data_toggle: 0x%x, packet_type: 0x%x, len: 0x%x, data: 0x%x)\n", (uintptr_t)td, (uintptr_t)prev, speed, addr, endpt, data_toggle, packet_type, len, (uintptr_t)data);
+//	printf("uhci_init_td(td: 0x%8x, prev: 0x%8x, speed: 0x%x, addr: 0x%x, endpt: 0x%x, data_toggle: 0x%x, packet_type: 0x%x, len: 0x%x, data: 0x%x)\n", (uintptr_t)td, (uintptr_t)prev, speed, addr, endpt, data_toggle, packet_type, len, (uintptr_t)data);
 
 	if (prev != NULL) {
 		prev->link = (uint32_t)((uintptr_t)td | TD_PTR_DEPTH);
@@ -355,6 +254,65 @@ static void uhci_remove_qh(struct uhci_controller *hc, uhci_qh_t *qh) {
 	}
 }
 
+static uint16_t uhci_reset_port(uhci_controller_t *hc, uint16_t port) {
+	// FIXME: ack old status flags
+	// FIXME: try disabling the port before the reset
+	// FIXME: this works ... somehow
+//	printf("resetting port: ");
+	{
+		uint16_t port_status = uhci_reg_readw(hc, port);
+		port_status &= ~PORT_ENABLE;
+		uhci_reg_writew(hc, port, port_status);
+		do {
+			port_status = uhci_reg_readw(hc, port);
+			if ((port_status & PORT_ENABLE) == 0) {
+				break;
+			} else {
+				_sleep(1);
+			}
+		} while (1);
+	}
+
+	uhci_port_set(hc, port, PORT_RESET);
+	_sleep(50);
+	uhci_port_unset(hc, port, PORT_RESET);
+	while (1) {
+		uint16_t port_status = uhci_reg_readw(hc, port);
+		if (port_status & PORT_RESET) {
+			_sleep(1);
+//			printf(".");
+		} else {
+//			printf("reset finished\n");
+			break;
+		}
+	}
+
+	{
+//		printf("trying to enable: \n");
+		uint16_t port_status = uhci_reg_readw(hc, port);
+		port_status |= PORT_ENABLE;
+		uhci_reg_writew(hc, port, port_status);
+		do {
+			port_status = uhci_reg_readw(hc, port);
+//			printf("status: 0x%x\n", port_status);
+			if (port_status & PORT_CONNECT) {
+//				printf("connected\n");
+			} else {
+				return port_status;
+			}
+
+			if (port_status & PORT_ENABLE) {
+				return port_status;
+			} else {
+//				printf(".");
+				_sleep(1);
+			}
+		} while (1);
+	}
+
+	return 0;
+}
+
 static void uhci_process_qh(struct uhci_controller *hc, uhci_qh_t *qh) {
 	usb_transfer_t *transfer = qh->transfer;
 	uhci_td_t *td = (uhci_td_t *)(qh->element & ~0xF);
@@ -364,8 +322,7 @@ static void uhci_process_qh(struct uhci_controller *hc, uhci_qh_t *qh) {
 		transfer->complete = true;
 	} else if (~td->control & TD_CTRL_ACTIVE) {
 		// ERROR
-		printf("td error!!!\n");
-		printf("td control: 0x%x\n", td->control);
+		printf("td error ! (control: 0x%x)\n", td->control);
 		if (td->control & TD_CTRL_NAK) {
 			printf("NAK!\n");
 		}
@@ -499,7 +456,7 @@ static void uhci_irq(registers_t *regs) {
 
 	for (unsigned int i = 0; i < 10; i++) {
 		if (_hc[i] != NULL) {
-			printf("_hc[i] status: 0x%x\n", uhci_reg_readw(_hc[i], REG_STS));
+			printf("_hc[%u] status: 0x%x\n", i, uhci_reg_readw(_hc[i], REG_STS));
 		} else {
 			break;
 		}
@@ -516,11 +473,9 @@ static void uhci_probe_port(uhci_controller_t *hc, uint16_t port) {
 		usb_device_t *dev = kcalloc(1, sizeof(usb_device_t));
 		dev->hc = hc;
 		dev->hc_control = uhci_dev_control;
-		if (status & 0x80) {
-//			printf("found low-speed usb device\n");
+		if (status & 0x80) { // low speed
 			dev->speed = 1;
 		} else {
-//			printf("found high-speed usb device\n");
 			dev->speed = 0;
 		}
 
@@ -537,13 +492,13 @@ static void uhci_probe_port(uhci_controller_t *hc, uint16_t port) {
 }
 
 static unsigned int uhci_controller_count_ports(struct uhci_controller *hc) {
-	printf("uhci_controller_probe(hc->iobase: 0x%x; hc->iobase_size: 0x%x)\n", hc->iobase, hc->iobase_size);
-	printf("(usbbase_size - REG_PORT1) / 2: %u\n", (hc->iobase_size - REG_PORT1) / 2);
+//	printf("uhci_controller_probe(hc->iobase: 0x%x; hc->iobase_size: 0x%x)\n", hc->iobase, hc->iobase_size);
+//	printf("(usbbase_size - REG_PORT1) / 2: %u\n", (hc->iobase_size - REG_PORT1) / 2);
 	for (unsigned int port = 0; port < (((unsigned)hc->iobase_size - REG_PORT1) / 2); port++) {
-		printf("probing port %u: ", port);
+//		printf("probing port %u: ", port);
 		uint16_t v = inw(hc->iobase + REG_PORT1 + port*2);
 		if (!(v & 0x0080) || (v == 0xFFFF)) {
-			printf("not a port\n");
+//			printf("not a port\n");
 			if (port > 7) {
 				printf("counted more than 7 ports, forcing to 2!!!\n");
 				return 2;
@@ -551,7 +506,7 @@ static unsigned int uhci_controller_count_ports(struct uhci_controller *hc) {
 				return port;
 			}
 		} else {
-			printf("valid port\n");
+//			printf("valid port\n");
 		}
 	}
 	return 2;
@@ -560,7 +515,7 @@ static unsigned int uhci_controller_count_ports(struct uhci_controller *hc) {
 // FIXME: fixed ?: FIXME: doesn't work on the old macbook
 static void uhci_controller_probe(struct uhci_controller *hc) {
 	hc->port_count = uhci_controller_count_ports(hc);
-	printf("%u ports\n", hc->port_count);
+	printf("counted %u ports\n", hc->port_count);
 
 	uhci_probe_port(hc, REG_PORT1);
 	uhci_probe_port(hc, REG_PORT2);
@@ -573,6 +528,7 @@ static void uhci_controller_init(uint32_t device, uint16_t vendorid, uint16_t de
 	uint32_t usbbase = pci_config_readl(device, PCI_BAR4);
 	uint8_t sbrn = pci_config_readb(device, 0x60);
 
+	// FIXME: what if the controller hasn't been mapped into i/o space ?
 	printf("usbbase: 0x%x\n", usbbase);
 	if (!(usbbase & 1)) {
 		printf("memory mapped I/O not supported, disabling device\n");
@@ -584,7 +540,7 @@ static void uhci_controller_init(uint32_t device, uint16_t vendorid, uint16_t de
 	printf("usbbase_size (raw): 0x%x\n", usbbase_size);
 	// assume that the size fits in the lower 16 bits
 	usbbase_size |= 0xFFFF0000;
-	printf("usbbase_size adjusted: 0x%x\n", usbbase_size);
+//	printf("usbbase_size adjusted: 0x%x\n", usbbase_size);
 	pci_config_writew(device, PCI_BAR4, usbbase);
 	usbbase_size = ~(usbbase_size & ~0x3) + 1;
 	printf("usbbase_size: 0x%x\n", usbbase_size);
@@ -643,6 +599,12 @@ static void uhci_controller_init(uint32_t device, uint16_t vendorid, uint16_t de
 		}
 		_sleep(5);
 	}
+	uhci_reg_writew(hc, REG_CMD, uhci_reg_readw(hc, REG_CMD) | CMD_FORCE_GLOBAL_RESUME);
+	iowait();
+	_sleep(20);
+	uhci_reg_writew(hc, REG_CMD, uhci_reg_readw(hc, REG_CMD) & ~CMD_FORCE_GLOBAL_RESUME);
+
+
 	uhci_reg_writew(hc, REG_CMD, uhci_reg_readw(hc, REG_CMD) | CMD_GLOBAL_RESUME);
 	iowait();
 	_sleep(50);
