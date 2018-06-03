@@ -18,7 +18,8 @@ static void ohci_scan_callback(uint32_t device, uint16_t vendorid, uint16_t devi
 	if ((pci_config_readb(device, PCI_CLASS) == 0x0C) &&
 		(pci_config_readb(device, PCI_SUBCLASS) == 0x03) &&
 		(pci_config_readb(device, PCI_PROG_IF) == 0x10)) {
-		printf("Found OHCI controller (device: 0x%c vendorid: 0x%x deviceid: 0x%x)\n", device, vendorid, deviceid);
+
+		printf("Found OHCI controller (device: 0x%x vendorid: 0x%x deviceid: 0x%x)\n", device, vendorid, deviceid);
 		ohci_controller_init(device, vendorid, deviceid, extra);
 	}
 }

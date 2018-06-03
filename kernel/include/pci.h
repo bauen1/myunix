@@ -30,7 +30,7 @@ typedef void (pci_callback_t)(uint32_t device, uint16_t vendorid, uint16_t devic
 
 void pci_scan(pci_callback_t f, void *extra);
 
-void pci_config_writew(uint32_t device, uint8_t offset, uint32_t value);
+void pci_config_writel(uint32_t device, uint8_t offset, uint32_t value);
 uint32_t pci_config_readl(uint32_t device, uint8_t offset);
 uint16_t pci_config_readw(uint32_t device, uint8_t offset);
 uint8_t pci_config_readb(uint32_t device, uint8_t offset);
