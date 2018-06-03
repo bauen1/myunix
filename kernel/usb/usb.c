@@ -6,6 +6,7 @@
 #include <string.h>
 #include <heap.h>
 
+#include <usb/ehci.h>
 #include <usb/ohci.h>
 #include <usb/uhci.h>
 #include <usb/usb.h>
@@ -271,6 +272,7 @@ bool usb_dev_init(usb_device_t *dev) {
 void usb_init() {
 	usb_devices = list_init();
 	assert(usb_devices != NULL);
+	ehci_init();
 	uhci_init();
 	ohci_init();
 }

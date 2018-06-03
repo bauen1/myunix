@@ -469,10 +469,10 @@ static void uhci_probe_port(uhci_controller_t *hc, uint16_t port) {
 	printf("reset_port(%u): 0x%x\n", port, status);
 
 	if (status & PORT_ENABLE) {
-		// FIXME: CRITICAL: How the fuck did I expect this to work without setting address ????
 		usb_device_t *dev = kcalloc(1, sizeof(usb_device_t));
 		dev->hc = hc;
 		dev->hc_control = uhci_dev_control;
+		// FIXME: usb_dev_t needs a way of knowing which port a usb device is attached to
 		if (status & 0x80) { // low speed
 			dev->speed = 1;
 		} else {
@@ -535,13 +535,9 @@ static void uhci_controller_init(uint32_t device, uint16_t vendorid, uint16_t de
 		return;
 	}
 
-	pci_config_writew(device, PCI_BAR4, 0xFFFFFFFF);
+	pci_config_writel(device, PCI_BAR4, 0xFFFFFFFF);
 	uint32_t usbbase_size = pci_config_readl(device, PCI_BAR4);
-	printf("usbbase_size (raw): 0x%x\n", usbbase_size);
-	// assume that the size fits in the lower 16 bits
-	usbbase_size |= 0xFFFF0000;
-//	printf("usbbase_size adjusted: 0x%x\n", usbbase_size);
-	pci_config_writew(device, PCI_BAR4, usbbase);
+	pci_config_writel(device, PCI_BAR4, usbbase);
 	usbbase_size = ~(usbbase_size & ~0x3) + 1;
 	printf("usbbase_size: 0x%x\n", usbbase_size);
 
@@ -550,7 +546,7 @@ static void uhci_controller_init(uint32_t device, uint16_t vendorid, uint16_t de
 	uint32_t cmd = pci_config_readl(device, 0x04);
 	cmd |= 0x405; // this also disables interrupts ??
 	cmd &= ~0x400;
-	pci_config_writew(device, 0x04, cmd);
+	pci_config_writel(device, 0x04, cmd);
 
 	printf("sbrn: 0x%x\n", sbrn);
 	if ((sbrn != 0x10) || (sbrn == 0x00)) {
@@ -574,15 +570,15 @@ static void uhci_controller_init(uint32_t device, uint16_t vendorid, uint16_t de
 	hc->iobase_size = usbbase_size;
 
 	uint8_t irq = pci_config_readb(device, PCI_IRQ);
-	printf("irq: 0x%x\n", irq);
 	if ((irq == 0) || (irq == 0xFF)) {
 		// FIXME: find a free IRQ line
 		irq = 9;
 		uint32_t r = pci_config_readw(device, PCI_IRQ);
 		r &= ~0xFF;
 		r |= irq;
-		pci_config_writew(device, PCI_IRQ, r);
+		pci_config_writel(device, PCI_IRQ, r);
 	}
+	printf("irq: 0x%x\n", irq);
 
 	isr_set_handler(isr_from_irq(irq), uhci_irq);
 	// we currently don't use the IRQ, so disable it
