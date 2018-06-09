@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -73,6 +74,7 @@ void printf(const char *fmt, ...) {
 		if (*fmt == '%') {
 			fmt++;
 			if (*fmt == 0) {
+				assert(0 && "% immideatly followed by NULL, most likely a bug");
 				break;
 			}
 			unsigned int width = 0;
@@ -105,6 +107,8 @@ void printf(const char *fmt, ...) {
 					utoa(va_arg(args, unsigned int), &buf[0], 16, width);
 					puts(buf);
 					break;
+				case 0:
+					assert(0 && "this should not happen");
 				default:
 					putc(*fmt);
 			}
