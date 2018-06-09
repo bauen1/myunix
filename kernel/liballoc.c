@@ -369,71 +369,72 @@ void * __attribute__((malloc)) kmalloc(size_t size)
 	void *ptr;
 	struct boundary_tag *tag = NULL;
 
+	assert(l_initialized != 0);
+
 	assert(liballoc_lock() == 0);
 
-		assert(l_initialized != 0);
+	index = getexp( size ) + MODE;
+	if ( index < MINEXP ) {
+		index = MINEXP;
+	}
 
-		index = getexp( size ) + MODE;
-		if ( index < MINEXP ) {
-			index = MINEXP;
-		}
-
-		// Find one big enough.
-			// Start at the front of the list.
-			tag = l_freePages[ index ];
-			while ( tag != NULL ) {
-				// If there's enough space in this tag.
-				if ( (tag->real_size - sizeof(struct boundary_tag))
-								>= (size + sizeof(struct boundary_tag) ) )
-				{
-					#ifdef DEBUG
-					printf("Tag search found %i >= %i\n",(tag->real_size - sizeof(struct boundary_tag)), (size + sizeof(struct boundary_tag) ) );
-					#endif
-					break;
-				}
-
-				tag = tag->next;
-			}
-
-			// No page found. Make one.
-			if ( tag == NULL ) {
-				if ( (tag = allocate_new_tag( size )) == NULL ) {
-					assert(liballoc_unlock() == 0);
-					assert(0);
-					return NULL;
-				}
-				index = getexp( tag->real_size - sizeof(struct boundary_tag) );
-			} else {
-				remove_tag( tag );
-				if ( (tag->split_left == NULL) && (tag->split_right == NULL) ) {
-					l_completePages[ index ] -= 1;
-				}
-			}
-		// We have a free page.  Remove it from the free pages list.
-		tag->size = size;
-		// Removed... see if we can re-use the excess space.
-
-		#ifdef DEBUG
-		printf("Found tag with %i bytes available (requested %i bytes, leaving %i), which has exponent: %i (%i bytes)\n", tag->real_size - sizeof(struct boundary_tag), size, tag->real_size - size - sizeof(struct boundary_tag), index, 1<<index );
-		#endif
-
-		unsigned int remainder = tag->real_size - size - sizeof( struct boundary_tag ) * 2; // Support a new tag + remainder
-
-		if ( ((int)(remainder) > 0) /*&& ( (tag->real_size - remainder) >= (1<<MINEXP))*/ )
+	// Find one big enough.
+	// Start at the front of the list.
+	tag = l_freePages[ index ];
+	while ( tag != NULL ) {
+		// If there's enough space in this tag.
+		if ( (tag->real_size - sizeof(struct boundary_tag))
+			>= (size + sizeof(struct boundary_tag) ) )
 		{
-			int childIndex = getexp( remainder );
-
-			if ( childIndex >= 0 )
-			{
-				#ifdef DEBUG
-				printf("Seems to be splittable: %i >= 2^%i .. %i\n", remainder, childIndex, (1<<childIndex) );
-				struct boundary_tag *new_tag = split_tag( tag );
-				printf("Old tag has become %i bytes, new tag is now %i bytes (%i exp)\n", tag->real_size, new_tag->real_size, new_tag->index );
-				#else
-				split_tag(tag);
-				#endif
-			}
+			#ifdef DEBUG
+			printf("Tag search found %i >= %i\n",(tag->real_size - sizeof(struct boundary_tag)), (size + sizeof(struct boundary_tag) ) );
+			#endif
+			break;
 		}
+
+		tag = tag->next;
+	}
+
+	// No page found. Make one.
+	if ( tag == NULL ) {
+		if ( (tag = allocate_new_tag( size )) == NULL ) {
+			assert(liballoc_unlock() == 0);
+			assert(0);
+			return NULL;
+		}
+		index = getexp( tag->real_size - sizeof(struct boundary_tag) );
+	} else {
+		remove_tag( tag );
+		if ( (tag->split_left == NULL) && (tag->split_right == NULL) ) {
+			l_completePages[ index ] -= 1;
+		}
+	}
+
+	// We have a free page.  Remove it from the free pages list.
+	tag->size = size;
+	// Removed... see if we can re-use the excess space.
+
+	#ifdef DEBUG
+	printf("Found tag with %i bytes available (requested %i bytes, leaving %i), which has exponent: %i (%i bytes)\n", tag->real_size - sizeof(struct boundary_tag), size, tag->real_size - size - sizeof(struct boundary_tag), index, 1<<index );
+	#endif
+
+	unsigned int remainder = tag->real_size - size - sizeof( struct boundary_tag ) * 2; // Support a new tag + remainder
+
+	if ( ((int)(remainder) > 0) /*&& ( (tag->real_size - remainder) >= (1<<MINEXP))*/ )
+	{
+		int childIndex = getexp( remainder );
+
+		if ( childIndex >= 0 )
+		{
+			#ifdef DEBUG
+			printf("Seems to be splittable: %i >= 2^%i .. %i\n", remainder, childIndex, (1<<childIndex) );
+			struct boundary_tag *new_tag = split_tag( tag );
+			printf("Old tag has become %i bytes, new tag is now %i bytes (%i exp)\n", tag->real_size, new_tag->real_size, new_tag->index );
+			#else
+			split_tag(tag);
+			#endif
+		}
+	}
 
 	ptr = (void*)((unsigned int)tag + sizeof( struct boundary_tag ) );
 
@@ -458,71 +459,71 @@ void kfree(void *ptr)
 
 	assert(liballoc_lock() == 0);
 
-		tag = (struct boundary_tag*)((unsigned int)ptr - sizeof( struct boundary_tag ));
+	tag = (struct boundary_tag*)((unsigned int)ptr - sizeof( struct boundary_tag ));
 
-		if ( tag->magic != LIBALLOC_MAGIC ) {
+	if ( tag->magic != LIBALLOC_MAGIC ) {
+		assert(liballoc_unlock() == 0);
+		return;
+	}
+
+	#ifdef DEBUG
+	l_inuse -= tag->size;
+	printf("free: %x, %i, %i\n", ptr, (int)l_inuse / 1024, (int)l_allocated / 1024 );
+	#endif
+
+	// MELT LEFT...
+	while ( (tag->split_left != NULL) && (tag->split_left->index >= 0) ) {
+		#ifdef DEBUG
+		printf("Melting tag left into available memory. Left was %i, becomes %i (%i)\n", tag->split_left->real_size, tag->split_left->real_size + tag->real_size, tag->split_left->real_size );
+		#endif
+		tag = melt_left( tag );
+		remove_tag( tag );
+	}
+
+	// MELT RIGHT...
+	while ( (tag->split_right != NULL) && (tag->split_right->index >= 0) ) {
+		#ifdef DEBUG
+		printf("Melting tag right into available memory. This was was %i, becomes %i (%i)\n", tag->real_size, tag->split_right->real_size + tag->real_size, tag->split_right->real_size );
+		#endif
+		tag = absorb_right( tag );
+	}
+
+	// Where is it going back to?
+	index = getexp( tag->real_size - sizeof(struct boundary_tag) );
+	if ( index < MINEXP ) index = MINEXP;
+
+	// A whole, empty block?
+	if ( (tag->split_left == NULL) && (tag->split_right == NULL) ) {
+		if ( l_completePages[ index ] == MAXCOMPLETE ) {
+			// Too many standing by to keep. Free this one.
+			unsigned int pages = tag->real_size / PAGE_SIZE;
+
+			if ( (tag->real_size % PAGE_SIZE) != 0 ) pages += 1;
+			if ( pages < l_pageCount ) pages = l_pageCount;
+
+			liballoc_free( tag, pages );
+
+			#ifdef DEBUG
+			l_allocated -= pages * PAGE_SIZE;
+			printf("Resource freeing %x of %i pages\n", tag, pages );
+			dump_array();
+			#endif
+
 			assert(liballoc_unlock() == 0);
 			return;
 		}
 
-		#ifdef DEBUG
-		l_inuse -= tag->size;
-		printf("free: %x, %i, %i\n", ptr, (int)l_inuse / 1024, (int)l_allocated / 1024 );
-		#endif
+		l_completePages[ index ] += 1;	// Increase the count of complete pages.
+	}
 
-		// MELT LEFT...
-		while ( (tag->split_left != NULL) && (tag->split_left->index >= 0) ) {
-			#ifdef DEBUG
-			printf("Melting tag left into available memory. Left was %i, becomes %i (%i)\n", tag->split_left->real_size, tag->split_left->real_size + tag->real_size, tag->split_left->real_size );
-			#endif
-			tag = melt_left( tag );
-			remove_tag( tag );
-		}
+	// ..........
 
-		// MELT RIGHT...
-		while ( (tag->split_right != NULL) && (tag->split_right->index >= 0) ) {
-			#ifdef DEBUG
-			printf("Melting tag right into available memory. This was was %i, becomes %i (%i)\n", tag->real_size, tag->split_right->real_size + tag->real_size, tag->split_right->real_size );
-			#endif
-			tag = absorb_right( tag );
-		}
+	insert_tag( tag, index );
 
-		// Where is it going back to?
-		index = getexp( tag->real_size - sizeof(struct boundary_tag) );
-		if ( index < MINEXP ) index = MINEXP;
-
-		// A whole, empty block?
-		if ( (tag->split_left == NULL) && (tag->split_right == NULL) ) {
-			if ( l_completePages[ index ] == MAXCOMPLETE ) {
-				// Too many standing by to keep. Free this one.
-				unsigned int pages = tag->real_size / PAGE_SIZE;
-
-				if ( (tag->real_size % PAGE_SIZE) != 0 ) pages += 1;
-				if ( pages < l_pageCount ) pages = l_pageCount;
-
-				liballoc_free( tag, pages );
-
-				#ifdef DEBUG
-				l_allocated -= pages * PAGE_SIZE;
-				printf("Resource freeing %x of %i pages\n", tag, pages );
-				dump_array();
-				#endif
-
-				assert(liballoc_unlock() == 0);
-				return;
-			}
-
-			l_completePages[ index ] += 1;	// Increase the count of complete pages.
-		}
-
-		// ..........
-
-		insert_tag( tag, index );
-
-		#ifdef DEBUG
-		printf("Returning tag with %i bytes (requested %i bytes), which has exponent: %i\n", tag->real_size, tag->size, index );
-		dump_array();
-		#endif
+	#ifdef DEBUG
+	printf("Returning tag with %i bytes (requested %i bytes), which has exponent: %i\n", tag->real_size, tag->size, index );
+	dump_array();
+	#endif
 
 	assert(liballoc_unlock() == 0);
 }
@@ -551,8 +552,10 @@ void* krealloc(void *p, size_t size) {
 	if ( p == NULL ) return kmalloc( size );
 
 	assert(liballoc_lock() == 0);
-		tag = (struct boundary_tag*)((unsigned int)p - sizeof( struct boundary_tag ));
-		real_size = tag->size;
+
+	tag = (struct boundary_tag*)((unsigned int)p - sizeof( struct boundary_tag ));
+	real_size = tag->size;
+
 	assert(liballoc_unlock() == 0);
 
 	if ( real_size > size ) {
