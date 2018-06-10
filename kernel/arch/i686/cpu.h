@@ -41,7 +41,7 @@ void outb(uint16_t port, uint8_t data);
 void outw(uint16_t port, uint16_t data);
 void outl(uint16_t port, uint32_t data);
 
-void io_wait();
+void iowait();
 
 #define hlt() __asm__ __volatile__ ("hlt")
 
