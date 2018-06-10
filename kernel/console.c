@@ -59,15 +59,16 @@ void putc(char c) {
 }
 
 void puts(const char *s) {
-	for (int i = 0; s[i] != 0; i++) {
-		putc(s[i]);
+	if (s == NULL) {
+		puts("(null)");
+	} else {
+		for (int i = 0; s[i] != 0; i++) {
+			putc(s[i]);
+		}
 	}
 }
 
-void printf(const char *fmt, ...) {
-	va_list args;
-	va_start(args, fmt);
-
+static void vprintf(const char *fmt, va_list args) {
 	char buf[256]; // probably too much
 	char *s;
 
@@ -89,11 +90,7 @@ void printf(const char *fmt, ...) {
 					break;
 				case 's':
 					s = va_arg(args, char *);
-					if (s == NULL) {
-						puts("(null)");
-					} else {
-						puts(s);
-					}
+					puts(s);
 					break;
 				case 'i':
 				case 'd':
@@ -118,6 +115,13 @@ void printf(const char *fmt, ...) {
 		}
 		fmt++;
 	}
+}
+
+void printf(const char *fmt, ...) {
+	va_list args;
+	va_start(args, fmt);
+
+	vprintf(fmt, args);
 
 	va_end(args);
 }

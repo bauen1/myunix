@@ -15,6 +15,7 @@
 page_directory_t __attribute__((aligned(4096))) *kernel_directory;
 
 page_table_t *get_table(uintptr_t virtaddr, page_directory_t *directory) {
+	// FIXME: we should probably assert that it is mapped as present
 	return (page_table_t *)((uintptr_t)(directory->tables[virtaddr >> 22]) & ~0x3FF);
 }
 
@@ -88,36 +89,39 @@ void map_direct_kernel(uintptr_t v) {
 // TODO: optimise
 inline uintptr_t vmm_find_dma_region(size_t size) {
 	assert(size != 0);
-	if (size == 0) {return 0;}
 
 	for (uint32_t i = 0; i < block_map_size; i++) {
-		if (block_map[i] != 0xFFFFFFFF) {
-			for (uint8_t j = 0; j < 32; j++) {
-				uint32_t bit = (1 << j);
-				if ( ! (block_map[i] & bit)) {
-					uint32_t start = i*32+j;
-					uint32_t len = 0;
-					while (len < size) {
-						uintptr_t v_addr = (start + len) * BLOCK_SIZE;
-						if (pmm_test_block(start + len) ||
-							(get_page(get_table(v_addr, kernel_directory), v_addr) != 0)) {
-							// block used
-							break;
-						} else {
-							len++;
-						}
-					}
-					if (len == size) {
-						return start;
+		if (block_map[i] == 0xFFFFFFFF) {
+			continue;
+		}
+
+		for (uint8_t j = 0; j < 32; j++) {
+			uint32_t bit = (1 << j);
+			if ( ! (block_map[i] & bit)) {
+				uint32_t start = i*32+j;
+				uint32_t len = 0;
+				while (len < size) {
+					uintptr_t v_addr = (start + len) * BLOCK_SIZE;
+					if (pmm_test_block(start + len) ||
+						(get_page(get_table(v_addr, kernel_directory), v_addr) != 0)) {
+						// block used
+						break;
 					} else {
-						i = i + len / 32;
-						j = j + len;
+						len++;
 					}
+				}
+				if (len == size) {
+					return start;
+				} else {
+					i = i + len / 32;
+					j = j + len;
 				}
 			}
 		}
 	}
 
+	printf("CRITICAL: NO DMA REGION OF SIZE %u FOUND!!\n", size);
+	printf("pmm_count_free_blocks(): 0x%x\n", pmm_count_free_blocks());
 	return 0;
 }
 
@@ -176,6 +180,28 @@ uintptr_t find_vspace(page_directory_t *dir, size_t n) {
 	return -1;
 }
 
+static void dump_directory(page_directory_t *directory) {
+	assert(directory != NULL);
+	printf("--- directory: 0x%x ---\n", (uintptr_t)directory);
+	for (uintptr_t table_i = 0; table_i < 1024; table_i++) {
+		uintptr_t table_p = directory->tables[table_i];
+		if (table_p != 0) {
+			printf(" 0x%8x table: 0x%x\n", table_i << 22, table_p);
+			if (table_p & PAGE_DIRECTORY_PRESENT) {
+				page_table_t *table = (page_table_t *)(table_p & ~0x3FF);
+				for (uintptr_t page_i = 0; page_i < 1024; page_i++) {
+					page_t page = table->pages[page_i];
+					if (page != 0) {
+						printf("  0x%8x => 0x%x ()\n", (table_i << 22) | (page_i << 12), (uintptr_t)page);
+					}
+				}
+			}
+		} else {
+			printf("");
+		}
+	}
+}
+
 void page_fault(registers_t *regs) {
 	uintptr_t address;
 	__asm__ __volatile__("mov %%cr2, %0" : "=r"(address));
@@ -198,27 +224,10 @@ void page_fault(registers_t *regs) {
 		printf("current_process->pid: 0x%x\n", current_process->pid);
 		printf("current_process->fd_table: 0x%x\n", (uintptr_t)current_process->fd_table);
 		printf("\n");
-		printf("-- pdir: 0x%x --\n", current_process->pdir);
-		for (uintptr_t table_i = 0; table_i < 1024; table_i++) {
-			uintptr_t table_p = current_process->pdir->tables[table_i];
-			if (table_p != 0) {
-				printf(" 0x%8x table: 0x%x\n", table_i << 22, table_p);
-				if (table_p & PAGE_DIRECTORY_PRESENT) {
-					page_table_t *table = (page_table_t *)(table_p & ~0x3FF);
-					for (uintptr_t page_i = 0; page_i < 1024; page_i++) {
-						page_t page = table->pages[page_i];
-						if (page != 0) {
-							printf("  0x%8x => 0x%x ()\n", (table_i << 22) | (page_i << 12), (uintptr_t)page);
-						}
-					}
-				}
-			} else {
-				printf("");
-			}
-		}
+		dump_directory(current_process->pdir);
 	} else {
 		printf("KERNEL MODE PAGE FAULT\n");
-		print_stack_trace(20);
+		print_stack_trace(200);
 		halt();
 	}
 	halt();
