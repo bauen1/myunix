@@ -26,6 +26,8 @@ void list_free(list_t *list) {
 
 
 void list_append(list_t *list, node_t *node) {
+	assert(list != NULL);
+	assert(node != NULL);
 	assert(node->owner == NULL);
 	node->owner = list;
 
@@ -43,6 +45,8 @@ void list_append(list_t *list, node_t *node) {
 }
 
 node_t *list_insert(list_t *list, void *v) {
+	assert(list != NULL);
+	assert(v != NULL); // technically correct but most likely a bug if we call with v=NULL
 	node_t *node = kcalloc(1, sizeof(node_t));
 	node->value = v;
 	list_append(list, node);

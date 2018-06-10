@@ -271,12 +271,16 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 		multiboot_module_t *mods = (multiboot_module_t *)mbi->mods_addr;
 		for (unsigned int i = 0; i < mbi->mods_count; i++) {
 			uintptr_t mods_i_block = (uintptr_t)(&mods[i]) / BLOCK_SIZE;
-			printf("set 0x%x: modinfo\n", mods_i_block);
+			printf("set 0x%x: modinfo[%u]\n", mods_i_block, i);
 			pmm_set_block(mods_i_block);
 			if (mods[i].cmdline != 0) {
-				// FIXME: handle cmdline bigger than 4kb
-				printf("set 0x%x: modinfo->cmdline\n", mods[i].cmdline / BLOCK_SIZE);
-				pmm_set_block(mods[i].cmdline / BLOCK_SIZE);
+				for (uintptr_t j = (uintptr_t)mods[i].cmdline;
+					j < (uintptr_t)strlen((char *)mods[i].cmdline);
+					j += BLOCK_SIZE) {
+					uintptr_t v_addr = mods[i].cmdline + j;
+					printf("set 0x%x: modinfo[%u].cmdline\n", v_addr, i);
+					pmm_set_block(v_addr / BLOCK_SIZE);
+				}
 			}
 
 			printf("set 0x%x - 0x%x: mod\n", mods[i].mod_start, mods[i].mod_end);
@@ -335,8 +339,12 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 		for (unsigned int i = 0; i < mbi->mods_count; i++) {
 			map_direct_kernel(((uintptr_t)(&mods[i])) & ~0xFFF);
 			if (mods[i].cmdline != 0) {
-				// FIXME: handle cmdline bigger than 4kb
-				map_direct_kernel((uintptr_t)mods[i].cmdline & ~0xFFF);
+				for (uintptr_t j = (uintptr_t)mods[i].cmdline;
+					j < (uintptr_t)strlen((char *)mods[i].cmdline);
+					j += BLOCK_SIZE) {
+					uintptr_t v_addr = mods[i].cmdline + j;
+					map_direct_kernel(v_addr & ~0xFFF);
+				}
 			}
 
 			map_pages(mods[i].mod_start, mods[i].mod_end, PAGE_TABLE_PRESENT, "mod");
@@ -496,6 +504,8 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 		process_add(p);
 	}
 
+	printf("0x%x kb free\n", pmm_count_free_blocks() / 4);
+	// TODO: free anything left lying around that won't be needed (eg. multiboot info)
 	process_enable();
 
 	puts("looping forever...\n");

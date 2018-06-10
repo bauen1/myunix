@@ -97,7 +97,7 @@ bool usb_dev_init(usb_device_t *dev) {
 
 	bool success = usb_dev_req(dev, REQ_TYPE_DEV_TO_HOST | REQ_TYPE_STANDARD | REQ_TYPE_DEVICE,
 		REQ_REQUEST_GET_DESCRIPTOR, (USB_DESC_DEVICE << 8), 0, sizeof(usb_desc_device_t), &dev_desc);
-	printf("sucess: ");
+	printf("success: ");
 	if (success) {
 		printf("true");
 	} else {

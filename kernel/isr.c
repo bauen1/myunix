@@ -1,3 +1,5 @@
+// TODO: implement multiple handlers per IRQ / interrupt, we will need it soon
+#include <assert.h>
 #include <console.h>
 #include <cpu.h>
 #include <idt.h>
@@ -7,6 +9,8 @@
 
 static isr_handler isr_handlers[256];
 void isr_set_handler(uint8_t i, isr_handler handler) {
+	printf("isr 0x%x, handler: 0x%x\n", i, handler);
+	assert(isr_handlers[i] == NULL); // FIXME: remove or just fix the code calling this
 	isr_handlers[i] = handler;
 }
 
@@ -118,9 +122,11 @@ void handle_isr(registers_t *regs) {
 		dump_regs(regs);
 		halt();
 	} else {
-		printf("Encountered unhandled isr: 0x%x\n", isr_num);
+		printf("Encountered unhandled interrupt: 0x%x\n", isr_num);
 		if (isr_num >= 32 && isr_num <= 47) {
-			irq_ack(isr_num);
+			printf("IRQ: %u\n", regs->err_code);
+			irq_ack(regs->err_code);
 		}
+		assert(0 && "unhandled interrupt!");
 	}
 }

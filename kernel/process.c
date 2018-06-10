@@ -24,6 +24,7 @@ extern void *isrs_start;
 extern void *isrs_end;
 
 process_t *kidle_init() {
+	// TODO: kidle should free the stack used by kmain
 	process_t *process = (process_t *)kcalloc(1, sizeof(process_t));
 	printf("kidle process: 0x%x\n", (uintptr_t)process);
 	process->kstack = 0;
@@ -31,7 +32,7 @@ process_t *kidle_init() {
 	process->pdir = kernel_directory;
 	process->pid = 0;
 	process->fd_table = kcalloc(1, sizeof(fd_table_t));
-	printf("kidle->fd_table: 0x%x\n", process->fd_table);
+	printf("kidle->fd_table: 0x%x\n", (uintptr_t)process->fd_table);
 
 	// kstack
 	size_t kstack_size = 4; // FIXME: hardcoded
@@ -61,6 +62,8 @@ process_t *kidle_init() {
 	return process;
 }
 
+// TODO: ensure no additional information gets leaked (align and FILL a block)
+// TODO: put everything that needs to be mapped in a special segment
 static void process_map_shared(process_t *process) {
 	// isrs
 	for (uintptr_t i = 0; i < ((uintptr_t)&isrs_end - (uintptr_t)&isrs_start); i += BLOCK_SIZE) {
@@ -69,6 +72,7 @@ static void process_map_shared(process_t *process) {
 	}
 
 	// kernel_directory pointer
+	// FIXME: don't map this, patch it in the isr routine or give the irs routine its own pointer
 	// FIXME: find a better way to do this
 	map_page(get_table_alloc((uintptr_t)&kernel_directory, process->pdir),
 		(uintptr_t)&kernel_directory,
@@ -99,7 +103,7 @@ static void process_map_shared(process_t *process) {
 process_t *process_exec(fs_node_t *f) {
 	uintptr_t virt_text_start = 0x1000000;
 	uintptr_t virt_heap_start = 0x2000000; // max 16mb text
-	printf("process_exec(0x%x (f->name: '%s'));\n", f, f->name);
+	printf("process_exec(0x%x (f->name: '%s'));\n", (uintptr_t)f, f->name);
 	assert(f != NULL);
 	assert(f->length != 0);
 	process_t *process = (process_t *)kcalloc(1, sizeof(process_t));
@@ -208,7 +212,6 @@ process_t *process_exec(fs_node_t *f) {
 	return process;
 }
 
-// TODO: ensure no additional information gets leaked (align and FILL a block)
 process_t *process_init(uintptr_t start, uintptr_t end) {
 	printf("process_init(0x%x, 0x%x)\n", start, end);
 	assert(start % 0x100 == 0);
@@ -394,6 +397,7 @@ void process_add(process_t *p) {
 	assert(p != NULL);
 	if (process_list == NULL) {
 		process_list = list_init();
+		printf("process_list: 0x%x\n", (uintptr_t)process_list);
 	}
 	list_insert(process_list, p);
 	return;

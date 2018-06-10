@@ -74,7 +74,8 @@ static unsigned int l_pageCount = 16; // FIXME: replace with #define ?
  * failure.
  */
 int liballoc_lock() {
-	// TODO: implement
+	// TODO: implement properly
+	__asm__ __volatile__ ("cli");
 	return 0;
 }
 
@@ -85,7 +86,8 @@ int liballoc_lock() {
  * \return 0 if the lock was successfully released.
  */
 int liballoc_unlock() {
-	// TODO: implement
+	// TODO: implement properly
+	__asm__ __volatile__("sti");
 	return 0;
 }
 

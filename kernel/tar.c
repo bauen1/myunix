@@ -63,7 +63,7 @@ static uintptr_t tar_lookup(fs_node_t *device, char *fname) {
 		if (!memcmp((void *)buf, fname, slen_fname + 1)) {
 			return ptr;
 		}
-		ptr += (((oct2bin(buf + 124, 11) + 511) / 512) + 1) * 512; //FIXME: overflows
+		ptr += (((oct2bin(buf + 124, 11) + 511) / 512) + 1) * 512;
 	} while (s == 512);
 	return -1;
 }

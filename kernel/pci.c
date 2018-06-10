@@ -6,6 +6,7 @@
 #include <pci.h>
 
 void pci_config_writel(uint32_t device, uint8_t offset, uint32_t value) {
+	assert((offset & 3) == 0);
 	outl(PCI_CONFIG_ADDRESS, pci_address(device, offset));
 	outl(PCI_CONFIG_DATA, value);
 }
