@@ -25,7 +25,7 @@ static intptr_t map_userspace_to_kernel(page_directory_t *pdir, uintptr_t ptr, u
 			printf(" table == NULL; returning early: %u\n", i);
 			return i;
 		}
-		uintptr_t page = get_page(table, u_virtaddr);
+		page_t page = get_page(table, u_virtaddr);
 		if (! (page & PAGE_TABLE_PRESENT)) {
 			printf(" not present; returning early: %u\n", i);
 			return i;
@@ -57,6 +57,11 @@ static void unmap_from_kernel(uintptr_t kptr, size_t n) {
 // only copies if all data was successfully mapped
 static intptr_t copy_from_userspace(page_directory_t *pdir, uintptr_t ptr, size_t n, void *buffer) {
 	size_t size_in_blocks = (BLOCK_SIZE - 1 + n + (ptr & 0xfff)) / BLOCK_SIZE;
+	if (size_in_blocks == 0) {
+		printf("size_in_blocks: %u\n", (uintptr_t)size_in_blocks);
+		printf("n: %u\n", (uintptr_t)n);
+		printf("ptr & 0xFFF: 0x%x\n", ptr & 0xFFF);
+	}
 	uintptr_t kptr = find_vspace(kernel_directory, size_in_blocks);
 	if (kptr == 0) {
 		return -1;
@@ -77,6 +82,11 @@ static intptr_t copy_from_userspace(page_directory_t *pdir, uintptr_t ptr, size_
 
 static intptr_t copy_to_userspace(page_directory_t *pdir, uintptr_t ptr, size_t n, void *buffer) {
 	size_t size_in_blocks = (BLOCK_SIZE - 1 + n + (ptr & 0xfff)) / BLOCK_SIZE;
+	if (size_in_blocks == 0) {
+		printf("size_in_blocks: %u\n", (uintptr_t)size_in_blocks);
+		printf("n: %u\n", (uintptr_t)n);
+		printf("ptr & 0xFFF: 0x%x\n", ptr & 0xFFF);
+	}
 	uintptr_t kptr = find_vspace(kernel_directory, size_in_blocks);
 	if (kptr == 0) {
 		printf("kptr == 0\n");
@@ -91,7 +101,7 @@ static intptr_t copy_to_userspace(page_directory_t *pdir, uintptr_t ptr, size_t 
 
 	uintptr_t kptr2 = kptr + (ptr & 0xFFF);
 
-	printf("memcpy(dest: 0x%x, src: 0x%x, len: 0x%x);\n", kptr2, (uintptr_t)buffer, n);
+	printf("memcpy(dest: 0x%x, src: 0x%x, len: 0x%x);\n", kptr2, (uintptr_t)buffer, (uintptr_t)n);
 	memcpy((void *)kptr2, buffer, n);
 
 	unmap_from_kernel(kptr, v);
@@ -222,35 +232,40 @@ static uint32_t syscall_close(registers_t *regs) {
 }
 
 static uint32_t syscall_read(registers_t *regs) {
-//	printf("read(%u, 0x%x, 0x%x) (eip = 0x%x)\n", regs->ebx, regs->ecx, regs->edx, regs->eip);
-	// regs->ebx int fd
+	uintptr_t fd_num = regs->ebx;
 	// regs->ecx char *buf
-	// regs->edx int len
+	uintptr_t length = regs->edx;
+//	printf("read(fd: %u, buf: 0x%x, length: 0x%x)\n", fd_num, regs->ecx, length);
 	if (current_process->fd_table) {
 		if (regs->ebx > 16) {
 			return -1;
 		}
-		if (current_process->fd_table->entries[regs->ebx]) {
-			uintptr_t ptr = regs->ecx;
-			size_t n = regs->edx;
-			size_t n_blocks = (BLOCK_SIZE - 1 + n) / BLOCK_SIZE;
-			page_directory_t *pdir = current_process->pdir;
-			uintptr_t kptr = find_vspace(kernel_directory, n_blocks); // FIXME
-//			uintptr_t kptr2 = kptr + (ptr & 0xFFFF);
-			uintptr_t kptr2 = kptr + (ptr & 0xFFF);
-			size_t v = map_userspace_to_kernel(pdir, ptr, kptr, n_blocks);
-			if (v != 0) {
-				printf("v: %u\n", v);
-				unmap_from_kernel(kptr, v);
-				return -1;
-			}
-			fs_node_t *node = current_process->fd_table->entries[regs->ebx];
-			uint32_t r = fs_read(node, 0, n, (uint8_t *)kptr2);
-			unmap_from_kernel(kptr, n_blocks);
-			return r;
-		} else {
+
+		if (current_process->fd_table->entries[fd_num] == NULL) {
+			// fd_num not valid
 			return -1;
 		}
+
+		uintptr_t ptr = regs->ecx;
+		if (length == 0) {
+			return 0;
+		}
+
+		size_t n_blocks = (BLOCK_SIZE - 1 + length) / BLOCK_SIZE;
+		page_directory_t *pdir = current_process->pdir;
+		uintptr_t kptr = find_vspace(kernel_directory, n_blocks); // FIXME
+//		uintptr_t kptr2 = kptr + (ptr & 0xFFFF);
+		uintptr_t kptr2 = kptr + (ptr & 0xFFF);
+		size_t v = map_userspace_to_kernel(pdir, ptr, kptr, n_blocks);
+		if (v != 0) {
+			printf("v: %u\n", (uintptr_t)v);
+			unmap_from_kernel(kptr, v);
+			return -1;
+		}
+		fs_node_t *node = current_process->fd_table->entries[regs->ebx];
+		uint32_t r = fs_read(node, 0, length, (uint8_t *)kptr2);
+		unmap_from_kernel(kptr, n_blocks);
+		return r;
 	} else {
 		return -1;
 	}
@@ -269,13 +284,17 @@ static uint32_t syscall_write(registers_t *regs) {
 			// FIXME: handle oveflow of pointer into next block correctly
 			uintptr_t ptr = regs->ecx;
 			size_t n = regs->edx;
+			if (n == 0) {
+				return 0;
+			}
 			size_t n_blocks = (BLOCK_SIZE - 1 + n) / BLOCK_SIZE;
+			assert(n_blocks != 0);
 			page_directory_t *pdir = current_process->pdir;
 			uintptr_t kptr = find_vspace(kernel_directory, n_blocks); // FIXME
 			uintptr_t kptr2 = kptr + (ptr & 0xFFF);
 			size_t v = map_userspace_to_kernel(pdir, ptr, kptr, n_blocks);
 			if (v != 0) {
-				printf("syscall_write early abort, v: %u\n", v);
+				printf("syscall_write early abort, v: %u\n", (uintptr_t)v);
 				unmap_from_kernel(kptr, v);
 				return -1;
 			}
@@ -296,7 +315,7 @@ static uint32_t syscall_mmap_anon(registers_t *regs) {
 	uintptr_t addr = regs->ebx;
 	size_t len = regs->ecx;
 	// regs->edx prot
-	printf("mmap_anon(addr: 0x%x, len: 0x%x, prot: %u)\n", addr, len, regs->edx);
+	printf("mmap_anon(addr: 0x%x, len: 0x%x, prot: %u)\n", addr, (uintptr_t)len, regs->edx);
 	if (len > BLOCK_SIZE*200) {
 		return -1;
 	}
@@ -307,6 +326,7 @@ static uint32_t syscall_mmap_anon(registers_t *regs) {
 		addr = find_vspace(current_process->pdir, len);
 	}
 
+	// FIXME: hardcoded
 	uint32_t prot;
 	switch (regs->edx) {
 		case (1):
@@ -345,19 +365,25 @@ static uint32_t syscall_mmap_anon(registers_t *regs) {
 }
 
 static uint32_t syscall_munmap(registers_t *regs) {
-	// regs->ebx addr
-	// regs->ecx length
+	uintptr_t addr = regs->ebx;
+	uintptr_t length = regs->ecx;
 	printf("munmap(0x%x, 0x%x);\n", regs->ebx, regs->ecx);
-	if (((regs->ebx & 0xFFF) != 0) || (regs->ecx == 0)) {
+	if ((addr & 0xFFF) != 0) {
+		// not aligned
 		return -1;
 	}
 
-	uintptr_t len = regs->ecx;
-	if ((len & 0xFFF) > 0) {
-		len = (len & 0xFFF) + 0x1000;
+	if (length == 0) {
+		// length too small
+		return -1;
 	}
 
-	for (uintptr_t i = 0; i < len; i += BLOCK_SIZE) {
+	if ((length & 0xFFF) != 0) {
+		// length not aligned
+		length = (length & 0xFFF) + 0x1000;
+	}
+
+	for (uintptr_t i = 0; i < length; i += BLOCK_SIZE) {
 		page_t p = get_page(get_table(i, current_process->pdir), i);
 		if (p == 0) {
 			continue;
