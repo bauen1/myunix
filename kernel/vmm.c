@@ -15,11 +15,13 @@
 page_directory_t __attribute__((aligned(4096))) *kernel_directory;
 
 page_table_t *get_table(uintptr_t virtaddr, page_directory_t *directory) {
+	assert(directory != NULL);
 	// FIXME: we should probably assert that it is mapped as present
 	return (page_table_t *)((uintptr_t)(directory->tables[virtaddr >> 22]) & ~0x3FF);
 }
 
 page_table_t *get_table_alloc(uintptr_t virtaddr, page_directory_t *directory) {
+	assert(directory != NULL);
 	page_table_t *table = get_table(virtaddr, directory);
 	if (table == 0) {
 		uintptr_t v = vmm_find_dma_region(1);
@@ -35,12 +37,13 @@ page_table_t *get_table_alloc(uintptr_t virtaddr, page_directory_t *directory) {
 }
 
 page_t get_page(page_table_t *table, uintptr_t virtaddr) {
+	assert(table != NULL);
 	return table->pages[virtaddr >> 12 & 0x3FF];
 }
 
 void map_page(page_table_t *table, uintptr_t virtaddr, uintptr_t physaddr, uint16_t flags) {
-	assert((virtaddr & 0xFFF) == 0);
 	assert(table != NULL);
+	assert((virtaddr & 0xFFF) == 0);
 	assert(((uintptr_t)table & 0xFFF) == 0);
 	table->pages[(uint32_t)virtaddr >> 12 & 0x3FF] = (page_t)((uint32_t)physaddr | flags);
 	// FIXME: should probably call invlpg here
@@ -121,14 +124,18 @@ inline uintptr_t vmm_find_dma_region(size_t size) {
 	}
 
 	printf("CRITICAL: NO DMA REGION OF SIZE %u FOUND!!\n", size);
-	printf("pmm_count_free_blocks(): 0x%x\n", pmm_count_free_blocks());
+	printf("PMM FREE BLOCKS: 0x%x\n", pmm_count_free_blocks());
 	return 0;
 }
 
 void *dma_malloc(size_t m) {
+	assert(m != 0);
 	size_t n = (BLOCK_SIZE - 1 + m) / BLOCK_SIZE;
 	uintptr_t v = vmm_find_dma_region(n);
-	assert(v != 0);
+	if (v == 0) {
+		return NULL;
+	}
+
 	for (size_t i = 0; i < n; i++) {
 		pmm_set_block(v + i);
 		map_direct_kernel((v + i) * BLOCK_SIZE);
@@ -144,40 +151,65 @@ void *dma_malloc(size_t m) {
 // n in blocks
 // FIXME: allocates tables for ranges that will be too small
 uintptr_t find_vspace(page_directory_t *dir, size_t n) {
+	assert(dir != NULL);
+	assert(n != 0);
+//	printf("find_vspace(0x%x, 0x%x);\n", (uintptr_t)dir, (uintptr_t)n);
 	/* skip block 0 */
 	for (uintptr_t i = 1; i < (0x100000000 / BLOCK_SIZE); i++) {
 		uintptr_t v_addr = i * BLOCK_SIZE;
 		// FIXME: depends on the fact that all kernel tables are pre-allocated to avoid calling get_table_alloc which could modify the directory 'dir'
 		page_table_t *table = get_table_alloc(v_addr, dir);
 		if (get_page(table, v_addr) == 0) {
-			uintptr_t start = v_addr;
-			uintptr_t length = 1;
-			while (length < n) {
-				uintptr_t v_addr2 = v_addr + length*BLOCK_SIZE;
-				table = get_table_alloc(v_addr2, dir);
-				if (get_page(table, v_addr2) == 0) {
-					length++;
-				} else {
-					break;
-				}
-			}
-			if (length == n) {
-				for (uintptr_t i = start;
-						i < start + (length*BLOCK_SIZE);
-						i += BLOCK_SIZE) {
-					// get_table can't return NULL here
-					map_page(get_table(i, dir), i,
-						PAGE_VALUE_RESERVED, 0);
-				}
-//				printf(" = 0x%x\n", start);
-				return start;
+			continue;
+		}
+
+		uintptr_t start = v_addr;
+		uintptr_t length = 1;
+		while (length < n) {
+			uintptr_t v_addr2 = v_addr + length*BLOCK_SIZE;
+			table = get_table_alloc(v_addr2, dir);
+			if (get_page(table, v_addr2) == 0) {
+				length++;
 			} else {
-				i = i + length;
+				break;
 			}
+		}
+		if (length == n) {
+			for (uintptr_t i = start;
+				i < start + (length*BLOCK_SIZE);
+				i += BLOCK_SIZE) {
+				// get_table can't return NULL here
+				map_page(get_table(i, dir), i, PAGE_VALUE_RESERVED, 0);
+			}
+//			printf(" = 0x%x\n", start);
+			return start;
+		} else {
+			i = i + length;
 		}
 	}
 
 	return -1;
+}
+
+static void dump_table(page_table_t *table, uintptr_t table_addr, char *prefix) {
+	assert(table != NULL);
+	assert(prefix != NULL); // technically valid, but most likely a bug
+//	assert((table_addr & 0xFFFF) == 0); // FIXME: implement alignment check
+	for (uintptr_t page_i = 0; page_i < 1024; page_i++) {
+		page_t page = table->pages[page_i];
+		if (page != 0) {
+			uintptr_t v_addr = (table_addr) | (page_i << 12);
+
+			printf("%s0x%8x => 0x%8x ", prefix, v_addr, (uintptr_t)page);
+			if (((uintptr_t)page) & PAGE_TABLE_PRESENT) {
+				printf("present ");
+			}
+			if (((uintptr_t)page) & PAGE_TABLE_USER) {
+				printf("user");
+			}
+			printf("\n");
+		}
+	}
 }
 
 static void dump_directory(page_directory_t *directory) {
@@ -189,12 +221,7 @@ static void dump_directory(page_directory_t *directory) {
 			printf(" 0x%8x table: 0x%x\n", table_i << 22, table_p);
 			if (table_p & PAGE_DIRECTORY_PRESENT) {
 				page_table_t *table = (page_table_t *)(table_p & ~0x3FF);
-				for (uintptr_t page_i = 0; page_i < 1024; page_i++) {
-					page_t page = table->pages[page_i];
-					if (page != 0) {
-						printf("  0x%8x => 0x%x ()\n", (table_i << 22) | (page_i << 12), (uintptr_t)page);
-					}
-				}
+				dump_table(table, table_i << 22, "  ");
 			}
 		} else {
 			printf("");
@@ -202,7 +229,7 @@ static void dump_directory(page_directory_t *directory) {
 	}
 }
 
-void page_fault(registers_t *regs) {
+static void page_fault(registers_t *regs) {
 	uintptr_t address;
 	__asm__ __volatile__("mov %%cr2, %0" : "=r"(address));
 	printf("! page_fault !\n");
@@ -227,6 +254,7 @@ void page_fault(registers_t *regs) {
 		dump_directory(current_process->pdir);
 	} else {
 		printf("KERNEL MODE PAGE FAULT\n");
+		dump_directory(kernel_directory);
 		print_stack_trace(200);
 		halt();
 	}
