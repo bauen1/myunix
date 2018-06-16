@@ -9,7 +9,7 @@
 
 static isr_handler isr_handlers[256];
 void isr_set_handler(uint8_t i, isr_handler handler) {
-	printf("isr 0x%x, handler: 0x%x\n", i, handler);
+	printf("isr 0x%x, handler: 0x%x\n", i, (uintptr_t)handler);
 	assert(isr_handlers[i] == NULL); // FIXME: remove or just fix the code calling this
 	isr_handlers[i] = handler;
 }

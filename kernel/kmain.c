@@ -32,6 +32,7 @@
 #include <usb/usb.h>
 #include <vmm.h>
 
+// TODO: move the multiboot specific stuff to it's own file
 /* main kernel entry point */
 void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
 	(void)esp;
@@ -400,6 +401,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	printf("[%u] [OK] vmm_enable\n", (unsigned int)ticks);
 
 	liballoc_init();
+	printf("[%u] [OK] liballoc_init\n", (unsigned int)ticks);
 
 	syscall_init();
 	printf("[%u] [OK] syscall_init\n", (unsigned int)ticks);
@@ -411,6 +413,8 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	__asm__ __volatile__ ("sti");
 	printf("[%u] [OK] sti\n", (unsigned int)ticks);
 
+	/* start processes */
+	process_add(kidle_init());
 
 	/* scan for device and initialise them */
 	pci_init();
@@ -419,8 +423,6 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	usb_init();
 	printf("[%u] [OK] usb_init\n", (unsigned int)ticks);
 
-	/* start processes */
-	process_add(kidle_init());
 
 	assert(mbi->flags & MULTIBOOT_INFO_MODS);
 	printf("we have modules!\n");

@@ -47,6 +47,7 @@ process_t *kidle_init() {
 		map_page(get_table_alloc(v_kaddr, kernel_directory), v_kaddr,
 			block,
 			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
+		__asm__ __volatile__ ("invlpg (%0)" : : "b" (v_kaddr) : "memory");
 	}
 
 	// kstack guard
@@ -395,12 +396,14 @@ void process_remove(process_t *p) {
 }
 
 void process_add(process_t *p) {
+	__asm__ __volatile__ ("cli");
 	assert(p != NULL);
 	if (process_list == NULL) {
 		process_list = list_init();
 		printf("process_list: 0x%x\n", (uintptr_t)process_list);
 	}
 	list_insert(process_list, p);
+	__asm__ __volatile__ ("sti");
 	return;
 }
 

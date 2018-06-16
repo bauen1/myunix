@@ -30,12 +30,14 @@ inline bool pmm_test_block(uintptr_t block) {
 /* find the first free block */
 inline uint32_t pmm_find_first_free() {
 	for (uint32_t i = 0; i < block_map_size; i++) {
-		if (block_map[i] != 0xFFFFFFFF) {
-			for (uint8_t j = 0; j < 32; j++) {
-				uint32_t bit = (1 << j);
-				if ( ! (block_map[i] & bit)) {
-					return i * 32 + j;
-				}
+		if (block_map[i] == 0xFFFFFFFF) {
+			// skip, it's pointless to check
+			continue;
+		}
+		for (uint8_t j = 0; j < 32; j++) {
+			uint32_t bit = (1 << j);
+			if ( ! (block_map[i] & bit)) {
+				return i * 32 + j;
 			}
 		}
 	}

@@ -123,8 +123,8 @@ inline uintptr_t vmm_find_dma_region(size_t size) {
 		}
 	}
 
-	printf("CRITICAL: NO DMA REGION OF SIZE %u FOUND!!\n", size);
-	printf("PMM FREE BLOCKS: 0x%x\n", pmm_count_free_blocks());
+	printf("CRITICAL: NO DMA REGION OF SIZE %u FOUND!!\n", (uintptr_t)size);
+	printf("pmm_count_free_blocks(): 0x%x\n", pmm_count_free_blocks());
 	return 0;
 }
 
@@ -132,10 +132,7 @@ void *dma_malloc(size_t m) {
 	assert(m != 0);
 	size_t n = (BLOCK_SIZE - 1 + m) / BLOCK_SIZE;
 	uintptr_t v = vmm_find_dma_region(n);
-	if (v == 0) {
-		return NULL;
-	}
-
+	assert(v != 0);
 	for (size_t i = 0; i < n; i++) {
 		pmm_set_block(v + i);
 		map_direct_kernel((v + i) * BLOCK_SIZE);
