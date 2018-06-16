@@ -40,6 +40,7 @@ process_t *kidle_init() {
 	// kstack
 	size_t kstack_size = 4; // FIXME: hardcoded
 	uintptr_t v_kstack = find_vspace(kernel_directory, kstack_size + 1);
+	assert(v_kstack != 0);
 	printf("v_kstack: 0x%x\n", v_kstack);
 	for (size_t i = 0; i <= kstack_size; i++) {
 		uintptr_t v_kaddr = v_kstack + (i + 1)*BLOCK_SIZE;
@@ -66,7 +67,6 @@ process_t *kidle_init() {
 	return process;
 }
 
-
 static void process_map_shared_region(process_t *process, uintptr_t start, uintptr_t end, unsigned int permissions) {
 	printf("process_map_shared_region(process: 0x%x, start: 0x%x, end: 0x%x, permissions: %u)\n", (uintptr_t)process, start, end, permissions);
 	if ((start & 0xFFF) != 0) {
@@ -81,6 +81,7 @@ static void process_map_shared_region(process_t *process, uintptr_t start, uintp
 		map_page(get_table_alloc(addr, process->pdir), addr, addr, permissions);
 	}
 }
+
 // TODO: ensure no additional information gets leaked (align and FILL a block)
 // TODO: put everything that needs to be mapped in a special segment
 static void process_map_shared(process_t *process) {
@@ -102,33 +103,13 @@ static void process_map_shared(process_t *process) {
 		PAGE_TABLE_PRESENT);
 }
 
-process_t *process_exec(fs_node_t *f) {
-	uintptr_t virt_text_start = 0x1000000;
-	uintptr_t virt_heap_start = 0x2000000; // max 16mb text
-	printf("process_exec(0x%x (f->name: '%s'));\n", (uintptr_t)f, f->name);
-	assert(f != NULL);
-	assert(f->length != 0);
-	process_t *process = (process_t *)kcalloc(1, sizeof(process_t));
-	printf("process: 0x%x\n", (uintptr_t)process);
-	process->fd_table = kcalloc(1, sizeof(fd_table_t));
-	process->fd_table->entries[0] = &tty_node;
-	process->fd_table->entries[1] = &tty_node;
-	process->fd_table->entries[2] = &tty_node;
-
-	uintptr_t real_pdir = pmm_alloc_blocks_safe(1);
-	process->pdir = (page_directory_t *)find_vspace(kernel_directory, 1);
-	assert(process->pdir != 0);
-	printf("process->pdir: 0x%x\n", (uintptr_t)process->pdir);
-	map_page(get_table_alloc((uintptr_t)process->pdir, kernel_directory), (uintptr_t)process->pdir,
-		real_pdir,
-		PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
-	memset((void *)process->pdir, 0, BLOCK_SIZE);
-
-	// kstack
+// allocate and map a kernel stack into both userspace and kernel space
+static void process_init_kstack(process_t *process) {
+	assert(process != NULL);
 	size_t kstack_size = 4; // FIXME: hardcoded
 	process->kstack_size = kstack_size;
 	uintptr_t v_kstack = find_vspace(kernel_directory, kstack_size + 1);
-	printf("v_kstack: 0x%x\n", v_kstack);
+	assert(v_kstack != 0);
 	for (size_t i = 0; i <= kstack_size; i++) {
 		uintptr_t v_kaddr = v_kstack + (i + 1)*BLOCK_SIZE;
 		uintptr_t block = pmm_alloc_blocks_safe(1);
@@ -146,14 +127,39 @@ process_t *process_exec(fs_node_t *f) {
 
 	memset((void *)(v_kstack + BLOCK_SIZE), 0, (kstack_size+1) * BLOCK_SIZE);
 	uintptr_t kstack_top = v_kstack + (kstack_size + 1) * BLOCK_SIZE;
-	printf("kernel_stack: 0x%x - 0x%x\n", v_kstack, kstack_top);
 	process->kstack = kstack_top;
+}
+
+process_t *process_exec(fs_node_t *f) {
+	uintptr_t virt_text_start = 0x1000000;
+	uintptr_t virt_heap_start = 0x2000000; // max 16mb text
+	printf("process_exec(0x%x (f->name: '%s'));\n", (uintptr_t)f, f->name);
+	assert(f != NULL);
+	assert(f->length != 0);
+	process_t *process = (process_t *)kcalloc(1, sizeof(process_t));
+	printf("process: 0x%x\n", (uintptr_t)process);
+	process->fd_table = kcalloc(1, sizeof(fd_table_t));
+	process->fd_table->entries[0] = &tty_node;
+	process->fd_table->entries[1] = &tty_node;
+	process->fd_table->entries[2] = &tty_node;
+
+	// FIXME: use dma_malloc ?
+	uintptr_t real_pdir = pmm_alloc_blocks_safe(1);
+	process->pdir = (page_directory_t *)find_vspace(kernel_directory, 1);
+	assert(process->pdir != 0);
+	printf("process->pdir: 0x%x\n", (uintptr_t)process->pdir);
+	map_page(get_table_alloc((uintptr_t)process->pdir, kernel_directory), (uintptr_t)process->pdir,
+		real_pdir,
+		PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
+	memset((void *)process->pdir, 0, BLOCK_SIZE);
 
 	process_map_shared(process);
+	process_init_kstack(process);
 
 	// allocate some userspace heap (16kb)
 	// FIXME: size hardcoded
 	uintptr_t k_tmp = find_vspace(kernel_directory, 1);
+	assert(k_tmp != 0);
 	for (unsigned int i = 0; i < 256; i++) {
 		// allocate non-continous space
 		uintptr_t virtaddr = virt_heap_start + i*BLOCK_SIZE;
@@ -185,7 +191,7 @@ process_t *process_exec(fs_node_t *f) {
 	}
 	map_page(get_table(k_tmp, kernel_directory), k_tmp, 0, 0);
 
-	registers_t *regs = (registers_t *)(kstack_top - sizeof(registers_t));
+	registers_t *regs = (registers_t *)(process->kstack - sizeof(registers_t));
 	regs->old_directory = (uint32_t)real_pdir;
 	regs->gs = 0x23;
 	regs->fs = 0x23;
@@ -238,36 +244,13 @@ process_t *process_init(uintptr_t start, uintptr_t end) {
 		PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
 	memset((void *)process->pdir, 0, BLOCK_SIZE);
 
-	// kstack
-	size_t kstack_size = 4; // FIXME: hardcoded
-	process->kstack_size = kstack_size;
-	uintptr_t v_kstack = find_vspace(kernel_directory, kstack_size + 1);
-	printf("v_kstack: 0x%x\n", v_kstack);
-	for (size_t i = 0; i <= kstack_size; i++) {
-		uintptr_t v_kaddr = v_kstack + (i + 1)*BLOCK_SIZE;
-		uintptr_t block = pmm_alloc_blocks_safe(1);
-		map_page(get_table_alloc(v_kaddr, kernel_directory), v_kaddr,
-			block,
-			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
-		map_page(get_table_alloc(v_kaddr, process->pdir), v_kaddr,
-			block,
-			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
-	}
-
-	// kstack guard
-	map_page(get_table_alloc(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
-	map_page(get_table_alloc(v_kstack, process->pdir), v_kstack, PAGE_VALUE_GUARD, 0);
-
-	memset((void *)(v_kstack + BLOCK_SIZE), 0, (kstack_size+1) * BLOCK_SIZE);
-	uintptr_t kstack_top = v_kstack + (kstack_size + 1) * BLOCK_SIZE;
-	printf("kernel_stack: 0x%x - 0x%x\n", v_kstack, kstack_top);
-	process->kstack = kstack_top;
-
 	process_map_shared(process);
+	process_init_kstack(process);
 
 	// allocate some userspace heap (16kb)
 	// FIXME: size hardcoded
 	uintptr_t k_tmp = find_vspace(kernel_directory, 1);
+	assert(k_tmp != 0);
 	for (unsigned int i = 0; i < 256; i++) {
 		// allocate non-continous space
 		uintptr_t virtaddr = virt_heap_start + i*BLOCK_SIZE;
@@ -294,7 +277,7 @@ process_t *process_init(uintptr_t start, uintptr_t end) {
 			PAGE_TABLE_PRESENT | PAGE_TABLE_USER | PAGE_TABLE_READWRITE);
 	}
 
-	registers_t *regs = (registers_t *)(kstack_top - sizeof(registers_t));
+	registers_t *regs = (registers_t *)(process->kstack - sizeof(registers_t));
 	regs->old_directory = (uint32_t)real_pdir;
 	regs->gs = 0x23;
 	regs->fs = 0x23;
