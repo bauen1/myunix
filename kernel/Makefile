@@ -19,7 +19,7 @@ BOOTDIR?=/boot
 INCLUDEDIR?=$(PREFIX)/include/myunix
 
 # mandatory flags
-CFLAGS:=$(CFLAGS) -Wall -Wextra -ffreestanding -std=gnu99 -fstack-protector -Wno-attributes -Wno-format -Wcast-align
+CFLAGS:=$(CFLAGS) -Wall -Wextra -ffreestanding -std=gnu99 -fstack-protector -fno-omit-frame-pointer -Wno-attributes -Wno-format -Wcast-align
 CFLAGS+=-Werror
 CPPFLAGS:=$(CPPFLAGS) -D__myunix_kernel -I./include -I./$(ARCHDIR)
 LDFLAGS:=$(LDFLAGS) -static
@@ -144,7 +144,7 @@ debug-grub: iso/grub_iso.iso
 
 .PHONY: run-qemu
 run-qemu: kernel.bin
-	$(QEMU) $(QEMUFLAGS) -kernel kernel.bin
+	$(QEMU) $(QEMUFLAGS) -kernel kernel.bin -initrd "iso/modules/initrd.tar"
 
 .PHONY: debug-qemu
 debug-qemu: kernel.bin
@@ -161,7 +161,16 @@ gdb: kernel.elf .gdbinit
 
 .PHONY: cppcheck-tcc
 cppcheck-tcc:
-	cppcheck --enable=all $(CPPFLAGS) $(wildcard *.c) $(widlcard $(ARCHDIR)/*.c) -I ../toolchain/opt/lib/tcc/include $(EXTRA_CPPCHECKFLAGS)
+	cppcheck --quiet --enable=all $(CPPFLAGS) $(SRCS_GLOBS) -I ../toolchain/opt/lib/tcc/include $(EXTRA_CPPCHECKFLAGS)
+
+.PHONY: codespell
+codespell:
+	codespell -w -c --interactive=3 --skip=*.o --skip=*.d .
+
+.PHONY: complexity
+complexity:
+	complexity -h -c $(SRCS)
+#complexity -h -c *.c arch/i686/*.c arch/i686/boot.s include/*.h arch/i686/*.h
 
 #
 
@@ -170,6 +179,10 @@ todo:
 	grep --color=always "TODO" -r .
 	grep --color=always "XXX" -r .
 	grep --color=always "FIXME" -r .
+
+.PHONY: update-musl-patch
+update-musl-patch:
+	git -C toolchain/src/musl diff -p --staged > toolchain/patches/musl.patch
 
 #
 
