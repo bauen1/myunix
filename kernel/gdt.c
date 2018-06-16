@@ -6,8 +6,8 @@
 #include <tss_flush.h>
 
 gdt_pointer_t gdt_pointer;
-__attribute__((aligned(4096))) gdt_entry_t gdt[6];
-__attribute__((aligned(4096))) tss_t tss;
+__attribute__((section("user_shared"))) __attribute__((aligned(4096))) gdt_entry_t gdt[6];
+__attribute__((section("user_shared"))) __attribute__((aligned(4096))) tss_t tss;
 
 static void gdt_set_gate(uint8_t i, uint32_t base, uint32_t limit, uint8_t access, uint8_t granularity) {
 	gdt[i].limit_low = (uint16_t)(limit & 0xFFFF);

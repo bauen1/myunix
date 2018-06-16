@@ -14,7 +14,7 @@
 #include <task.h>
 #include <vmm.h>
 
-void __attribute__((noreturn)) __restore_process();
+static void __attribute__((noreturn)) __restore_process();
 
 process_t *current_process;
 node_t *current_process_node;
@@ -22,6 +22,9 @@ list_t *process_list;
 
 extern void *isrs_start;
 extern void *isrs_end;
+
+extern void *__start_user_shared;
+extern void *__stop_user_shared;
 
 process_t *kidle_init() {
 	// TODO: kidle should free the stack used by kmain
@@ -62,42 +65,40 @@ process_t *kidle_init() {
 	return process;
 }
 
+
+static void process_map_shared_region(process_t *process, uintptr_t start, uintptr_t end, unsigned int permissions) {
+	printf("process_map_shared_region(process: 0x%x, start: 0x%x, end: 0x%x, permissions: %u)\n", (uintptr_t)process, start, end, permissions);
+	if ((start & 0xFFF) != 0) {
+		printf("WARN: start not aligned!\n");
+	}
+	if ((end & 0xFFF) != 0) {
+		printf("WARN: end not aligned!\n");
+	}
+
+	for (uintptr_t i = 0; i < (end - start); i += BLOCK_SIZE) {
+		uintptr_t addr = start + i;
+		map_page(get_table_alloc(addr, process->pdir), addr, addr, permissions);
+	}
+}
 // TODO: ensure no additional information gets leaked (align and FILL a block)
 // TODO: put everything that needs to be mapped in a special segment
 static void process_map_shared(process_t *process) {
-	// isrs
-	for (uintptr_t i = 0; i < ((uintptr_t)&isrs_end - (uintptr_t)&isrs_start); i += BLOCK_SIZE) {
-		uintptr_t addr = (uintptr_t)&isrs_start + i;
-		map_page(get_table_alloc(addr, process->pdir), addr, addr, PAGE_TABLE_PRESENT);
-	}
-
+	// isr trampolines
+	process_map_shared_region(process, (uintptr_t)&isrs_start,
+		(uintptr_t)&isrs_end, PAGE_TABLE_PRESENT);
+	// other stuff we really need ( gdt, idt, tss)
+	process_map_shared_region(process, (uintptr_t)&__start_user_shared,
+		(uintptr_t)&__stop_user_shared, PAGE_TABLE_PRESENT);
 	// kernel_directory pointer
 	// FIXME: don't map this, patch it in the isr routine or give the irs routine its own pointer
 	// FIXME: find a better way to do this
+	process_map_shared_region(process, (uintptr_t)&kernel_directory,
+		(uintptr_t)&kernel_directory + BLOCK_SIZE, PAGE_TABLE_PRESENT);
+
 	map_page(get_table_alloc((uintptr_t)&kernel_directory, process->pdir),
 		(uintptr_t)&kernel_directory,
 		(uintptr_t)&kernel_directory,
 		PAGE_TABLE_PRESENT);
-
-	// TSS
-	// FIXME: might be bigger than 1 block
-	map_page(get_table_alloc((uintptr_t)&tss, process->pdir),
-		(uintptr_t)&tss,
-		(uintptr_t)&tss,
-		PAGE_TABLE_PRESENT);
-	// GDT
-	// FIXME: might be bigger than 1 block
-	map_page(get_table_alloc((uintptr_t)gdt, process->pdir),
-		(uintptr_t)gdt,
-		(uintptr_t)gdt,
-		PAGE_TABLE_PRESENT);
-	// IDT
-	// FIXME: might be bigger than 1 block
-	map_page(get_table_alloc((uintptr_t)idt_entries, process->pdir),
-		(uintptr_t)idt_entries,
-		(uintptr_t)idt_entries,
-		PAGE_TABLE_PRESENT);
-
 }
 
 process_t *process_exec(fs_node_t *f) {
@@ -361,7 +362,7 @@ void __attribute__((noreturn)) __switch_direct(void) {
 	__restore_process();
 }
 
-void __attribute__((noreturn)) __restore_process() {
+static void __attribute__((noreturn)) __restore_process() {
 	tss_set_kstack(current_process->kstack);
 
 	uint32_t esp = current_process->esp;
