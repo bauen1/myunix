@@ -40,6 +40,9 @@ void fs_open(fs_node_t *node, unsigned int flags) {
 }
 
 void fs_close(fs_node_t *node) {
+	assert(node != NULL);
+	assert(node != fs_root);
+
 	if (!node) {
 		// double free ?
 		return;

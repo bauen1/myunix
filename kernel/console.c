@@ -12,6 +12,15 @@
 #include <tty.h>
 #include <fs.h>
 
+// FIXME: this breaks early boot
+static void lock(void) {
+//	__asm__ __volatile__ ("cli");
+}
+
+static void unlock(void) {
+//	__asm__ __volatile__ ("sti");
+}
+
 uint32_t tty_read(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buf) {
 	(void)node;
 	(void)offset;
@@ -53,9 +62,11 @@ char getc() {
 }
 
 void putc(char c) {
+	lock();
 	tty_putc(c);
 	framebuffer_putc(c);
 	serial_putc(c);
+	unlock();
 }
 
 void puts(const char *s) {

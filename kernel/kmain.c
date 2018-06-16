@@ -256,14 +256,14 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 
 	// TODO: copy everything of interest out of the multiboot info to a known, safe location
 	// TODO: remember to free information once its no longer needed
-	printf("set 0x%x: multiboot info\n", (uintptr_t)mbi);
+	printf("set 0x%8x: multiboot info\n", (uintptr_t)mbi);
 	pmm_set_block(((uintptr_t)mbi) / BLOCK_SIZE);
 	if (mbi->flags & MULTIBOOT_INFO_CMDLINE) {
 		if (mbi->cmdline != 0) {
 			for (uintptr_t i = (uintptr_t)mbi->cmdline;
 				i < ((uintptr_t)mbi->cmdline + (uintptr_t)strlen((char *)mbi->cmdline));
 				i += BLOCK_SIZE) {
-				printf("set 0x%x: cmdline\n", i);
+				printf("set 0x%8x: cmdline\n", i);
 				pmm_set_block(i / BLOCK_SIZE);
 			}
 		}
@@ -272,19 +272,19 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 		multiboot_module_t *mods = (multiboot_module_t *)mbi->mods_addr;
 		for (unsigned int i = 0; i < mbi->mods_count; i++) {
 			uintptr_t mods_i_block = (uintptr_t)(&mods[i]) / BLOCK_SIZE;
-			printf("set 0x%x: modinfo[%u]\n", mods_i_block, i);
+			printf("set 0x%8x: modinfo[%u]\n", mods_i_block, i);
 			pmm_set_block(mods_i_block);
 			if (mods[i].cmdline != 0) {
 				for (uintptr_t j = (uintptr_t)mods[i].cmdline;
 					j < (uintptr_t)strlen((char *)mods[i].cmdline);
 					j += BLOCK_SIZE) {
 					uintptr_t v_addr = mods[i].cmdline + j;
-					printf("set 0x%x: modinfo[%u].cmdline\n", v_addr, i);
+					printf("set 0x%8x: modinfo[%u].cmdline\n", v_addr, i);
 					pmm_set_block(v_addr / BLOCK_SIZE);
 				}
 			}
 
-			printf("set 0x%x - 0x%x: mod\n", mods[i].mod_start, mods[i].mod_end);
+			printf("set 0x%8x - 0x%8x: mod\n", mods[i].mod_start, mods[i].mod_end);
 
 			assert(mods[i].mod_start <= mods[i].mod_end);
 			for (uintptr_t v = mods[i].mod_start; v <= mods[i].mod_end; v += BLOCK_SIZE) {
@@ -301,7 +301,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 		for (uintptr_t i = (uintptr_t)mbi->mmap_addr;
 			i < ((uintptr_t)mbi->mmap_addr + (uintptr_t)mbi->mmap_length);
 			i += BLOCK_SIZE) {
-			printf("set 0x%x: mmap\n", i);
+			printf("set 0x%8x: mmap\n", i);
 			pmm_set_block(i / BLOCK_SIZE);
 		}
 	}
@@ -312,7 +312,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 		for (uintptr_t i = (uintptr_t)mbi->boot_loader_name;
 			i < ((uintptr_t)mbi->boot_loader_name + (uintptr_t)strlen((char *)mbi->boot_loader_name));
 			i += BLOCK_SIZE) {
-			printf("set 0x%x: bootloader name\n", i);
+			printf("set 0x%8x: bootloader name\n", i);
 			pmm_set_block(i / BLOCK_SIZE);
 		}
 	}

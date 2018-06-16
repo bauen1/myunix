@@ -156,7 +156,8 @@ uintptr_t find_vspace(page_directory_t *dir, size_t n) {
 		uintptr_t v_addr = i * BLOCK_SIZE;
 		// FIXME: depends on the fact that all kernel tables are pre-allocated to avoid calling get_table_alloc which could modify the directory 'dir'
 		page_table_t *table = get_table_alloc(v_addr, dir);
-		if (get_page(table, v_addr) == 0) {
+		if (get_page(table, v_addr) != 0) {
+			// page mapped, skip
 			continue;
 		}
 
@@ -214,14 +215,15 @@ static void dump_directory(page_directory_t *directory) {
 	printf("--- directory: 0x%x ---\n", (uintptr_t)directory);
 	for (uintptr_t table_i = 0; table_i < 1024; table_i++) {
 		uintptr_t table_p = directory->tables[table_i];
-		if (table_p != 0) {
-			printf(" 0x%8x table: 0x%x\n", table_i << 22, table_p);
-			if (table_p & PAGE_DIRECTORY_PRESENT) {
-				page_table_t *table = (page_table_t *)(table_p & ~0x3FF);
-				dump_table(table, table_i << 22, "  ");
-			}
-		} else {
-			printf("");
+		if (table_p == 0) {
+			// skip
+			continue;
+		}
+
+		printf(" 0x%8x table: 0x%8x\n", table_i << 22, table_p);
+		if (table_p & PAGE_DIRECTORY_PRESENT) {
+			page_table_t *table = (page_table_t *)(table_p & ~0x3FF);
+			dump_table(table, table_i << 22, "  ");
 		}
 	}
 }
@@ -270,10 +272,10 @@ void vmm_init() {
 	for (int i = 0; i < 1024; i++) {
 		uintptr_t pt = pmm_alloc_blocks_safe(1);
 		memset((void *)pt, 0, BLOCK_SIZE);
+		// XXX: Don't map page tables with USER bit set, since no usercode should ever need to use the kernel directory
 		kernel_directory->tables[i] = (uintptr_t)(pt |
 			PAGE_DIRECTORY_PRESENT | PAGE_DIRECTORY_READWRITE |
 			PAGE_DIRECTORY_WRITE_THROUGH | PAGE_DIRECTORY_CACHE_DISABLE);
-		// Don't map page tables with USER bit set, since no usercode should ever need to use the kernel directory
 	}
 
 	for (unsigned int i = 0; i < 1024; i++) {
