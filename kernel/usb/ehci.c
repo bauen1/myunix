@@ -30,7 +30,7 @@ static uint32_t ehci_reg_readl(ehci_controller_t *hc, uintptr_t reg) {
 
 static void ehci_reg_writel(ehci_controller_t *hc, uintptr_t reg, uint32_t v) {
 	uintptr_t v_addr = hc->iobase + reg;
-	*((volatile uint32_t *)v_addr) = v;
+	*((volatile uint32_t *)(v_addr)) = v;
 }
 
 static void ehci_controller_init(uint32_t device, uint16_t vendorid, uint16_t deviceid, void *extra) {

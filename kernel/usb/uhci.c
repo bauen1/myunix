@@ -76,6 +76,7 @@ typedef struct uhci_td {
 	volatile uint32_t free_for_use3 __attribute__((packed));
 	volatile uint32_t free_for_use4 __attribute__((packed));
 } __attribute__((packed)) __attribute__((aligned(16))) uhci_td_t;
+static_assert(sizeof(uhci_td_t) % 16 == 0);
 
 /* minimum alignment: 16 */
 typedef struct uhci_qh {
@@ -92,6 +93,7 @@ typedef struct uhci_qh {
 	uint32_t free2[1] __attribute__((packed));
 	uhci_td_t *td_head;
 } __attribute__((packed)) __attribute__((aligned(16))) uhci_qh_t;
+static_assert(sizeof(uhci_qh_t) % 16 == 0);
 
 typedef struct uhci_controller {
 	uint32_t pci_device;
@@ -156,7 +158,7 @@ static uhci_td_t *uhci_alloc_td(struct uhci_controller *hc) {
 			return td;
 		}
 	}
-	assert(0);
+	return NULL;
 }
 
 static uhci_qh_t *uhci_alloc_qh(struct uhci_controller *hc) {
@@ -167,7 +169,7 @@ static uhci_qh_t *uhci_alloc_qh(struct uhci_controller *hc) {
 			return qh;
 		}
 	}
-	assert(0);
+	return NULL;
 }
 
 static void uhci_free_td(struct uhci_controller *hc, uhci_td_t *td) {
@@ -219,6 +221,7 @@ static void uhci_init_qh(uhci_qh_t *qh, usb_transfer_t *transfer, uhci_td_t *td)
 
 // FIXME: needs to disable interrupts ?
 static void uhci_insert_qh(struct uhci_controller *hc, uhci_qh_t *qh) {
+	assert(hc != NULL);
 	assert(hc->async_qhs != NULL);
 	assert(hc->async_qhs->next == NULL);
 
@@ -239,7 +242,8 @@ static void uhci_remove_qh(struct uhci_controller *hc, uhci_qh_t *qh) {
 	assert(hc != NULL);
 	assert(qh != NULL);
 	uhci_qh_t *prev = qh->prev;
-	assert((prev != NULL) && "TRYING TO REMOVED HEAD");	uhci_qh_t *next = qh->next;
+	assert((prev != NULL) && "TRYING TO REMOVED HEAD");
+	uhci_qh_t *next = qh->next;
 	prev->head = qh->head;
 	prev->next = next;
 	if (next != NULL) {
@@ -549,7 +553,7 @@ static void uhci_controller_init(uint32_t device, uint16_t vendorid, uint16_t de
 	pci_config_writel(device, 0x04, cmd);
 
 	printf("sbrn: 0x%x\n", sbrn);
-	if ((sbrn != 0x10) || (sbrn == 0x00)) {
+	if ((sbrn != 0x00) && (sbrn != 0x10)) {
 		printf("protocol not supported, disabling device\n");
 		return;
 	}
@@ -619,6 +623,7 @@ static void uhci_controller_init(uint32_t device, uint16_t vendorid, uint16_t de
 	hc->transfer_descriptors = dma_malloc(sizeof(uhci_td_t) * MAX_TD);
 	assert(hc->transfer_descriptors != NULL);
 	hc->async_qhs = uhci_alloc_qh(hc);
+	assert(hc->async_qhs != NULL);
 	hc->async_qhs->head = TD_PTR_TERMINATE;
 	hc->async_qhs->element = TD_PTR_TERMINATE;
 	for (unsigned int i = 0; i < 1024; i++) {
