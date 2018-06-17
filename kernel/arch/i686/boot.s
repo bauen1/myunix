@@ -37,7 +37,8 @@ mboot_hdr:
 .load_addr:
 	dd _start ; dd _start
 .load_end_addr:
-	dd _edata ; dd __bss_start
+;	dd _edata ; dd __bss_start
+	dd 0
 .bss_end_addr:
 	dd _end ; dd __bss_end
 .entry_addr:
