@@ -16,7 +16,7 @@
 
 unsigned long ticks = 0;
 
-static void irq0_handler(registers_t *regs) {
+static void irq0_handler(registers_t *regs, void *extra) {
 	if (ticks%FREQUENCY==0) {
 //		putc('.');
 	}
@@ -33,7 +33,7 @@ static void pit_setup_channel_zero(int frequency) {
 }
 
 void pit_init() {
-	isr_set_handler(32 + 0, irq0_handler);
+	isr_set_handler(32 + 0, irq0_handler, NULL);
 	pit_setup_channel_zero(FREQUENCY);
 }
 

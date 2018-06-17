@@ -449,22 +449,12 @@ void uhci_dev_control(void *_hc, usb_device_t *dev, usb_transfer_t *trans) {
 	uhci_wait_for_qh(hc, qh);
 }
 
-// FIXME: support multiple controllers
-uhci_controller_t *_hc[10];
-
-//struct uhci_controller *_hc; // short for host controller
-
-static void uhci_irq(registers_t *regs) {
+static void uhci_irq(registers_t *regs, void *extra) {
 	(void)regs;
-	printf("\n\nuhci_irq!!!!!!!\n\n");
+	assert(extra != NULL);
 
-	for (unsigned int i = 0; i < 10; i++) {
-		if (_hc[i] != NULL) {
-			printf("_hc[%u] status: 0x%x\n", i, uhci_reg_readw(_hc[i], REG_STS));
-		} else {
-			break;
-		}
-	}
+	printf("uhci IRQ!\n");
+	printf("uhci status: 0x%x\n", uhci_reg_readw((uhci_controller_t *)extra, REG_STS));
 	assert(0);
 }
 
@@ -561,14 +551,6 @@ static void uhci_controller_init(uint32_t device, uint16_t vendorid, uint16_t de
 	uhci_controller_t *hc = (uhci_controller_t *)kcalloc(1, sizeof(struct uhci_controller));
 	assert(hc != NULL);
 
-	for (unsigned int i = 0; i < 10; i++) {
-		if (_hc[i] == NULL) {
-			printf("added hc id: %u\n", i);
-			_hc[i] = hc;
-			break;
-		}
-	}
-
 	hc->pci_device = device;
 	hc->iobase = usbbase & ~0x01;
 	hc->iobase_size = usbbase_size;
@@ -584,9 +566,8 @@ static void uhci_controller_init(uint32_t device, uint16_t vendorid, uint16_t de
 	}
 	printf("irq: 0x%x\n", irq);
 
-	isr_set_handler(isr_from_irq(irq), uhci_irq);
+	isr_set_handler(isr_from_irq(irq), uhci_irq, hc);
 	// we currently don't use the IRQ, so disable it
-
 
 	printf("host controller reset!\n");
 	uhci_reg_writew(hc, REG_CMD, CMD_HCRESET);

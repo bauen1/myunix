@@ -102,6 +102,6 @@ static void pci_print(uint32_t device, uint16_t vendorid, uint16_t deviceid, voi
 	printf("device: 0x%6x vendorid: 0x%4x deviceid: 0x%4x\n", device, vendorid, deviceid);
 }
 
-void pci_init() {
+void pci_print_all() {
 	pci_scan(pci_print, NULL);
 }

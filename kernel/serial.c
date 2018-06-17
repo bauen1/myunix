@@ -13,7 +13,7 @@ static unsigned char serialbuffer[SERIALBUFFER_LENGTH];
 
 #define PORT 0x3F8
 
-static void irq4_handler(registers_t *regs) {
+static void irq4_handler(registers_t *regs, void *extra) {
 	ringbuffer_write_byte(&serial_ringbuffer, inb(PORT));
 	irq_ack(regs->isr_num);
 }
@@ -23,7 +23,7 @@ static void irq4_handler(registers_t *regs) {
 
 void serial_init() {
 	ringbuffer_init(&serial_ringbuffer, serialbuffer, SERIALBUFFER_LENGTH);
-	isr_set_handler(isr_from_irq(4), irq4_handler);
+	isr_set_handler(isr_from_irq(4), irq4_handler, NULL);
 
 	// init serial COM0
 	outb(PORT + 1, 0x00); // Disable all interrupts

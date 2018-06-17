@@ -63,7 +63,7 @@ static unsigned char keyboard_map[128] = {
 static ringbuffer_t keyboard_ringbuffer;
 static unsigned char keybuffer[KEYBUFFER_LENGTH];
 
-static void irq1_handler(registers_t *regs) {
+static void irq1_handler(registers_t *regs, void *extra) {
 	uint8_t status = inb(0x64);
 	if (status & 0x01) {
 		char keycode = inb(0x60);
@@ -80,7 +80,7 @@ static void irq1_handler(registers_t *regs) {
 
 void keyboard_init() {
 	ringbuffer_init(&keyboard_ringbuffer, keybuffer, KEYBUFFER_LENGTH);
-	isr_set_handler(isr_from_irq(1), irq1_handler);
+	isr_set_handler(isr_from_irq(1), irq1_handler, NULL);
 }
 
 unsigned char keyboard_getc() {

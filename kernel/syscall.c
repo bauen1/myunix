@@ -414,7 +414,7 @@ static uint32_t syscall_dumpregs(registers_t *regs) {
 	return 0;
 }
 
-static void syscall_handler(registers_t *regs) {
+static void syscall_handler(registers_t *regs, void *extra) {
 	switch (regs->eax) {
 		case 0x01:
 			syscall_exit(regs);
@@ -471,5 +471,5 @@ static void syscall_handler(registers_t *regs) {
 }
 
 void syscall_init() {
-	isr_set_handler(0x80, syscall_handler);
+	isr_set_handler(0x80, syscall_handler, NULL);
 }

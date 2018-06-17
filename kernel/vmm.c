@@ -45,12 +45,13 @@ void map_page(page_table_t *table, uintptr_t virtaddr, uintptr_t physaddr, uint1
 	assert(table != NULL);
 	assert((virtaddr & 0xFFF) == 0);
 	assert(((uintptr_t)table & 0xFFF) == 0);
+	// FIXME: assert physaddr and flags
 	table->pages[(uint32_t)virtaddr >> 12 & 0x3FF] = (page_t)((uint32_t)physaddr | flags);
 	// FIXME: should probably call invlpg here
 }
 
 /* helper function */
-// directly maps from including start to end
+// directly maps from (including) start to end to kernel space
 void map_pages(uintptr_t start, uintptr_t end, int flags, const char *name) {
 	if (name != NULL) {
 		printf("%s: 0x%x - 0x%x => 0x%x - 0x%x flags: 0x%x\n", name, (uintptr_t)start, (uintptr_t)end, (uintptr_t)start, (uintptr_t)end, flags);
@@ -147,6 +148,7 @@ void *dma_malloc(size_t m) {
 // finds free (continuous) virtual address space and maps it to PAGE_VALUE_RESERVED
 // n in blocks
 // FIXME: allocates tables for ranges that will be too small
+// returns 0 in case of failure
 uintptr_t find_vspace(page_directory_t *dir, size_t n) {
 	assert(dir != NULL);
 	assert(n != 0);
@@ -228,7 +230,7 @@ static void dump_directory(page_directory_t *directory) {
 	}
 }
 
-static void page_fault(registers_t *regs) {
+static void page_fault(registers_t *regs, void *extra) {
 	uintptr_t address;
 	__asm__ __volatile__("mov %%cr2, %0" : "=r"(address));
 	printf("! page_fault !\n");
@@ -262,7 +264,7 @@ static void page_fault(registers_t *regs) {
 
 void vmm_init() {
 	// XXX: a lot of code depends on all the kernel tables being pre-allocated to avoid calling get_table_alloc (which could result in an infinite loop)
-	isr_set_handler(14, page_fault);
+	isr_set_handler(14, page_fault, NULL);
 
 	uintptr_t p = pmm_alloc_blocks_safe(1);
 	printf("kernel directory: 0x%x\n", p);

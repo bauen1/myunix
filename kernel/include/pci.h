@@ -36,6 +36,6 @@ uint16_t pci_config_readw(uint32_t device, uint8_t offset);
 uint8_t pci_config_readb(uint32_t device, uint8_t offset);
 uint32_t pci_config_read(uint32_t device, uint8_t offset, int size);
 
-void pci_init();
+void pci_print_all();
 
 #endif

@@ -428,9 +428,9 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	process_add(kidle_init());
 
 	/* scan for device and initialise them */
-	pci_init();
-	printf("[%u] [OK] pci_init\n", (unsigned int)ticks);
+	pci_print_all();
 
+	/* initialize all drivers */
 	modules_init();
 
 	assert(mbi->flags & MULTIBOOT_INFO_MODS);
