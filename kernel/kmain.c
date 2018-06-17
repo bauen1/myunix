@@ -17,6 +17,7 @@
 #include <idt.h>
 #include <isr.h>
 #include <keyboard.h>
+#include <module.h>
 #include <multiboot.h>
 #include <pci.h>
 #include <pic.h>
@@ -31,6 +32,12 @@
 #include <tty.h>
 #include <usb/usb.h>
 #include <vmm.h>
+
+extern void *__start_user_shared;
+extern void *__stop_user_shared;
+
+extern void *__start_mod_info;
+extern void *__stop_mod_info;
 
 // TODO: move the multiboot specific stuff to it's own file
 /* main kernel entry point */
@@ -386,6 +393,10 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	/* map the bss section read-write */
 	map_pages((uintptr_t)&__bss_start, (uintptr_t)&__bss_end, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, ".bss");
 
+	map_pages((uintptr_t)&__start_user_shared, (uintptr_t)&__stop_user_shared, PAGE_TABLE_PRESENT, "user shared");
+
+	map_pages((uintptr_t)&__start_mod_info, (uintptr_t)&__stop_mod_info, PAGE_TABLE_PRESENT, "mod info");
+
 	/* directly map the pmm block map */
 	map_pages((uintptr_t)block_map, (uintptr_t)block_map + (block_map_size / 8), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "pmm_map");
 
@@ -420,9 +431,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	pci_init();
 	printf("[%u] [OK] pci_init\n", (unsigned int)ticks);
 
-	usb_init();
-	printf("[%u] [OK] usb_init\n", (unsigned int)ticks);
-
+	modules_init();
 
 	assert(mbi->flags & MULTIBOOT_INFO_MODS);
 	printf("we have modules!\n");

@@ -552,8 +552,8 @@ static void uhci_controller_init(uint32_t device, uint16_t vendorid, uint16_t de
 	cmd &= ~0x400;
 	pci_config_writel(device, 0x04, cmd);
 
-	printf("sbrn: 0x%x\n", sbrn);
 	if ((sbrn != 0x00) && (sbrn != 0x10)) {
+		printf("sbrn: 0x%x\n", sbrn);
 		printf("protocol not supported, disabling device\n");
 		return;
 	}

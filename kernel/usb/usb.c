@@ -3,6 +3,7 @@
 
 #include <console.h>
 #include <list.h>
+#include <module.h>
 #include <string.h>
 #include <heap.h>
 
@@ -276,3 +277,5 @@ void usb_init() {
 	uhci_init();
 	ohci_init();
 }
+
+MODULE_INFO(usb, usb_init);
