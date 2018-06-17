@@ -415,6 +415,7 @@ static uint32_t syscall_dumpregs(registers_t *regs) {
 }
 
 static void syscall_handler(registers_t *regs, void *extra) {
+	(void)extra;
 	switch (regs->eax) {
 		case 0x01:
 			syscall_exit(regs);

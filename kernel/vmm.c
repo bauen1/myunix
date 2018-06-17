@@ -231,6 +231,7 @@ static void dump_directory(page_directory_t *directory) {
 }
 
 static void page_fault(registers_t *regs, void *extra) {
+	(void)extra;
 	uintptr_t address;
 	__asm__ __volatile__("mov %%cr2, %0" : "=r"(address));
 	printf("! page_fault !\n");

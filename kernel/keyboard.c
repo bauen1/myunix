@@ -64,6 +64,7 @@ static ringbuffer_t keyboard_ringbuffer;
 static unsigned char keybuffer[KEYBUFFER_LENGTH];
 
 static void irq1_handler(registers_t *regs, void *extra) {
+	(void)extra;
 	uint8_t status = inb(0x64);
 	if (status & 0x01) {
 		char keycode = inb(0x60);

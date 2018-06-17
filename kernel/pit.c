@@ -17,6 +17,7 @@
 unsigned long ticks = 0;
 
 static void irq0_handler(registers_t *regs, void *extra) {
+	(void)extra;
 	if (ticks%FREQUENCY==0) {
 //		putc('.');
 	}
