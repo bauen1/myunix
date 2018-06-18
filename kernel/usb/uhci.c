@@ -5,9 +5,10 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include <cpu.h>
 #include <console.h>
 #include <heap.h>
-#include <isr.h>
+#include <irq.h>
 #include <pci.h>
 #include <pic.h>
 #include <pit.h>
@@ -449,9 +450,9 @@ void uhci_dev_control(void *_hc, usb_device_t *dev, usb_transfer_t *trans) {
 	uhci_wait_for_qh(hc, qh);
 }
 
-static void uhci_irq(registers_t *regs, void *extra) {
-	(void)regs;
+static unsigned int uhci_irq(unsigned int irq, void *extra) {
 	assert(extra != NULL);
+	irq_ack(irq);
 
 	printf("uhci IRQ!\n");
 	printf("uhci status: 0x%x\n", uhci_reg_readw((uhci_controller_t *)extra, REG_STS));
@@ -566,7 +567,7 @@ static void uhci_controller_init(uint32_t device, uint16_t vendorid, uint16_t de
 	}
 	printf("irq: 0x%x\n", irq);
 
-	isr_set_handler(isr_from_irq(irq), uhci_irq, hc);
+	irq_set_handler(irq, uhci_irq, hc);
 	// we currently don't use the IRQ, so disable it
 
 	printf("host controller reset!\n");

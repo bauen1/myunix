@@ -16,6 +16,7 @@
 #include <heap.h>
 #include <idt.h>
 #include <isr.h>
+#include <irq.h>
 #include <keyboard.h>
 #include <module.h>
 #include <multiboot.h>
@@ -126,6 +127,9 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 
 	isr_init();
 	printf("[%u] [OK] isr_init\n", (unsigned int)ticks);
+
+	irq_init();
+	printf("[%u] [OK] irq_init\n", (unsigned int)ticks);
 
 	pit_init();
 	printf("[%u] [OK] pit_init\n", (unsigned int)ticks);

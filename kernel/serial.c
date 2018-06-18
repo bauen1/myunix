@@ -1,9 +1,9 @@
+#include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 
 #include <cpu.h>
-#include <isr.h>
-#include <pic.h>
+#include <irq.h>
 #include <ringbuffer.h>
 #include <serial.h>
 
@@ -13,9 +13,12 @@ static unsigned char serialbuffer[SERIALBUFFER_LENGTH];
 
 #define PORT 0x3F8
 
-static void irq4_handler(registers_t *regs, void *extra) {
-	ringbuffer_write_byte(&serial_ringbuffer, inb(PORT));
-	irq_ack(regs->isr_num);
+static unsigned int irq4_handler(unsigned int irq, void *extra) {
+	assert(extra != NULL);
+	// FIXME: not checking if the irq was meant for us
+	ringbuffer_write_byte((ringbuffer_t *)extra, inb(PORT));
+	irq_ack(irq);
+	return IRQ_HANDLED;
 }
 
 #define serial_is_transmit_ready() (inb(PORT + 5) & 0x20)
@@ -23,7 +26,7 @@ static void irq4_handler(registers_t *regs, void *extra) {
 
 void serial_init() {
 	ringbuffer_init(&serial_ringbuffer, serialbuffer, SERIALBUFFER_LENGTH);
-	isr_set_handler(isr_from_irq(4), irq4_handler, NULL);
+	irq_set_handler(4, irq4_handler, &serial_ringbuffer);
 
 	// init serial COM0
 	outb(PORT + 1, 0x00); // Disable all interrupts
@@ -38,6 +41,7 @@ void serial_init() {
 }
 
 void serial_putc(char c) {
+	// FIXME: hlt when interrupts are disabled
 	while (serial_is_transmit_ready() == 0);
 	outb(PORT, c);
 }

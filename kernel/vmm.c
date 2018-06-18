@@ -230,8 +230,7 @@ static void dump_directory(page_directory_t *directory) {
 	}
 }
 
-static void page_fault(registers_t *regs, void *extra) {
-	(void)extra;
+static void page_fault(registers_t *regs) {
 	uintptr_t address;
 	__asm__ __volatile__("mov %%cr2, %0" : "=r"(address));
 	printf("! page_fault !\n");
@@ -265,7 +264,7 @@ static void page_fault(registers_t *regs, void *extra) {
 
 void vmm_init() {
 	// XXX: a lot of code depends on all the kernel tables being pre-allocated to avoid calling get_table_alloc (which could result in an infinite loop)
-	isr_set_handler(14, page_fault, NULL);
+	isr_set_handler(14, page_fault);
 
 	uintptr_t p = pmm_alloc_blocks_safe(1);
 	printf("kernel directory: 0x%x\n", p);

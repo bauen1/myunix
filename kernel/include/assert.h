@@ -5,6 +5,8 @@
 
 void __attribute__((noreturn)) __assert_failed(const char *exp, const char *file, int line);
 
+// TODO: make assert a vararg macro and allow passing a message
+
 #ifdef NDEBUG
 #define assert(exp) ((void)((exp) ? 0: __assert_failed((void *)0, __FILE__, __LINE__)))
 #else

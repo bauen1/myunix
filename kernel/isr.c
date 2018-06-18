@@ -1,4 +1,3 @@
-// TODO: implement multiple handlers per IRQ / interrupt, we will need it soon
 #include <assert.h>
 #include <console.h>
 #include <cpu.h>
@@ -7,17 +6,13 @@
 #include <isrs.h>
 #include <pic.h>
 
-static struct {
-	isr_handler handler;
-	void *extra;
-} isr_handlers[256];
+static isr_handler isr_handlers[256];
 
-void isr_set_handler(uint8_t i, isr_handler handler, void *extra) {
+void isr_set_handler(uint8_t i, isr_handler handler) {
 //	printf("isr 0x%x, handler: 0x%x\n", i, (uintptr_t)handler);
-	assert(isr_handlers[i].handler == NULL); // FIXME: remove or just fix the code calling this
-//	isr_handlers[i] = handler;
-	isr_handlers[i].handler = handler;
-	isr_handlers[i].extra = extra;
+	// FIXME: remove or just fix the code calling this
+	assert(isr_handlers[i] == NULL);
+	isr_handlers[i] = handler;
 }
 
 void isr_init() {
@@ -55,7 +50,7 @@ void isr_init() {
 	idt_set_gate(30, _isr30, 0x08, 0x8E);
 	idt_set_gate(31, _isr31, 0x08, 0x8E);
 
-	// interrupts
+	// IRQs
 	idt_set_gate(32, _isr32, 0x08, 0x8E);
 	idt_set_gate(33, _isr33, 0x08, 0x8E);
 	idt_set_gate(34, _isr34, 0x08, 0x8E);
@@ -112,17 +107,10 @@ static const char *exception_name[] = {
 	"reserved",
 };
 
-// FIXME: does this handle spurious IRQ7's correctly ?
-void irq_ack(int isr_num) {
-	if (isr_num >= 32 && isr_num <= 47) {
-		pic_send_eoi(irq_from_isr(isr_num));
-	}
-}
-
 void handle_isr(registers_t *regs) {
 	unsigned int isr_num = regs->isr_num;
-	if (isr_handlers[isr_num].handler) {
-		isr_handlers[isr_num].handler(regs, isr_handlers[isr_num].extra);
+	if (isr_handlers[isr_num]) {
+		isr_handlers[isr_num](regs);
 	} else if (isr_num < 32) {
 		printf("Encountered unhandled exception: '%s' !\n", exception_name[isr_num]);
 		dump_regs(regs);
@@ -131,7 +119,6 @@ void handle_isr(registers_t *regs) {
 		printf("Encountered unhandled interrupt: 0x%x\n", isr_num);
 		if (isr_num >= 32 && isr_num <= 47) {
 			printf("IRQ: %u\n", regs->err_code);
-			irq_ack(regs->err_code);
 		}
 		assert(0 && "unhandled interrupt!");
 	}

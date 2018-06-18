@@ -1,11 +1,11 @@
 /* keyboard.c simple keyboard driver */
+#include <assert.h>
 #include <keyboard.h>
 
-#include <console.h>
 #include <cpu.h>
-#include <isr.h>
+#include <console.h>
+#include <irq.h>
 #include <keyboard.h>
-#include <pic.h>
 #include <ringbuffer.h>
 
 static unsigned char keyboard_map[128] = {
@@ -63,25 +63,26 @@ static unsigned char keyboard_map[128] = {
 static ringbuffer_t keyboard_ringbuffer;
 static unsigned char keybuffer[KEYBUFFER_LENGTH];
 
-static void irq1_handler(registers_t *regs, void *extra) {
-	(void)extra;
+static unsigned int irq1_handler(unsigned int irq, void *extra) {
+	assert(extra != NULL);
 	uint8_t status = inb(0x64);
 	if (status & 0x01) {
 		char keycode = inb(0x60);
 		if (keycode < 0) {
-			irq_ack(regs->isr_num);
-			return;
+			irq_ack(irq);
+			return IRQ_HANDLED;
 		}
 		unsigned char c = keyboard_map[(unsigned int)keycode];
-		ringbuffer_write_byte(&keyboard_ringbuffer, c);
+		ringbuffer_write_byte((ringbuffer_t *)extra, c);
+		irq_ack(irq);
+		return IRQ_HANDLED;
 	}
-
-	irq_ack(regs->isr_num);
+	return IRQ_IGNORED;
 }
 
 void keyboard_init() {
 	ringbuffer_init(&keyboard_ringbuffer, keybuffer, KEYBUFFER_LENGTH);
-	isr_set_handler(isr_from_irq(1), irq1_handler, NULL);
+	irq_set_handler(1, irq1_handler, &keyboard_ringbuffer);
 }
 
 unsigned char keyboard_getc() {

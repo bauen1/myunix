@@ -2,8 +2,7 @@
 
 #include <console.h>
 #include <cpu.h>
-#include <idt.h>
-#include <isr.h>
+#include <irq.h>
 #include <pit.h>
 #include <process.h>
 
@@ -16,14 +15,16 @@
 
 unsigned long ticks = 0;
 
-static void irq0_handler(registers_t *regs, void *extra) {
+static unsigned int irq0_handler(unsigned int irq, void *extra) {
 	(void)extra;
-	if (ticks%FREQUENCY==0) {
+//	if (ticks % FREQUENCY == 0) {
 //		putc('.');
-	}
+//	}
 	ticks++;
-	irq_ack(regs->isr_num);
+	// FIXME: we aren't checking if the IRQ was ment for us (but pit should be the only thing on IRQ0 anyway)
+	irq_ack(irq);
 	switch_task();
+	return IRQ_HANDLED;
 }
 
 static void pit_setup_channel_zero(int frequency) {
@@ -34,7 +35,7 @@ static void pit_setup_channel_zero(int frequency) {
 }
 
 void pit_init() {
-	isr_set_handler(32 + 0, irq0_handler, NULL);
+	irq_set_handler(0, irq0_handler, NULL);
 	pit_setup_channel_zero(FREQUENCY);
 }
 
