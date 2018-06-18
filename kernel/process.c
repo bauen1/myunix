@@ -1,4 +1,6 @@
+// TODO: better file descriptor implementation
 #include <assert.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
 
@@ -26,22 +28,21 @@ extern void *isrs_end;
 extern void *__start_user_shared;
 extern void *__stop_user_shared;
 
-process_t *kidle_init() {
-	// TODO: kidle should free the stack used by kmain
+// FIXME: kidle is just a glorified ktask without file descriptors
+process_t *create_ktask(ktask_func func, char *name) {
 	process_t *process = (process_t *)kcalloc(1, sizeof(process_t));
-	printf("kidle process: 0x%x\n", (uintptr_t)process);
-	process->kstack = 0;
+	assert(process != NULL);
+	process->is_kernel_task = true;
 	process->kstack_size = 0;
 	process->pdir = kernel_directory;
-	process->pid = 0;
-	process->fd_table = kcalloc(1, sizeof(fd_table_t));
-	printf("kidle->fd_table: 0x%x\n", (uintptr_t)process->fd_table);
+	process->pdir = 0;
+	process->fd_table = NULL;
 
 	// kstack
 	size_t kstack_size = 4; // FIXME: hardcoded
+	process->kstack_size = 4;
 	uintptr_t v_kstack = find_vspace(kernel_directory, kstack_size + 1);
 	assert(v_kstack != 0);
-	printf("v_kstack: 0x%x\n", v_kstack);
 	for (size_t i = 0; i <= kstack_size; i++) {
 		uintptr_t v_kaddr = v_kstack + (i + 1)*BLOCK_SIZE;
 		uintptr_t block = pmm_alloc_blocks_safe(1);
@@ -56,7 +57,76 @@ process_t *kidle_init() {
 
 	memset((void *)(v_kstack + BLOCK_SIZE), 0, (kstack_size+1) * BLOCK_SIZE);
 	uintptr_t kstack_top = v_kstack + (kstack_size + 1) * BLOCK_SIZE;
-	printf("kernel_stack: 0x%x - 0x%x\n", v_kstack, kstack_top);
+	printf(" kernel_stack: 0x%x - 0x%x\n", v_kstack, kstack_top);
+	process->kstack = kstack_top;
+
+	process->esp = kstack_top;
+	process->ebp = 0/*process->esp*/;
+	process->eip = (uintptr_t)func;
+	process->name = kmalloc(strlen(name));
+	strncpy(process->name, name, 255);
+
+	registers_t *regs = (registers_t *)(process->kstack - sizeof(registers_t));
+	regs->old_directory = (uint32_t)kernel_directory;
+	regs->gs = 0x10;
+	regs->fs = 0x10;
+	regs->es = 0x10;
+	regs->ds = 0x10;
+	regs->edi = 0;
+	regs->esi = 0;
+	regs->ebp = 0;
+	regs->esp = kstack_top;
+	regs->ebx = 0;
+	regs->ecx = 0;
+	regs->eax = 0;
+	regs->isr_num = 0;
+	regs->err_code = 0;
+	regs->eip = (uintptr_t)func;
+	regs->cs = 0x08;
+	regs->eflags = 0x200; // enable interrupts
+	regs->usersp = kstack_top;
+	regs->ss = 0x10;
+
+	process->regs = regs;
+
+	process->esp = (uint32_t)regs;
+	process->ebp = process->esp;
+	process->eip = (uintptr_t)return_to_regs;
+
+	return process;
+}
+
+process_t *kidle_init() {
+	// TODO: kidle should free the stack used by kmain
+	process_t *process = (process_t *)kcalloc(1, sizeof(process_t));
+	assert(process != NULL);
+	process->is_kernel_task = true;
+	printf("kidle process: 0x%x\n", (uintptr_t)process);
+	process->kstack = 0;
+	process->kstack_size = 0;
+	process->pdir = kernel_directory;
+	process->pid = 0;
+	process->fd_table = kcalloc(1, sizeof(fd_table_t));
+
+	// kstack
+	size_t kstack_size = 4; // FIXME: hardcoded
+	uintptr_t v_kstack = find_vspace(kernel_directory, kstack_size + 1);
+	assert(v_kstack != 0);
+	for (size_t i = 0; i <= kstack_size; i++) {
+		uintptr_t v_kaddr = v_kstack + (i + 1)*BLOCK_SIZE;
+		uintptr_t block = pmm_alloc_blocks_safe(1);
+		map_page(get_table_alloc(v_kaddr, kernel_directory), v_kaddr,
+			block,
+			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
+		__asm__ __volatile__ ("invlpg (%0)" : : "b" (v_kaddr) : "memory");
+	}
+
+	// kstack guard
+	map_page(get_table_alloc(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
+
+	memset((void *)(v_kstack + BLOCK_SIZE), 0, (kstack_size+1) * BLOCK_SIZE);
+	uintptr_t kstack_top = v_kstack + (kstack_size + 1) * BLOCK_SIZE;
+	printf(" kernel_stack: 0x%x - 0x%x\n", v_kstack, kstack_top);
 
 	process->esp = kstack_top;
 	process->ebp = 0/*process->esp*/;
@@ -68,12 +138,11 @@ process_t *kidle_init() {
 }
 
 static void process_map_shared_region(process_t *process, uintptr_t start, uintptr_t end, unsigned int permissions) {
-	printf("process_map_shared_region(process: 0x%x, start: 0x%x, end: 0x%x, permissions: %u)\n", (uintptr_t)process, start, end, permissions);
 	if ((start & 0xFFF) != 0) {
-		printf("WARN: start not aligned!\n");
+		printf(" WARN: start 0x%8x not aligned!\n", start);
 	}
 	if ((end & 0xFFF) != 0) {
-		printf("WARN: end not aligned!\n");
+		printf(" WARN: end 0x%8x not aligned!\n", end);
 	}
 
 	for (uintptr_t i = 0; i < (end - start); i += BLOCK_SIZE) {
@@ -137,7 +206,8 @@ process_t *process_exec(fs_node_t *f) {
 	assert(f != NULL);
 	assert(f->length != 0);
 	process_t *process = (process_t *)kcalloc(1, sizeof(process_t));
-	printf("process: 0x%x\n", (uintptr_t)process);
+	printf(" process: 0x%x\n", (uintptr_t)process);
+	process->is_kernel_task = false;
 	process->fd_table = kcalloc(1, sizeof(fd_table_t));
 	process->fd_table->entries[0] = &tty_node;
 	process->fd_table->entries[1] = &tty_node;
@@ -228,7 +298,8 @@ process_t *process_init(uintptr_t start, uintptr_t end) {
 	uintptr_t virt_heap_start = 0x2000000; // max 16mb text
 
 	process_t *process = (process_t *)kcalloc(1, sizeof(process_t));
-	printf("process: 0x%x\n", (uintptr_t)process);
+	printf(" process: 0x%x\n", (uintptr_t)process);
+	process->is_kernel_task = false;
 	process->fd_table = kcalloc(1, sizeof(fd_table_t));
 	process->fd_table->entries[0] = &tty_node;
 	process->fd_table->entries[1] = &tty_node;
@@ -238,7 +309,7 @@ process_t *process_init(uintptr_t start, uintptr_t end) {
 	uintptr_t real_pdir = pmm_alloc_blocks_safe(1);
 	process->pdir = (page_directory_t *)find_vspace(kernel_directory, 1);
 	assert(process->pdir != 0);
-	printf("process->pdir: 0x%x\n", (uintptr_t)process->pdir);
+	printf(" process->pdir: 0x%x\n", (uintptr_t)process->pdir);
 	map_page(get_table_alloc((uintptr_t)process->pdir, kernel_directory), (uintptr_t)process->pdir,
 		real_pdir,
 		PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
@@ -265,7 +336,7 @@ process_t *process_init(uintptr_t start, uintptr_t end) {
 	}
 
 	// map the .text section
-	printf(".text: 0x%x - 0x%x => 0x%x - 0x%x\n",
+	printf(" .text: 0x%x - 0x%x => 0x%x - 0x%x\n",
 		virt_text_start, virt_text_start + (end - start),
 		start, end);
 	for (uintptr_t i = 0; i < (end - start); i += BLOCK_SIZE) {

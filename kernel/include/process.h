@@ -1,6 +1,7 @@
 #ifndef PROCESS_H
 #define PROCESS_H 1
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -24,10 +25,13 @@ typedef struct process {
 	char *name;
 	pid_t pid;
 	fd_table_t *fd_table;
+	bool is_kernel_task;
 } process_t;
 
 extern process_t *current_process;
 
+typedef void (ktask_func)(void);
+process_t *create_ktask(ktask_func func, char *name);
 process_t *kidle_init(void);
 process_t *process_exec(fs_node_t *f);
 process_t *process_init(uintptr_t start, uintptr_t end);
