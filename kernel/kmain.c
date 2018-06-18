@@ -30,14 +30,11 @@
 #include <tar.h>
 #include <tmpfs.h>
 #include <tty.h>
-#include <usb/usb.h>
 #include <vmm.h>
 
 extern void *__start_user_shared;
 extern void *__stop_user_shared;
 
-extern void *__start_mod_info;
-extern void *__stop_mod_info;
 
 // TODO: move the multiboot specific stuff to it's own file
 /* main kernel entry point */
@@ -189,11 +186,8 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 			mmap = (multiboot_memory_map_t *)((uint32_t)mmap + mmap->size + sizeof(mmap->size))) {
 			if (mmap->type == MULTIBOOT_MEMORY_AVAILABLE) {
 				uintptr_t mmap_end = mmap->addr + mmap->len;
-				printf("mmap_end: 0x%x\n", mmap_end);
 				if (mmap_end > mem_avail) {
-					printf("old mmap_avail: 0x%x\n", mem_avail);
 					mem_avail = mmap->addr + mmap->len;
-					printf("new mmap_avail: 0x%x\n", mem_avail);
 				}
 			}
 		}
@@ -220,7 +214,12 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 				(uint32_t)(mmap->len & 0xFFFFFFFF)
 				);
 			if (mmap->type == MULTIBOOT_MEMORY_AVAILABLE) {
-				printf("available\n");
+				if ((uint32_t)(mmap->addr >> 32) != 0) {
+					printf("available but out of 32bit range!\n");
+					continue;
+				} else {
+					printf("available\n");
+				}
 				for (uintptr_t i = 0; i < mmap->len; i += BLOCK_SIZE) {
 					pmm_unset_block((mmap->addr + i) / BLOCK_SIZE);
 				}
