@@ -24,7 +24,6 @@ void list_free(list_t *list) {
 	}
 }
 
-
 void list_append(list_t *list, node_t *node) {
 	assert(list != NULL);
 	assert(node != NULL);

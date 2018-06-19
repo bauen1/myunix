@@ -6,7 +6,6 @@ BINUTILS_VERSION=2.30
 GCC_VERSION=7.3.0
 GRUB_VERSION=2.02
 TINYCC_TAG=release_0_9_27
-PERL_VERSION=5.20.3
 MUSL_VERSION=v1.1.19
 
 mkdir -p toolchain
@@ -46,12 +45,6 @@ if [ ! -f .downloaded_tinycc ]; then
 	git -C tinycc checkout $TINYCC_TAG
 	git -C tinycc apply ../../patches/tinycc_output_bss.patch
 	touch .downloaded_tinycc
-fi
-if [ ! -f .downloaded_perl ]; then
-	echo "Downloading perl-$PERL_VERSION"
-	wget "http://www.cpan.org/src/5.0/perl-$PERL_VERSION.tar.gz"
-	tar -xvf perl-$PERL_VERSION.tar.gz
-	touch .downloaded_perl
 fi
 if [ ! -f .downloaded_musl ]; then
 	echo "Cloning musl"
