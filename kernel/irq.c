@@ -50,9 +50,20 @@ static void irq_handler(registers_t *regs) {
 				return;
 			}
 		} else {
-			printf("unhandled irq %u!\n", irq);
-			assert(0);
+			break;
 		}
+	}
+
+	if (irq == 7) {
+		// spurious irq
+		// TODO: handle
+		return;
+	}
+
+	if (irq == 15) {
+		// spurious irq
+		// TODO: handle
+		return;
 	}
 
 	printf("unhandled irq %u!\n", irq);
