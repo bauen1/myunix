@@ -61,7 +61,6 @@ void map_pages(uintptr_t start, uintptr_t end, int flags, const char *name) {
 	}
 }
 
-
 // Don't use this method it will break stuff
 void map_direct_kernel(uintptr_t v) {
 //	if ((v & 0xFFF) != 0) {

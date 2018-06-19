@@ -73,7 +73,7 @@ static unsigned int l_pageCount = 16; // FIXME: replace with #define ?
  * \return 0 if the lock was acquired successfully. Anything else is
  * failure.
  */
-int liballoc_lock() {
+static int liballoc_lock() {
 	// TODO: implement properly
 	__asm__ __volatile__ ("cli");
 	return 0;
@@ -85,7 +85,7 @@ int liballoc_lock() {
  *
  * \return 0 if the lock was successfully released.
  */
-int liballoc_unlock() {
+static int liballoc_unlock() {
 	// TODO: implement properly
 	__asm__ __volatile__("sti");
 	return 0;
@@ -98,8 +98,8 @@ int liballoc_unlock() {
  * \return NULL if the pages were not allocated.
  * \return A pointer to the allocated memory.
  */
-int liballoc_free(void *v, size_t pages);
-void *liballoc_alloc(size_t pages) {
+static int liballoc_free(void *v, size_t pages);
+static void *liballoc_alloc(size_t pages) {
 	uintptr_t v_start = find_vspace(kernel_directory, pages);
 	for (size_t i = 0; i < pages; i++) {
 		uintptr_t real_block = pmm_alloc_blocks(1);
@@ -126,7 +126,7 @@ void *liballoc_alloc(size_t pages) {
  *
  * \return 0 if the memory was successfully freed.
  */
-int liballoc_free(void *v, size_t pages) {
+static int liballoc_free(void *v, size_t pages) {
 	assert(v != NULL); // unnecessary ?
 	for (size_t i = 0; i < pages; i++) {
 		uintptr_t vaddr = (uintptr_t)v + i * BLOCK_SIZE;

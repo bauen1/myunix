@@ -518,7 +518,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 		process_add(p);
 	}
 
-	printf("0x%x kb free\n", pmm_count_free_blocks() / 4);
+	printf("%u kb free\n", pmm_count_free_blocks() / 4);
 	// TODO: free anything left lying around that won't be needed (eg. multiboot info)
 	process_enable();
 

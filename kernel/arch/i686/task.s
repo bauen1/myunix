@@ -16,16 +16,11 @@ extern _switch_task
 global switch_task:function (switch_task.end - switch_task)
 switch_task:
 	pushf
-	push ebx
-	push esi
-	push edi
-	push ebp
+	pusha
+
 	call _switch_task
 .done:
-	pop ebp
-	pop edi
-	pop esi
-	pop ebx
+	popa
 	popf
 	ret
 .end:

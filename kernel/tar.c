@@ -7,12 +7,12 @@
 #include <string.h>
 #include <oct2bin.h>
 
-uint32_t tar_read(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buffer);
-uint32_t tar_write(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buffer);
-void tar_open(fs_node_t *node, unsigned int flags);
-void tar_close(fs_node_t *node);
-struct dirent *tar_readdir(struct fs_node *node, uint32_t i);
-fs_node_t *tar_finddir(struct fs_node *node, char *name);
+static uint32_t tar_read(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buffer);
+static uint32_t tar_write(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buffer);
+static void tar_open(fs_node_t *node, unsigned int flags);
+static void tar_close(fs_node_t *node);
+static struct dirent *tar_readdir(struct fs_node *node, uint32_t i);
+static fs_node_t *tar_finddir(struct fs_node *node, char *name);
 
 struct tar_header {
 	char name[100];
@@ -31,7 +31,7 @@ struct tar_obj {
 	uintptr_t offset;
 };
 
-fs_node_t *fs_node_from_tar(struct tar_obj *tar_obj, uintptr_t offset) {
+static fs_node_t *fs_node_from_tar(struct tar_obj *tar_obj, uintptr_t offset) {
 	uint8_t buf[512];
 	fs_node_t *v = (fs_node_t *)kcalloc(1, sizeof(fs_node_t));
 	struct tar_obj *new_obj = (struct tar_obj *)kcalloc(1, sizeof(struct tar_obj));
@@ -68,7 +68,7 @@ static uintptr_t tar_lookup(fs_node_t *device, char *fname) {
 	return -1;
 }
 
-uint32_t tar_read(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buffer) {
+static uint32_t tar_read(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buffer) {
 	if (offset > node->length) {
 		return 0;
 	}
@@ -83,7 +83,7 @@ uint32_t tar_read(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buff
 }
 
 // read only, always return -1
-uint32_t tar_write(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buffer) {
+static uint32_t tar_write(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buffer) {
 	(void)node;
 	(void)offset;
 	(void)size;
@@ -92,20 +92,20 @@ uint32_t tar_write(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buf
 }
 
 // FIXME: implement
-void tar_open(fs_node_t *node, unsigned int flags) {
+static void tar_open(fs_node_t *node, unsigned int flags) {
 	(void)node;
 	(void)flags;
 	return;
 }
 
 // FIXME: implement
-void tar_close(fs_node_t *node) {
+static void tar_close(fs_node_t *node) {
 	(void)node;
 	return;
 }
 
 // FIXME: implement correctly
-struct dirent *tar_readdir(struct fs_node *node, uint32_t i) {
+static struct dirent *tar_readdir(struct fs_node *node, uint32_t i) {
 	uint8_t buf[512];
 	if (i == 0) {
 		struct dirent *v = (struct dirent *)kcalloc(1, sizeof(struct dirent));
@@ -144,7 +144,8 @@ struct dirent *tar_readdir(struct fs_node *node, uint32_t i) {
 	return NULL;
 }
 
-fs_node_t *tar_finddir(struct fs_node *node, char *name) {
+static fs_node_t *tar_finddir(struct fs_node *node, char *name) {
+	printf("tar_finddir(0x%x, '%s');\n", (uintptr_t)node, name);
 	uintptr_t off = tar_lookup(((struct tar_obj *)node->object)->device, name);
 	if (off == (unsigned)-1) {
 		return NULL;
