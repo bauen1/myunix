@@ -80,6 +80,7 @@ static intptr_t copy_from_userspace(page_directory_t *pdir, uintptr_t ptr, size_
 	return n;
 }
 
+__attribute__((unused))
 static intptr_t copy_to_userspace(page_directory_t *pdir, uintptr_t ptr, size_t n, void *buffer) {
 	size_t size_in_blocks = (BLOCK_SIZE - 1 + n + (ptr & 0xfff)) / BLOCK_SIZE;
 	if (size_in_blocks == 0) {
