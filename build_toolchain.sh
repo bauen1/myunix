@@ -89,17 +89,12 @@ if [ ! -f .built_tinycc ]; then
 			--strip-binaries \
 			--sysroot='$PREFIX/sysroot' \
 			--config-musl
-
-		#../configure \
-		#	--prefix="$PREFIX" \
 		#	--enable-cross \
 		#	--sysincludepaths='' \
 		#	--libpaths='' \
 		#	--crtprefix=''
 		make -j$JOBS cross-i386
-#		make -j$JOBS cross-x86_64
-#		make -j$JOBS cross-arm
-#		make -j$JOBS cross-arm64
+		# cross-x86_64 cross-arm cross-arm64
 		make -j$JOBS install
 	)
 
@@ -148,17 +143,6 @@ if [ ! -f .built_grub ]; then
 	echo "Cleaning up source and build directory"
 	rm -rf grub-build
 	touch .built_grub
-fi
-
-if [ ! -f .built_perl ]; then
-	echo "Building grub"
-	(cd perl-$PERL_VERSION
-		./Configure \
-			-des -Dprefix="$PREFIX"
-		make -j$JOBS
-		make -j$JOBS install
-	)
-	touch .built_perl
 fi
 
 if [ ! -f .built_musl ]; then
