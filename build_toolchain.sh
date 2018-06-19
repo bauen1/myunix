@@ -88,7 +88,7 @@ if [ ! -f .built_tinycc ]; then
 			--prefix="$PREFIX/opt" \
 			--strip-binaries \
 			--sysroot='$PREFIX/sysroot' \
-			--config-musl
+#			--config-musl
 		#	--enable-cross \
 		#	--sysincludepaths='' \
 		#	--libpaths='' \
