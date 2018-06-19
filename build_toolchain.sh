@@ -10,7 +10,9 @@ MUSL_VERSION=v1.1.19
 
 mkdir -p toolchain
 export PREFIX="$PWD/toolchain"
-export TARGET=i686-elf
+# TODO: change TARGET to i686-myunix
+export TARGET_ARCH=i686
+export TARGET=$TARGET_ARCH-elf
 export PATH="$PREFIX/bin:$PATH"
 export JOBS=4
 
@@ -88,8 +90,9 @@ if [ ! -f .built_tinycc ]; then
 			--prefix="$PREFIX/opt" \
 			--strip-binaries \
 			--sysroot='$PREFIX/sysroot' \
-#			--config-musl
-		#	--enable-cross \
+			--cpu="$TARGET_ARCH" \
+			--triplet="$TARGET" \
+		#	--config-musl
 		#	--sysincludepaths='' \
 		#	--libpaths='' \
 		#	--crtprefix=''
@@ -168,7 +171,9 @@ if [ ! -f .built_musl ]; then
 
 	echo "Cleaning up build directory"
 	rm -rf musl-build
-	touch .built_musl
 	echo "Linking toolchain/sysroot to installed musl libc"
 	ln -svf musl-install ../sysroot
+	# allow c compilers to find crt*.o
+	ln -svf . ../sysroot/usr/lib/"$TARGET"
+	touch .built_musl
 fi
