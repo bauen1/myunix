@@ -29,18 +29,18 @@ extern void *__start_user_shared;
 extern void *__stop_user_shared;
 
 // FIXME: kidle is just a glorified ktask without file descriptors
-process_t *create_ktask(ktask_func func, char *name) {
+void create_ktask(ktask_func func, char *name) {
+	printf("create_ktask(func: 0x%x, name: '%s');\n", (uintptr_t)func, name);
+
 	process_t *process = (process_t *)kcalloc(1, sizeof(process_t));
 	assert(process != NULL);
 	process->is_kernel_task = true;
-	process->kstack_size = 0;
 	process->pdir = kernel_directory;
-	process->pdir = 0;
 	process->fd_table = NULL;
 
 	// kstack
 	size_t kstack_size = 4; // FIXME: hardcoded
-	process->kstack_size = 4;
+	process->kstack_size = kstack_size;
 	uintptr_t v_kstack = find_vspace(kernel_directory, kstack_size + 1);
 	assert(v_kstack != 0);
 	for (size_t i = 0; i <= kstack_size; i++) {
@@ -55,8 +55,11 @@ process_t *create_ktask(ktask_func func, char *name) {
 	// kstack guard
 	map_page(get_table_alloc(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
 
-	memset((void *)(v_kstack + BLOCK_SIZE), 0, (kstack_size+1) * BLOCK_SIZE);
-	uintptr_t kstack_top = v_kstack + (kstack_size + 1) * BLOCK_SIZE;
+	// set to 0
+	uintptr_t kstack_length = (kstack_size + 1) * BLOCK_SIZE;
+	uintptr_t kstack_top = v_kstack + kstack_length;
+
+	memset((void *)(v_kstack + BLOCK_SIZE), 0, kstack_length);
 	printf(" kernel_stack: 0x%x - 0x%x\n", v_kstack, kstack_top);
 	process->kstack = kstack_top;
 
@@ -83,17 +86,28 @@ process_t *create_ktask(ktask_func func, char *name) {
 	regs->err_code = 0;
 	regs->eip = (uintptr_t)func;
 	regs->cs = 0x08;
-	regs->eflags = 0x200; // enable interrupts
-	regs->usersp = kstack_top;
-	regs->ss = 0x10;
+	// FIXME: ktask enable interrupts
+//	regs->eflags = 0x200; // enable interrupts
+	regs->eflags = 0; // disable interrupts, ktask has to manually enable them and take extra care not to introduce race-conditions
+	regs->usersp = process->kstack;
+	regs->ss = regs->ds;
 
 	process->regs = regs;
 
 	process->esp = (uint32_t)regs;
 	process->ebp = process->esp;
 	process->eip = (uintptr_t)return_to_regs;
+	process_add(process);
+}
 
-	return process;
+void __attribute__((noreturn)) ktask_exit(unsigned int status) {
+	__asm__ __volatile__("cli");
+	printf("ktask_exit(name: '%s', status: %u);\n", current_process->name, status);
+	process_t *p = current_process;
+	process_remove(p);
+	// FIXME: free kstack
+	printf(" kstack: 0x%x kstack_size: %u\n", p->kstack, (uintptr_t)p->kstack_size);
+	__switch_direct();
 }
 
 process_t *kidle_init() {
@@ -396,6 +410,9 @@ void __attribute__((used)) _switch_task() {
 	if (current_process == NULL) {
 		return;
 	}
+
+	/* ensure interrupts are off, it's the caller's responsibility to re-enable them if needed */
+	__asm__ __volatile__("cli");
 
 	uint32_t esp, ebp, eip;
 	__asm__ __volatile__("mov %%esp, %0" : "=r" (esp));

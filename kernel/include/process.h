@@ -31,7 +31,9 @@ typedef struct process {
 extern process_t *current_process;
 
 typedef void (ktask_func)(void);
-process_t *create_ktask(ktask_func func, char *name);
+void create_ktask(ktask_func func, char *name);
+void __attribute__((noreturn)) ktask_exit(unsigned int status);
+
 process_t *kidle_init(void);
 process_t *process_exec(fs_node_t *f);
 process_t *process_init(uintptr_t start, uintptr_t end);
