@@ -62,6 +62,16 @@ void list_remove(list_t *list, void *v) {
 	}
 }
 
+void *list_dequeue(list_t *list) {
+	assert(list != NULL);
+	node_t *out = list->head;
+	assert(out != NULL);
+	list_delete(list, out);
+	void *v = out->value;
+	kfree(out);
+	return v;
+}
+
 void list_delete(list_t *list, node_t *v) {
 	assert(v->owner == list);
 	if (v == list->head) {
