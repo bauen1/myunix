@@ -18,19 +18,15 @@ static intptr_t map_userspace_to_kernel(page_directory_t *pdir, uintptr_t ptr, u
 		printf("map_userspace_to_kernel(0x%x, 0x%x, 0x%x, 0x%x)\n", (uintptr_t)pdir, ptr, kptr, n);
 		assert(0);
 	}
-	printf("map_userspace_to_kernel(0x%x, 0x%x, 0x%x, 0x%x)\n", (uintptr_t)pdir, ptr, kptr, n);
+
 	for (uintptr_t i = 0; i < n; i++) {
 		uintptr_t u_virtaddr = ptr + (i * BLOCK_SIZE);
 		uintptr_t k_virtaddr = kptr + (i * BLOCK_SIZE);
-		printf(" u_virtaddr: 0x%x\n", u_virtaddr);
-		printf(" k_virtaddr: 0x%x\n", k_virtaddr);
 
-		printf(" mapping k_virtaddr to 0!\n");
 		map_page(get_table(k_virtaddr, kernel_directory), k_virtaddr, 0,0);
 		__asm__ __volatile__ ("invlpg (%0)" : : "b" (k_virtaddr) : "memory");
 
 		page_table_t *table = get_table(u_virtaddr, pdir);
-		printf(" table: 0x%x\n", (uintptr_t)table);
 
 		if (table == NULL) {
 			printf(" table == NULL; returning early: %u\n", i);
@@ -38,7 +34,6 @@ static intptr_t map_userspace_to_kernel(page_directory_t *pdir, uintptr_t ptr, u
 		}
 
 		page_t page = get_page(table, u_virtaddr);
-		printf(" page: 0x%x\n", page);
 		if (! (page & PAGE_TABLE_PRESENT)) {
 			// FIXME: this happens way too often (logic wrong ?)
 			printf(" not present; returning early: %u\n", i);
@@ -270,7 +265,6 @@ static uint32_t syscall_read(registers_t *regs) {
 		return -1;
 	}
 
-
 	if (fd_num > 16) {
 		return -1;
 	}
@@ -285,12 +279,11 @@ static uint32_t syscall_read(registers_t *regs) {
 
 	size_t n_blocks = (BLOCK_SIZE - 1 + length + (ptr & 0xfff)) / BLOCK_SIZE;
 	page_directory_t *pdir = current_process->pdir;
-	uintptr_t kptr = find_vspace(kernel_directory, n_blocks); // FIXME
+	uintptr_t kptr = find_vspace(kernel_directory, n_blocks);
 	uintptr_t kptr2 = kptr + (ptr & 0xFFF);
 	size_t v = map_userspace_to_kernel(pdir, ptr & ~0xFFF, kptr, n_blocks);
 	if (v != 0) {
-		printf("syscall_read v: %u\n", (uintptr_t)v);
-		unmap_from_kernel(kptr, v);
+		printf("syscall_read early abort: %u\n", (uintptr_t)v);
 		return -1;
 	}
 	fs_node_t *node = current_process->fd_table->entries[regs->ebx];
@@ -302,7 +295,7 @@ static uint32_t syscall_read(registers_t *regs) {
 static uint32_t syscall_write(registers_t *regs) {
 	uint32_t fd_num = regs->ebx;
 	uintptr_t ptr = regs->ecx;
-	uint32_t length = regs->edx;
+	uintptr_t length = regs->edx;
 //	printf("write(fd: %u, buf: 0x%x, length: 0x%x)\n", fd_num, ptr, length);
 
 	if (current_process->fd_table == NULL) {
@@ -328,7 +321,6 @@ static uint32_t syscall_write(registers_t *regs) {
 	size_t v = map_userspace_to_kernel(pdir, ptr & ~0xFFF, kptr, n_blocks);
 	if (v != 0) {
 		printf("syscall_write early abort v: %u\n", (uintptr_t)v);
-		unmap_from_kernel(kptr, v);
 		return -1;
 	}
 
@@ -354,7 +346,6 @@ static uint32_t syscall_mmap_anon(registers_t *regs) {
 		addr = find_vspace(current_process->pdir, len);
 	}
 
-	// FIXME: hardcoded
 	uint32_t prot;
 	switch (regs->edx) {
 		case (1):
@@ -376,7 +367,7 @@ static uint32_t syscall_mmap_anon(registers_t *regs) {
 	for (size_t i = 0; i < len; i++) {
 		uintptr_t virtaddr = addr + i * BLOCK_SIZE;
 		uintptr_t block = pmm_alloc_blocks_safe(1); // FIXME: this can panic
-		// FIXME: free already mapped pages
+		// TODO: free already mapped pages
 		assert(get_page(get_table(virtaddr, current_process->pdir), virtaddr) == PAGE_VALUE_RESERVED);
 
 		printf("u_virtaddr: 0x%x block: 0x%x\n", virtaddr, block);
