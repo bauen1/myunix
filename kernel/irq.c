@@ -7,6 +7,8 @@
 #include <isr.h>
 #include <pic.h>
 
+// TODO: handle spurious IRQs correctly
+
 // 16 IRQs 8 irq handlers depth
 typedef struct {
 	irq_handler_t handler;
@@ -31,8 +33,8 @@ void irq_set_handler(unsigned int irq, irq_handler_t irq_handler, void *extra) {
 	assert(0);
 }
 
-// FIXME: does this handle spurious IRQ7's correctly ?
 void irq_ack(unsigned int irq) {
+	// FIXME: does this handle spurious IRQ7's correctly ?
 	pic_send_eoi(irq);
 }
 

@@ -1,4 +1,3 @@
-// TODO: implement locking
 #include <assert.h>
 #include <stdarg.h>
 #include <stddef.h>

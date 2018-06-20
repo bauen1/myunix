@@ -17,8 +17,8 @@ page_directory_t __attribute__((aligned(4096))) *kernel_directory;
 
 page_table_t *get_table(uintptr_t virtaddr, page_directory_t *directory) {
 	assert(directory != NULL);
-	// FIXME: we should probably assert that it is mapped as present
-	return (page_table_t *)((uintptr_t)(directory->tables[virtaddr >> 22]) & ~0x3FF);
+	uintptr_t table_addr = directory->tables[virtaddr >> 22];
+	return (page_table_t *)(table_addr & ~0x3FF);
 }
 
 page_table_t *get_table_alloc(uintptr_t virtaddr, page_directory_t *directory) {
@@ -48,10 +48,11 @@ void map_page(page_table_t *table, uintptr_t virtaddr, uintptr_t physaddr, uint1
 	assert(((uintptr_t)table & 0xFFF) == 0);
 	// FIXME: assert physaddr and flags
 	table->pages[(uint32_t)virtaddr >> 12 & 0x3FF] = (page_t)((uint32_t)physaddr | flags);
-	// FIXME: should probably call invlpg here
+	// TODO: should probably call invlpg here
 }
 
 /* helper function */
+
 // directly maps from (including) start to end to kernel space
 void map_pages(uintptr_t start, uintptr_t end, int flags, const char *name) {
 	if (name != NULL) {
@@ -87,10 +88,8 @@ void map_direct_kernel(uintptr_t v) {
 	__asm__ __volatile__ ("invlpg (%0)" : : "b" (v) : "memory");
 }
 
-// TODO: optimise
-// WARNING: this is awfully slow
+// TODO: optimise (it's too slow)
 // TODO: mark found pages with PAGE_VALUE_RESERVED
-// TODO: optimise
 inline uintptr_t vmm_find_dma_region(size_t size) {
 	assert(size != 0);
 
@@ -115,7 +114,6 @@ inline uintptr_t vmm_find_dma_region(size_t size) {
 				if (pmm_test_block(start + len) ||
 					(get_page(get_table(v_addr, kernel_directory), v_addr) != 0)) {
 					// block used
-					goto done;
 					break;
 				} else {
 					len++;
@@ -125,7 +123,6 @@ inline uintptr_t vmm_find_dma_region(size_t size) {
 			if (len == size) {
 				return start;
 			} else {
-done:
 				i = i + len / 32;
 				j = j + len;
 			}

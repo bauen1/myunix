@@ -220,7 +220,7 @@ static void uhci_init_qh(uhci_qh_t *qh, usb_transfer_t *transfer, uhci_td_t *td)
 	qh->transfer = transfer;
 }
 
-// FIXME: needs to disable interrupts ?
+// FIXME: needs to disable interrupts / lock
 static void uhci_insert_qh(struct uhci_controller *hc, uhci_qh_t *qh) {
 	assert(hc != NULL);
 	assert(hc->async_qhs != NULL);
@@ -238,7 +238,7 @@ static void uhci_insert_qh(struct uhci_controller *hc, uhci_qh_t *qh) {
 	end->head = (uint32_t)qh | TD_PTR_QH;
 }
 
-// FIXME: needs to disable interrupts ?
+// FIXME: needs to disable interrupts / lock
 static void uhci_remove_qh(struct uhci_controller *hc, uhci_qh_t *qh) {
 	assert(hc != NULL);
 	assert(qh != NULL);

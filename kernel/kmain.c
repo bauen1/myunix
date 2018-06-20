@@ -36,7 +36,6 @@
 extern void *__start_user_shared;
 extern void *__stop_user_shared;
 
-
 // TODO: move the multiboot specific stuff to it's own file
 /* main kernel entry point */
 void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
@@ -388,20 +387,20 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	}
 
 	/* map the code section read-only */
-	map_pages((uintptr_t)&__text_start, (uintptr_t)&__text_end, PAGE_TABLE_PRESENT, ".text");
+	map_pages((uintptr_t)&__text_start, (uintptr_t)&__text_end, PAGE_TABLE_PRESENT, ".text      ");
 
 	/* map the data section read-write */
-	map_pages((uintptr_t)&__data_start, (uintptr_t)&__data_end, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, ".data");
+	map_pages((uintptr_t)&__data_start, (uintptr_t)&__data_end, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, ".data      ");
 
 	/* map the bss section read-write */
-	map_pages((uintptr_t)&__bss_start, (uintptr_t)&__bss_end, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, ".bss");
+	map_pages((uintptr_t)&__bss_start, (uintptr_t)&__bss_end, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, ".bss       ");
 
-	map_pages((uintptr_t)&__start_user_shared, (uintptr_t)&__stop_user_shared, PAGE_TABLE_PRESENT, "user shared");
+	map_pages((uintptr_t)&__start_user_shared, (uintptr_t)&__stop_user_shared, PAGE_TABLE_PRESENT, "user_shared");
 
-	map_pages((uintptr_t)&__start_mod_info, (uintptr_t)&__stop_mod_info, PAGE_TABLE_PRESENT, "mod info");
+	map_pages((uintptr_t)&__start_mod_info, (uintptr_t)&__stop_mod_info, PAGE_TABLE_PRESENT, "mod_info   ");
 
 	/* directly map the pmm block map */
-	map_pages((uintptr_t)block_map, (uintptr_t)block_map + (block_map_size / 8), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "pmm_map");
+	map_pages((uintptr_t)block_map, (uintptr_t)block_map + (block_map_size / 8), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "pmm_map    ");
 
 	/* map the framebuffer / textbuffer */
 	if ((fb_start != 0) & (fb_size != 0)) {
