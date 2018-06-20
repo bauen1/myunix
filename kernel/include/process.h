@@ -19,6 +19,8 @@ typedef struct {
 typedef struct process {
 	uintptr_t kstack;
 	size_t kstack_size;
+	uintptr_t kstack_top;
+
 	registers_t *regs;
 	uint32_t esp, ebp, eip;
 	page_directory_t *pdir;

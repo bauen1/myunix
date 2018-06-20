@@ -16,6 +16,9 @@
 #include <task.h>
 #include <vmm.h>
 
+// kernel stack size in pages (including guard page)
+#define KSTACK_SIZE 4
+
 static void __attribute__((noreturn)) __restore_process();
 
 process_t *current_process;
@@ -28,7 +31,52 @@ extern void *isrs_end;
 extern void *__start_user_shared;
 extern void *__stop_user_shared;
 
-// FIXME: kidle is just a glorified ktask without file descriptors
+// allocate and map a kernel stack into kernel space
+// we could just call process_init_kstack it shouldn't make a difference (it would be a bit slower)
+static void process_init_kernel_kstack(process_t *process) {
+	assert(process != NULL);
+
+	// kstack
+	process->kstack_size = KSTACK_SIZE;
+	uintptr_t v_kstack = find_vspace(kernel_directory, process->kstack_size + 4);
+	assert(v_kstack != 0);
+
+	// kstack guard
+	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
+	printf(" kstack 0x%8x => GUARD\n", v_kstack);
+	v_kstack += BLOCK_SIZE;
+	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
+	printf(" kstack 0x%8x => GUARD\n", v_kstack);
+	v_kstack += BLOCK_SIZE;
+
+	process->kstack = v_kstack;
+	for (size_t i = 0; i < process->kstack_size; i++) { // skip guard
+		uintptr_t v_kaddr = v_kstack + i * BLOCK_SIZE;
+		uintptr_t block = pmm_alloc_blocks_safe(1);
+		printf(" kstack 0x%8x => 0x%8x\n", v_kaddr, block);
+		assert((get_page(get_table(v_kaddr, kernel_directory), v_kaddr) & PAGE_TABLE_PRESENT) == 0);
+		map_page(get_table(v_kaddr, kernel_directory), v_kaddr, block,
+			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
+		__asm__ __volatile__ ("invlpg (%0)" : : "b" (v_kaddr) : "memory");
+	}
+
+	uintptr_t kstack_length = process->kstack_size * BLOCK_SIZE;
+	process->kstack_top = process->kstack + kstack_length;
+
+	v_kstack += kstack_length;
+	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
+	printf(" kstack 0x%8x => GUARD\n", v_kstack);
+	v_kstack += BLOCK_SIZE;
+	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
+	printf(" kstack 0x%8x => GUARD\n", v_kstack);
+
+	printf("kstack_length: 0x%x\n", kstack_length);
+	memset((void *)process->kstack, 0, kstack_length);
+	printf("kstack: 0x%8x - 0x%8x\n", process->kstack, process->kstack_top);
+}
+
+
+// FIXME: kidle is just a glorified ktask with a fancy name and no way to exit
 void create_ktask(ktask_func func, char *name) {
 	printf("create_ktask(func: 0x%x, name: '%s');\n", (uintptr_t)func, name);
 
@@ -38,38 +86,12 @@ void create_ktask(ktask_func func, char *name) {
 	process->pdir = kernel_directory;
 	process->fd_table = NULL;
 
-	// kstack
-	size_t kstack_size = 4; // FIXME: hardcoded
-	process->kstack_size = kstack_size;
-	uintptr_t v_kstack = find_vspace(kernel_directory, kstack_size + 1);
-	assert(v_kstack != 0);
-	for (size_t i = 0; i <= kstack_size; i++) {
-		uintptr_t v_kaddr = v_kstack + (i + 1)*BLOCK_SIZE;
-		uintptr_t block = pmm_alloc_blocks_safe(1);
-		map_page(get_table_alloc(v_kaddr, kernel_directory), v_kaddr,
-			block,
-			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
-		__asm__ __volatile__ ("invlpg (%0)" : : "b" (v_kaddr) : "memory");
-	}
+	process_init_kernel_kstack(process);
 
-	// kstack guard
-	map_page(get_table_alloc(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
-
-	// set to 0
-	uintptr_t kstack_length = (kstack_size + 1) * BLOCK_SIZE;
-	uintptr_t kstack_top = v_kstack + kstack_length;
-
-	memset((void *)(v_kstack + BLOCK_SIZE), 0, kstack_length);
-	printf(" kernel_stack: 0x%x - 0x%x\n", v_kstack, kstack_top);
-	process->kstack = kstack_top;
-
-	process->esp = kstack_top;
-	process->ebp = 0/*process->esp*/;
-	process->eip = (uintptr_t)func;
-	process->name = kmalloc(strlen(name));
+	process->name = kmalloc(strlen(name) + 1);
 	strncpy(process->name, name, 255);
 
-	registers_t *regs = (registers_t *)(process->kstack - sizeof(registers_t));
+	registers_t *regs = (registers_t *)(process->kstack_top - sizeof(registers_t));
 	regs->old_directory = (uint32_t)kernel_directory;
 	regs->gs = 0x10;
 	regs->fs = 0x10;
@@ -78,7 +100,7 @@ void create_ktask(ktask_func func, char *name) {
 	regs->edi = 0;
 	regs->esi = 0;
 	regs->ebp = 0;
-	regs->esp = kstack_top;
+//	regs->esp = kstack_top;
 	regs->ebx = 0;
 	regs->ecx = 0;
 	regs->eax = 0;
@@ -86,27 +108,37 @@ void create_ktask(ktask_func func, char *name) {
 	regs->err_code = 0;
 	regs->eip = (uintptr_t)func;
 	regs->cs = 0x08;
-	// FIXME: ktask enable interrupts
+	// TODO: enable interrupts in kernel task's for that sweet reentrant kernel
 //	regs->eflags = 0x200; // enable interrupts
-	regs->eflags = 0; // disable interrupts, ktask has to manually enable them and take extra care not to introduce race-conditions
+	regs->eflags = 0;
 	regs->usersp = process->kstack;
 	regs->ss = regs->ds;
 
 	process->regs = regs;
 
 	process->esp = (uint32_t)regs;
-	process->ebp = process->esp;
 	process->eip = (uintptr_t)return_to_regs;
+	process->ebp = 0;
+
 	process_add(process);
 }
 
 void __attribute__((noreturn)) ktask_exit(unsigned int status) {
+	(void)status;
 	__asm__ __volatile__("cli");
-	printf("ktask_exit(name: '%s', status: %u);\n", current_process->name, status);
+	assert(0);
+//	printf("ktask_exit(name: '%s', status: %u);\n", current_process->name, status);
+//	__asm__ __volatile__("cli");
 	process_t *p = current_process;
+//	__asm__ __volatile__("cli");
+//	printf(" p: 0x%x\n", (uintptr_t)p);
+//	__asm__ __volatile__("cli");
 	process_remove(p);
+//	__asm__ __volatile__("cli");
 	// FIXME: free kstack
-	printf(" kstack: 0x%x kstack_size: %u\n", p->kstack, (uintptr_t)p->kstack_size);
+//	__asm__ __volatile__("cli");
+//	printf(" kstack: 0x%x kstack_size: %u\n", p->kstack, (uintptr_t)p->kstack_size);
+//	__asm__ __volatile__("cli");
 	__switch_direct();
 }
 
@@ -116,33 +148,14 @@ process_t *kidle_init() {
 	assert(process != NULL);
 	process->is_kernel_task = true;
 	printf("kidle process: 0x%x\n", (uintptr_t)process);
-	process->kstack = 0;
-	process->kstack_size = 0;
 	process->pdir = kernel_directory;
 	process->pid = 0;
 	process->fd_table = kcalloc(1, sizeof(fd_table_t));
 
-	// kstack
-	size_t kstack_size = 4; // FIXME: hardcoded
-	uintptr_t v_kstack = find_vspace(kernel_directory, kstack_size + 1);
-	assert(v_kstack != 0);
-	for (size_t i = 0; i <= kstack_size; i++) {
-		uintptr_t v_kaddr = v_kstack + (i + 1)*BLOCK_SIZE;
-		uintptr_t block = pmm_alloc_blocks_safe(1);
-		map_page(get_table_alloc(v_kaddr, kernel_directory), v_kaddr,
-			block,
-			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
-		__asm__ __volatile__ ("invlpg (%0)" : : "b" (v_kaddr) : "memory");
-	}
+	process_init_kernel_kstack(process);
 
-	// kstack guard
-	map_page(get_table_alloc(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
-
-	memset((void *)(v_kstack + BLOCK_SIZE), 0, (kstack_size+1) * BLOCK_SIZE);
-	uintptr_t kstack_top = v_kstack + (kstack_size + 1) * BLOCK_SIZE;
-	printf(" kernel_stack: 0x%x - 0x%x\n", v_kstack, kstack_top);
-
-	process->esp = kstack_top;
+//	process->esp = kstack_top;
+	process->esp = process->kstack_top;
 	process->ebp = 0/*process->esp*/;
 	process->eip = (uintptr_t)kidle;
 	process->name = kmalloc(6);
@@ -152,6 +165,7 @@ process_t *kidle_init() {
 }
 
 static void process_map_shared_region(process_t *process, uintptr_t start, uintptr_t end, unsigned int permissions) {
+//	printf("process_map_shared_region(process: 0x%x, start: 0x%x, end: 0x%x, permissions: %u)\n", (uintptr_t)process, start, end, permissions);
 	if ((start & 0xFFF) != 0) {
 		printf(" WARN: start 0x%8x not aligned!\n", start);
 	}
@@ -186,31 +200,53 @@ static void process_map_shared(process_t *process) {
 		PAGE_TABLE_PRESENT);
 }
 
-// allocate and map a kernel stack into both userspace and kernel space
+// allocate and map a kernel stack into kernel space and userspace
 static void process_init_kstack(process_t *process) {
 	assert(process != NULL);
-	size_t kstack_size = 4; // FIXME: hardcoded
-	process->kstack_size = kstack_size;
-	uintptr_t v_kstack = find_vspace(kernel_directory, kstack_size + 1);
+
+	// kstack
+	process->kstack_size = KSTACK_SIZE;
+	uintptr_t v_kstack = find_vspace(kernel_directory, process->kstack_size + 4);
 	assert(v_kstack != 0);
-	for (size_t i = 0; i <= kstack_size; i++) {
-		uintptr_t v_kaddr = v_kstack + (i + 1)*BLOCK_SIZE;
-		uintptr_t block = pmm_alloc_blocks_safe(1);
-		map_page(get_table_alloc(v_kaddr, kernel_directory), v_kaddr,
-			block,
-			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
-		map_page(get_table_alloc(v_kaddr, process->pdir), v_kaddr,
-			block,
-			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
-	}
 
 	// kstack guard
-	map_page(get_table_alloc(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
+	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
 	map_page(get_table_alloc(v_kstack, process->pdir), v_kstack, PAGE_VALUE_GUARD, 0);
+	printf(" kstack 0x%8x => GUARD\n", v_kstack);
+	v_kstack += BLOCK_SIZE;
+	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
+	map_page(get_table_alloc(v_kstack, process->pdir), v_kstack, PAGE_VALUE_GUARD, 0);
+	printf(" kstack 0x%8x => GUARD\n", v_kstack);
+	v_kstack += BLOCK_SIZE;
 
-	memset((void *)(v_kstack + BLOCK_SIZE), 0, (kstack_size+1) * BLOCK_SIZE);
-	uintptr_t kstack_top = v_kstack + (kstack_size + 1) * BLOCK_SIZE;
-	process->kstack = kstack_top;
+	process->kstack = v_kstack;
+	for (size_t i = 0; i < process->kstack_size; i++) { // skip guard
+		uintptr_t v_kaddr = v_kstack + i * BLOCK_SIZE;
+		uintptr_t block = pmm_alloc_blocks_safe(1);
+		printf(" kstack 0x%8x => 0x%8x\n", v_kaddr, block);
+		assert((get_page(get_table(v_kaddr, kernel_directory), v_kaddr) & PAGE_TABLE_PRESENT) == 0);
+		map_page(get_table(v_kaddr, kernel_directory), v_kaddr, block,
+			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
+		map_page(get_table_alloc(v_kaddr, process->pdir), v_kaddr, block,
+			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
+		__asm__ __volatile__ ("invlpg (%0)" : : "b" (v_kaddr) : "memory");
+	}
+
+	uintptr_t kstack_length = process->kstack_size * BLOCK_SIZE;
+	process->kstack_top = process->kstack + kstack_length;
+
+	v_kstack += kstack_length;
+	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
+	map_page(get_table_alloc(v_kstack, process->pdir), v_kstack, PAGE_VALUE_GUARD, 0);
+	printf(" kstack 0x%8x => GUARD\n", v_kstack);
+	v_kstack += BLOCK_SIZE;
+	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
+	map_page(get_table_alloc(v_kstack, process->pdir), v_kstack, PAGE_VALUE_GUARD, 0);
+	printf(" kstack 0x%8x => GUARD\n", v_kstack);
+
+	printf("kstack_length: 0x%x\n", kstack_length);
+	memset((void *)process->kstack, 0, kstack_length);
+	printf("kstack: 0x%8x - 0x%8x\n", process->kstack, process->kstack_top);
 }
 
 process_t *process_exec(fs_node_t *f) {
@@ -248,6 +284,7 @@ process_t *process_exec(fs_node_t *f) {
 		// allocate non-continous space
 		uintptr_t virtaddr = virt_heap_start + i*BLOCK_SIZE;
 		uintptr_t block = (uintptr_t)pmm_alloc_blocks_safe(1);
+//		printf(" 0x%8x => 0x%8x PRESENT|WRITE|USER\n", virtaddr, block);
 		map_page(get_table(k_tmp, kernel_directory), k_tmp, block,
 			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
 		__asm__ __volatile__ ("invlpg (%0)" : : "b" (k_tmp) : "memory");
@@ -268,6 +305,7 @@ process_t *process_exec(fs_node_t *f) {
 		__asm__ __volatile__ ("invlpg (%0)" : : "b" (k_tmp) : "memory");
 		uint32_t j = fs_read(f, i, BLOCK_SIZE, (uint8_t *)k_tmp);
 		assert(j != (unsigned)-1);
+//		printf("user: 0x%x => 0x%x (puw) 0x%x\n", u_vaddr, block, j);
 		map_page(get_table_alloc(u_vaddr, process->pdir),
 			u_vaddr,
 			block,
@@ -275,7 +313,7 @@ process_t *process_exec(fs_node_t *f) {
 	}
 	map_page(get_table(k_tmp, kernel_directory), k_tmp, 0, 0);
 
-	registers_t *regs = (registers_t *)(process->kstack - sizeof(registers_t));
+	registers_t *regs = (registers_t *)(process->kstack_top - sizeof(registers_t));
 	regs->old_directory = (uint32_t)real_pdir;
 	regs->gs = 0x23;
 	regs->fs = 0x23;
@@ -435,7 +473,12 @@ void __attribute__((noreturn)) __switch_direct(void) {
 }
 
 static void __attribute__((noreturn)) __restore_process() {
-	tss_set_kstack(current_process->kstack);
+//	tss_set_kstack(current_process->kstack);
+	if (current_process->is_kernel_task) {
+		tss_set_kstack(0);
+	} else {
+		tss_set_kstack(current_process->kstack_top);
+	}
 
 	uint32_t esp = current_process->esp;
 	uint32_t ebp = current_process->ebp;
@@ -456,14 +499,17 @@ static void __attribute__((noreturn)) __restore_process() {
 #endif
 }
 
+/* only call with interrupts off */
 void process_remove(process_t *p) {
 	assert(process_list != NULL);
 	assert(p != NULL);
-	list_remove(process_list, p);
 	if (current_process == p) {
 		current_process_node = process_list->head;
+		assert(current_process_node != NULL);
 		current_process = current_process_node->value;
+		assert(current_process != NULL);
 	}
+	list_remove(process_list, p);
 }
 
 void process_add(process_t *p) {
@@ -471,7 +517,7 @@ void process_add(process_t *p) {
 	assert(p != NULL);
 	if (process_list == NULL) {
 		process_list = list_init();
-		printf("process_list: 0x%x\n", (uintptr_t)process_list);
+//		printf("process_list: 0x%x\n", (uintptr_t)process_list);
 	}
 	list_insert(process_list, p);
 	__asm__ __volatile__ ("sti");
