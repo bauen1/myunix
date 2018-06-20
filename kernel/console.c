@@ -12,16 +12,16 @@
 #include <tty.h>
 #include <fs.h>
 
-// FIXME: this breaks early boot
-static void lock(void) {
-//	__asm__ __volatile__ ("cli");
-}
+#define ensure_int_disabled \
+	uint32_t _eflags = 0; \
+	__asm__ __volatile__("pushf\npop %0" : "=r"(_eflags)); \
+	__asm__ __volatile__("cli"); \
+	{
 
-static void unlock(void) {
-//	__asm__ __volatile__ ("sti");
-}
+#define restore_int }\
+	if (_eflags & (1<<9)) { __asm__ __volatile__("sti"); };
 
-uint32_t tty_read(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buf) {
+static uint32_t tty_read(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buf) {
 	(void)node;
 	(void)offset;
 	for (uintptr_t i = 0; i < size; i++) {
@@ -30,7 +30,7 @@ uint32_t tty_read(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buf)
 	return size;
 }
 
-uint32_t tty_write(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buf) {
+static uint32_t tty_write(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buf) {
 	(void)node;
 	(void)offset;
 	for (uintptr_t i = 0; i < size; i++) {
@@ -52,21 +52,41 @@ void console_init() {
 }
 
 char getc() {
-	char c = keyboard_getc();
+	char c;
+
+	uint32_t eflags = 0;
+	__asm__ __volatile__("pushf\n"
+				"pop %0\n"
+				"cli"
+			: "=r" (eflags));
+
+	c = keyboard_getc();
 	//char c = serial_getc();
 	if (c == '\r') {
-		return '\n';
-	} else {
-		return c;
+		c = '\n';
 	}
+
+	if (eflags & ( 1 << 9) ) {
+		__asm__ __volatile__("sti");
+	}
+
+	return c;
 }
 
 void putc(char c) {
-	lock();
+	uint32_t eflags = 0;
+	__asm__ __volatile__("pushf\n"
+				"pop %0\n"
+				"cli"
+			: "=r" (eflags));
+
 	tty_putc(c);
 	framebuffer_putc(c);
 	serial_putc(c);
-	unlock();
+
+	if (eflags & ( 1 << 9) ) {
+		__asm__ __volatile__("sti");
+	}
 }
 
 void puts(const char *s) {

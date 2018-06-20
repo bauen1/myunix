@@ -39,6 +39,7 @@ void pit_init() {
 	pit_setup_channel_zero(FREQUENCY);
 }
 
+// TODO: implement a better sleep function
 void _sleep(unsigned long miliseconds) {
 	// FIXME: assert when interrupts are disabled
 

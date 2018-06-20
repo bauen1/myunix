@@ -1,5 +1,4 @@
 // FIXME: use invlpg
-// FIXME: handle overflow everywhere (copy_{from,to}_userspace should already be correct)
 #include <assert.h>
 #include <stddef.h>
 
@@ -13,38 +12,64 @@
 #include <vmm.h>
 
 // 0 on success, size mapped on failure
-// TODO: CRITICAL FIXME: returns 0 incase of early failure
+// TODO: CRITICAL FIXME: may return 0 incase of failure on first page early which is success
 static intptr_t map_userspace_to_kernel(page_directory_t *pdir, uintptr_t ptr, uintptr_t kptr, size_t n) {
 	if ((pdir == NULL) || ((ptr & 0xFFF) != 0) || ((kptr & 0xFFF) != 0) || (n == 0)) {
 		printf("map_userspace_to_kernel(0x%x, 0x%x, 0x%x, 0x%x)\n", (uintptr_t)pdir, ptr, kptr, n);
 		assert(0);
 	}
+	printf("map_userspace_to_kernel(0x%x, 0x%x, 0x%x, 0x%x)\n", (uintptr_t)pdir, ptr, kptr, n);
 	for (uintptr_t i = 0; i < n; i++) {
 		uintptr_t u_virtaddr = ptr + (i * BLOCK_SIZE);
 		uintptr_t k_virtaddr = kptr + (i * BLOCK_SIZE);
+		printf(" u_virtaddr: 0x%x\n", u_virtaddr);
+		printf(" k_virtaddr: 0x%x\n", k_virtaddr);
+
+		printf(" mapping k_virtaddr to 0!\n");
+		map_page(get_table(k_virtaddr, kernel_directory), k_virtaddr, 0,0);
+		__asm__ __volatile__ ("invlpg (%0)" : : "b" (k_virtaddr) : "memory");
 
 		page_table_t *table = get_table(u_virtaddr, pdir);
+		printf(" table: 0x%x\n", (uintptr_t)table);
+
 		if (table == NULL) {
 			printf(" table == NULL; returning early: %u\n", i);
-			return i;
+			goto failure;
 		}
+
 		page_t page = get_page(table, u_virtaddr);
+		printf(" page: 0x%x\n", page);
 		if (! (page & PAGE_TABLE_PRESENT)) {
+			// FIXME: this happens way too often (logic wrong ?)
 			printf(" not present; returning early: %u\n", i);
-			return i;
+			goto failure;
 		}
 		if (! (page & PAGE_TABLE_READWRITE)) {
 			printf(" not read-write; returning early: %u\n", i);
-			return i;
+			goto failure;
 		}
 		if (! (page & PAGE_TABLE_USER)) {
 			printf(" not user; returning early: %u\n", i);
-			return i;
+			goto failure;
 		}
 		map_page(get_table(k_virtaddr, kernel_directory), k_virtaddr, page, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
 		__asm__ __volatile__ ("invlpg (%0)" : : "b" (k_virtaddr) : "memory");
 	}
+
 	return 0;
+
+failure:
+	dump_directory(current_process->pdir);
+	for (uintptr_t i = 0; i < n; i++) {
+		uintptr_t virtaddr = i * BLOCK_SIZE + kptr;
+		page_table_t *table = get_table(virtaddr, kernel_directory);
+		if (get_page(table, virtaddr) == 0) {
+			break;
+		} else {
+			map_page(table, virtaddr, 0, 0);
+		}
+	}
+	return -1;
 }
 
 // 0 on success
