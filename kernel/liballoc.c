@@ -73,9 +73,15 @@ static unsigned int l_pageCount = 16; // FIXME: replace with #define ?
  * \return 0 if the lock was acquired successfully. Anything else is
  * failure.
  */
+
+static int eflags;
+
 static int liballoc_lock() {
 	// TODO: implement properly
-	__asm__ __volatile__ ("cli");
+	__asm__ __volatile__("pushf\n"
+				"pop %0\n"
+				"cli"
+			: "=r" (eflags));
 	return 0;
 }
 
@@ -87,7 +93,9 @@ static int liballoc_lock() {
  */
 static int liballoc_unlock() {
 	// TODO: implement properly
-	__asm__ __volatile__("sti");
+	if (eflags & (1 << 9)) {
+		__asm__ __volatile__("sti");
+	}
 	return 0;
 }
 

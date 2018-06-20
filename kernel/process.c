@@ -21,6 +21,8 @@
 
 static void __attribute__((noreturn)) __restore_process();
 
+void __attribute__((noreturn)) _ktask_exit(uint32_t status);
+
 process_t *current_process;
 node_t *current_process_node;
 list_t *process_list;
@@ -77,7 +79,7 @@ static void process_init_kernel_kstack(process_t *process) {
 
 
 // FIXME: kidle is just a glorified ktask with a fancy name and no way to exit
-void create_ktask(ktask_func func, char *name) {
+void create_ktask(ktask_func func, char *name, void *extra) {
 	printf("create_ktask(func: 0x%x, name: '%s');\n", (uintptr_t)func, name);
 
 	process_t *process = (process_t *)kcalloc(1, sizeof(process_t));
@@ -91,54 +93,33 @@ void create_ktask(ktask_func func, char *name) {
 	process->name = kmalloc(strlen(name) + 1);
 	strncpy(process->name, name, 255);
 
-	registers_t *regs = (registers_t *)(process->kstack_top - sizeof(registers_t));
-	regs->old_directory = (uint32_t)kernel_directory;
-	regs->gs = 0x10;
-	regs->fs = 0x10;
-	regs->es = 0x10;
-	regs->ds = 0x10;
-	regs->edi = 0;
-	regs->esi = 0;
-	regs->ebp = 0;
-//	regs->esp = kstack_top;
-	regs->ebx = 0;
-	regs->ecx = 0;
-	regs->eax = 0;
-	regs->isr_num = 0;
-	regs->err_code = 0;
-	regs->eip = (uintptr_t)func;
-	regs->cs = 0x08;
-	// TODO: enable interrupts in kernel task's for that sweet reentrant kernel
-//	regs->eflags = 0x200; // enable interrupts
-	regs->eflags = 0;
-	regs->usersp = process->kstack;
-	regs->ss = regs->ds;
+	// TODO: enable interrupts in kernel task's for preemption (we need to fix a lot of things before that)
+	process->regs = NULL;
+	uintptr_t esp = process->kstack_top;
+	esp -= sizeof(uintptr_t);
+	*((uintptr_t *)esp) = (uintptr_t)name;
+	esp -= sizeof(uintptr_t);
+	*((uintptr_t *)esp) = (uintptr_t)extra;
+	esp -= sizeof(uintptr_t);
+	*((uintptr_t *)esp) = (uintptr_t)func;
 
-	process->regs = regs;
-
-	process->esp = (uint32_t)regs;
-	process->eip = (uintptr_t)return_to_regs;
+	process->esp = (uint32_t)esp;
+	process->eip = (uintptr_t)&__call_ktask;
 	process->ebp = 0;
 
 	process_add(process);
 }
 
-void __attribute__((noreturn)) ktask_exit(unsigned int status) {
-	(void)status;
-	__asm__ __volatile__("cli");
-	assert(0);
-//	printf("ktask_exit(name: '%s', status: %u);\n", current_process->name, status);
-//	__asm__ __volatile__("cli");
+// should only be called with interrupts off
+void __attribute__((noreturn)) _ktask_exit(uint32_t status) {
+	__asm__ __volatile__ ("cli");
+	printf("ktask_exit(name: '%s', status: %u);\n", current_process->name, status);
 	process_t *p = current_process;
-//	__asm__ __volatile__("cli");
-//	printf(" p: 0x%x\n", (uintptr_t)p);
-//	__asm__ __volatile__("cli");
 	process_remove(p);
-//	__asm__ __volatile__("cli");
+	printf(" kstack: 0x%x kstack_size: %u\n", p->kstack, (uintptr_t)p->kstack_size);
 	// FIXME: free kstack
-//	__asm__ __volatile__("cli");
-//	printf(" kstack: 0x%x kstack_size: %u\n", p->kstack, (uintptr_t)p->kstack_size);
-//	__asm__ __volatile__("cli");
+	kfree(p);
+	printf(" switch direct!\n");
 	__switch_direct();
 }
 
