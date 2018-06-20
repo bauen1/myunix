@@ -1,14 +1,16 @@
 .DEFAULT: all
 .PHONY: all
-all: kernel/iso/modules/initrd.tar
+all: kernel/iso/modules/initrd.tar init.elf
 
 CC:=./toolchain/opt/bin/i386-tcc
 LD:=$(CC)
 
-init.o: init.c
-	$(CC) $(CFLAGS) -g -c $< -o $@
+CFLAGS=-g
 
-init: init.o
+init.o: init.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+init.elf: init.o
 	$(LD) $(LDFLAGS) -Wl,-Ttext=0x1000000 -static -g -o $@ $< $(AFTER_LDFLAGS)
 
 tar_root/init: init.o
@@ -17,8 +19,12 @@ tar_root/init: init.o
 kernel/iso/modules/initrd.tar: tar_root tar_root/init
 	cd $< && find . -print0 | cpio --create -0 -v --format=ustar > ../$@
 
-.PHONY: all
-all: kernel/iso/modules/initrd.tar
 .PHONY: clean
 clean:
-	rm -f init.o kernel/iso/modules/initrd.tar
+	rm -f init.o init.elf
+	rm -f kernel/iso/modules/initrd.tar
+
+.PHONY: update-musl-patch
+update-musl-patch:
+	git -C toolchain/src/musl diff -p --staged > toolchain/patches/musl.patch
+

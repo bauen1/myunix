@@ -180,10 +180,6 @@ todo:
 	grep --color=always "XXX" -r .
 	grep --color=always "FIXME" -r .
 
-.PHONY: update-musl-patch
-update-musl-patch:
-	git -C toolchain/src/musl diff -p --staged > toolchain/patches/musl.patch
-
 #
 
 -include $(DEPS)
