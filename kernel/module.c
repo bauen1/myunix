@@ -3,6 +3,9 @@
 #include <console.h>
 #include <module.h>
 
+__attribute__((used))
+static __attribute__((section("mod_info"))) unsigned int _a[0];
+
 void modules_init() {
 	printf("modules init!\n");
 	uintptr_t mod_info_start = (uintptr_t)&__start_mod_info;
