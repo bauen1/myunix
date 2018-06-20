@@ -59,25 +59,30 @@ inline uint32_t pmm_find_first_free_region(size_t size) {
 			// all blocks are used, skip this entry
 			continue;
 		}
+
 		for (uint8_t j = 0; j < 32; j++) {
 			uint32_t bit = (1 << j);
-			if ( ! (block_map[i] & bit)) {
-				uint32_t start = i*32+j;
-				uint32_t len = 1;
-				while (len < size) {
-					if (pmm_test_block(start + len)) {
-						// block used
-						break;
-					} else {
-						len++;
-					}
-				}
-				if (len == size) {
-					return start;
+			if (block_map[i] & bit) {
+				// skip
+				continue;
+			}
+
+			uint32_t start = i*32+j;
+			uint32_t len = 1;
+			while (len < size) {
+				if (pmm_test_block(start + len)) {
+					// block used
+					break;
 				} else {
-					i = i + len / 32;
-					j = j + len;
+					len++;
 				}
+			}
+
+			if (len == size) {
+				return start;
+			} else {
+				i = i + len / 32;
+				j = j + len;
 			}
 		}
 	}

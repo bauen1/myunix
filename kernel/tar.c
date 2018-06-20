@@ -161,6 +161,7 @@ fs_node_t *mount_tar(fs_node_t *device) {
 	tar_root_obj->device = device;
 	tar_root_obj->offset = 0;
 
+//	strncpy(tar_root->name, "tar_root", 255);
 	tar_root->read = tar_read;
 	tar_root->write = tar_write;
 	tar_root->open = tar_open;

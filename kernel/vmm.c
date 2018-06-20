@@ -1,3 +1,4 @@
+// TODO: ensure interrupts are off
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -23,7 +24,7 @@ page_table_t *get_table(uintptr_t virtaddr, page_directory_t *directory) {
 page_table_t *get_table_alloc(uintptr_t virtaddr, page_directory_t *directory) {
 	assert(directory != NULL);
 	page_table_t *table = get_table(virtaddr, directory);
-	if (table == 0) {
+	if (table == NULL) {
 		uintptr_t v = vmm_find_dma_region(1);
 		assert(v != 0);
 		pmm_set_block(v);
@@ -95,30 +96,38 @@ inline uintptr_t vmm_find_dma_region(size_t size) {
 
 	for (uint32_t i = 0; i < block_map_size; i++) {
 		if (block_map[i] == 0xFFFFFFFF) {
+			// skip
 			continue;
 		}
 
+		// check every bit in block_map[i]
 		for (uint8_t j = 0; j < 32; j++) {
 			uint32_t bit = (1 << j);
-			if ( ! (block_map[i] & bit)) {
-				uint32_t start = i*32+j;
-				uint32_t len = 0;
-				while (len < size) {
-					uintptr_t v_addr = (start + len) * BLOCK_SIZE;
-					if (pmm_test_block(start + len) ||
-						(get_page(get_table(v_addr, kernel_directory), v_addr) != 0)) {
-						// block used
-						break;
-					} else {
-						len++;
-					}
-				}
-				if (len == size) {
-					return start;
+			if (block_map[i] & bit) {
+				// skip
+				continue;
+			}
+
+			uint32_t start = i*32+j;
+			uint32_t len = 0;
+			while (len < size) {
+				uintptr_t v_addr = (start + len) * BLOCK_SIZE;
+				if (pmm_test_block(start + len) ||
+					(get_page(get_table(v_addr, kernel_directory), v_addr) != 0)) {
+					// block used
+					goto done;
+					break;
 				} else {
-					i = i + len / 32;
-					j = j + len;
+					len++;
 				}
+			}
+
+			if (len == size) {
+				return start;
+			} else {
+done:
+				i = i + len / 32;
+				j = j + len;
 			}
 		}
 	}
@@ -211,7 +220,7 @@ static void dump_table(page_table_t *table, uintptr_t table_addr, char *prefix) 
 	}
 }
 
-static void dump_directory(page_directory_t *directory) {
+void dump_directory(page_directory_t *directory) {
 	assert(directory != NULL);
 	printf("--- directory: 0x%x ---\n", (uintptr_t)directory);
 	for (uintptr_t table_i = 0; table_i < 1024; table_i++) {

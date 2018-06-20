@@ -54,4 +54,8 @@ void vmm_init();
 
 void vmm_enable();
 
+/* misc. helpers */
+
+void dump_directory(page_directory_t *directory);
+
 #endif
