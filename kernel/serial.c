@@ -4,6 +4,7 @@
 
 #include <cpu.h>
 #include <irq.h>
+#include <process.h>
 #include <ringbuffer.h>
 #include <serial.h>
 
@@ -41,8 +42,9 @@ void serial_init() {
 }
 
 void serial_putc(char c) {
-	// FIXME: hlt when interrupts are disabled
-	while (serial_is_transmit_ready() == 0);
+	while (serial_is_transmit_ready() == 0) {
+		switch_task();
+	}
 	outb(PORT, c);
 }
 
