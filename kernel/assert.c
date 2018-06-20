@@ -34,7 +34,6 @@ static bool is_mapped(uintptr_t v_addr) {
 	return true;
 }
 
-// FIXME: this can page fault
 void print_stack_trace(unsigned int max_frames) {
 	uintptr_t ebp_r = 0;
 	__asm__ __volatile__ (
