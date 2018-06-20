@@ -711,10 +711,11 @@ index 00000000..43c8477a
 +);
 diff --git a/arch/i386-myunix/pthread_arch.h b/arch/i386-myunix/pthread_arch.h
 new file mode 100644
-index 00000000..7f38a562
+index 00000000..d374c859
 --- /dev/null
 +++ b/arch/i386-myunix/pthread_arch.h
-@@ -0,0 +1,10 @@
+@@ -0,0 +1,12 @@
++/*
 +static inline struct pthread *__pthread_self()
 +{
 +	struct pthread *self;
@@ -725,6 +726,7 @@ index 00000000..7f38a562
 +#define TP_ADJ(p) (p)
 +
 +#define MC_PC gregs[REG_EIP]
++*/
 diff --git a/arch/i386-myunix/reloc.h b/arch/i386-myunix/reloc.h
 new file mode 100644
 index 00000000..032f454b
@@ -1253,6 +1255,49 @@ index 2d758af7..a6dd2290 100644
 +	exit(main(0, NULL, NULL));
  	return 0;
  }
+diff --git a/src/env/__reset_tls.c b/src/env/__reset_tls.c
+index 677e57f5..fe14950f 100644
+--- a/src/env/__reset_tls.c
++++ b/src/env/__reset_tls.c
+@@ -1,3 +1,4 @@
++/*
+ #include <string.h>
+ #include "pthread_impl.h"
+ #include "libc.h"
+@@ -14,3 +15,4 @@ void __reset_tls()
+ 			p->size - p->len);
+ 	}
+ }
++*/
+diff --git a/src/env/__stack_chk_fail.c b/src/env/__stack_chk_fail.c
+index 4de82fd9..4b58a3d7 100644
+--- a/src/env/__stack_chk_fail.c
++++ b/src/env/__stack_chk_fail.c
+@@ -9,7 +9,7 @@ void __init_ssp(void *entropy)
+ 	if (entropy) memcpy(&__stack_chk_guard, entropy, sizeof(uintptr_t));
+ 	else __stack_chk_guard = (uintptr_t)&__stack_chk_guard * 1103515245;
+ 
+-	__pthread_self()->CANARY = __stack_chk_guard;
++//	__pthread_self()->CANARY = __stack_chk_guard;
+ }
+ 
+ void __stack_chk_fail(void)
+diff --git a/src/errno/__errno_location.c b/src/errno/__errno_location.c
+index 7172a1be..fc23c682 100644
+--- a/src/errno/__errno_location.c
++++ b/src/errno/__errno_location.c
+@@ -1,6 +1,10 @@
+ #include "pthread_impl.h"
+ 
++int __errno;
++
+ int *__errno_location(void)
+ {
+-	return &__pthread_self()->errno_val;
++//	return &__pthread_self()->errno_val;
++	return &__errno;
+ }
++
 diff --git a/src/exit/_Exit.c b/src/exit/_Exit.c
 index 7a6115c7..e056792c 100644
 --- a/src/exit/_Exit.c
@@ -2250,6 +2295,27 @@ index df864111..dc755856 100644
  
  int __rem_pio2l(long double, long double *);
  long double __sinl(long double, long double, int);
+diff --git a/src/internal/locale_impl.h b/src/internal/locale_impl.h
+index d5a3cc94..f549d008 100644
+--- a/src/internal/locale_impl.h
++++ b/src/internal/locale_impl.h
+@@ -30,11 +30,13 @@ const char *__lctrans_cur(const char *);
+ #define C_LOCALE ((locale_t)&__c_locale)
+ #define UTF8_LOCALE ((locale_t)&__c_dot_utf8_locale)
+ 
+-#define CURRENT_LOCALE (__pthread_self()->locale)
++//#define CURRENT_LOCALE (__pthread_self()->locale)
++#define CURRENT_LOCALE ((locale_t)__c_locale)
+ 
+-#define CURRENT_UTF8 (!!__pthread_self()->locale->cat[LC_CTYPE])
++//#define CURRENT_UTF8 (!!__pthread_self()->locale->cat[LC_CTYPE])
+ 
+ #undef MB_CUR_MAX
+-#define MB_CUR_MAX (CURRENT_UTF8 ? 4 : 1)
++//#define MB_CUR_MAX (CURRENT_UTF8 ? 4 : 1)
++#define MB_CUR_MAX 4
+ 
+ #endif
 diff --git a/src/internal/pthread_impl.h b/src/internal/pthread_impl.h
 index f6a4f2c2..5213945f 100644
 --- a/src/internal/pthread_impl.h
