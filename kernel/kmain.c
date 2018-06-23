@@ -513,6 +513,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 		process_t *p = process_exec(fs_finddir(fs_root, "init"));
 		p->pid = 1;
 		p->name = kmalloc(5);
+		assert(p->name != NULL);
 		strncpy(p->name, "init", 5);
 		process_add(p);
 	}

@@ -48,13 +48,15 @@ static struct dirent *tmpfs_readdir(fs_node_t *node, uint32_t i) {
 	(void)node;
 	if (i < 16) {
 		if (i == 0) {
-			struct dirent *v = (struct dirent *)kcalloc(1, sizeof(struct dirent));
+			struct dirent *v = kcalloc(1, sizeof(struct dirent));
+			assert(v != NULL);
 			v->ino = i;
 			strncpy(v->name, ".", 255);
 			return v;
 		}
 		if (i == 1) {
-			struct dirent *v = (struct dirent *)kcalloc(1, sizeof(struct dirent));
+			struct dirent *v = kcalloc(1, sizeof(struct dirent));
+			assert(v != NULL);
 			v->ino = i;
 			strncpy(v->name, "..", 255);
 			return v;
@@ -67,7 +69,8 @@ static struct dirent *tmpfs_readdir(fs_node_t *node, uint32_t i) {
 		for (node_t *v = l->head; v != NULL; v = v->next) {
 			if (j == 0) {
 				fs_node_t *f = (fs_node_t *)v->value;
-				struct dirent *v = (struct dirent *)kcalloc(1, sizeof(struct dirent));
+				struct dirent *v = kcalloc(1, sizeof(struct dirent));
+				assert(v != NULL);
 				v->ino = i;
 				strncpy(v->name, f->name, 255);
 				return v;
@@ -127,6 +130,7 @@ static void tmpfs_mkdir(fs_node_t *node, char *name, uint16_t permissions) {
 	}
 
 	fs_node_t *f = kcalloc(1, sizeof(fs_node_t));
+	assert(f != NULL);
 	strncpy(f->name, name, 255);
 	f->read = tmpfs_read;
 	f->write = tmpfs_write;
@@ -158,6 +162,7 @@ static void tmpfs_create (fs_node_t *node, char *name, uint16_t permissions) {
 	}
 
 	fs_node_t *f = kcalloc(1, sizeof(fs_node_t));
+	assert(f != NULL);
 	strncpy(f->name, name, 255);
 	f->read = tmpfs_read;
 	f->write = tmpfs_write;
@@ -175,7 +180,7 @@ static void tmpfs_create (fs_node_t *node, char *name, uint16_t permissions) {
 }
 
 fs_node_t *mount_tmpfs() {
-	fs_node_t *root = (fs_node_t *)kcalloc(1, sizeof(fs_node_t));
+	fs_node_t *root = kcalloc(1, sizeof(fs_node_t));
 	assert(root != NULL);
 	strncpy(root->name, "tmpfs", 255);
 	root->read = tmpfs_read;

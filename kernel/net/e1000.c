@@ -201,10 +201,8 @@ static void e1000_send_packet(void *extra, uint8_t *data, size_t length) {
 	assert(length != 0);
 	assert(length <= 4096);
 	assert(e1000->tx != NULL);
-	printf("e1000_send_packet(e1000: 0x%x, data: 0x%x, length: 0x%x)\n", (uintptr_t)e1000, (uintptr_t)data, (uintptr_t)length);
 
 	uint32_t tx_index = e1000_cmd_readl(e1000, E1000_REG_TX_DESC_TAIL);
-	printf(" tx_index: 0x%x\n", tx_index);
 
 	assert(&e1000->tx[tx_index] != NULL);
 	uintptr_t tx_addr = e1000->tx[tx_index].addr;
@@ -214,7 +212,6 @@ static void e1000_send_packet(void *extra, uint8_t *data, size_t length) {
 	e1000->tx[tx_index].status = 0;
 
 	tx_index = (tx_index + 1) % E1000_NUM_TX_DESC;
-	printf(" new tx_index: 0x%x\n", tx_index);
 	e1000_cmd_writel(e1000, E1000_REG_TX_DESC_TAIL, tx_index);
 }
 
@@ -272,6 +269,7 @@ static unsigned int e1000_irq(unsigned int irq, void *extra) {
 				assert(length <= 4096);
 				assert(length != 0);
 				ethernet_packet_t *packet = kcalloc(1, sizeof(ethernet_packet_t));
+				assert(packet != NULL);
 				packet->length = length;
 				packet->data = kmalloc(length);
 				assert(packet->data != NULL);

@@ -82,7 +82,7 @@ static void process_init_kernel_kstack(process_t *process) {
 void create_ktask(ktask_func func, char *name, void *extra) {
 	printf("create_ktask(func: 0x%x, name: '%s');\n", (uintptr_t)func, name);
 
-	process_t *process = (process_t *)kcalloc(1, sizeof(process_t));
+	process_t *process = kcalloc(1, sizeof(process_t));
 	assert(process != NULL);
 	process->is_kernel_task = true;
 	process->pdir = kernel_directory;
@@ -91,6 +91,7 @@ void create_ktask(ktask_func func, char *name, void *extra) {
 	process_init_kernel_kstack(process);
 
 	process->name = kmalloc(strlen(name) + 1);
+	assert(process->name != NULL);
 	strncpy(process->name, name, 255);
 
 	// TODO: enable interrupts in kernel task's for preemption (we need to fix a lot of things before that)
@@ -125,13 +126,15 @@ void __attribute__((noreturn)) _ktask_exit(uint32_t status) {
 
 process_t *kidle_init() {
 	// TODO: kidle should free the stack used by kmain
-	process_t *process = (process_t *)kcalloc(1, sizeof(process_t));
+	process_t *process = kcalloc(1, sizeof(process_t));
 	assert(process != NULL);
 	process->is_kernel_task = true;
 	printf("kidle process: 0x%x\n", (uintptr_t)process);
 	process->pdir = kernel_directory;
 	process->pid = 0;
+	// FIXME: we don't really need a fd table, right ?
 	process->fd_table = kcalloc(1, sizeof(fd_table_t));
+	assert(process->fd_table != NULL);
 
 	process_init_kernel_kstack(process);
 
@@ -236,10 +239,12 @@ process_t *process_exec(fs_node_t *f) {
 	printf("process_exec(0x%x (f->name: '%s'));\n", (uintptr_t)f, f->name);
 	assert(f != NULL);
 	assert(f->length != 0);
-	process_t *process = (process_t *)kcalloc(1, sizeof(process_t));
+	process_t *process = kcalloc(1, sizeof(process_t));
+	assert(process != NULL);
 	printf(" process: 0x%x\n", (uintptr_t)process);
 	process->is_kernel_task = false;
 	process->fd_table = kcalloc(1, sizeof(fd_table_t));
+	assert(process->fd_table != NULL);
 	process->fd_table->entries[0] = &tty_node;
 	process->fd_table->entries[1] = &tty_node;
 	process->fd_table->entries[2] = &tty_node;
@@ -330,10 +335,12 @@ process_t *process_init(uintptr_t start, uintptr_t end) {
 	uintptr_t virt_text_start = 0x1000000;
 	uintptr_t virt_heap_start = 0x2000000; // max 16mb text
 
-	process_t *process = (process_t *)kcalloc(1, sizeof(process_t));
+	process_t *process = kcalloc(1, sizeof(process_t));
+	assert(process != NULL);
 	printf(" process: 0x%x\n", (uintptr_t)process);
 	process->is_kernel_task = false;
 	process->fd_table = kcalloc(1, sizeof(fd_table_t));
+	assert(process->fd_table != NULL);
 	process->fd_table->entries[0] = &tty_node;
 	process->fd_table->entries[1] = &tty_node;
 	process->fd_table->entries[2] = &tty_node;

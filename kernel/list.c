@@ -47,6 +47,7 @@ node_t *list_insert(list_t *list, void *v) {
 	assert(list != NULL);
 	assert(v != NULL); // technically correct but most likely a bug if we call with v=NULL
 	node_t *node = kcalloc(1, sizeof(node_t));
+	assert(node != NULL);
 	node->value = v;
 	list_append(list, node);
 	return node;

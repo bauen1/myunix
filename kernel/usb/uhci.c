@@ -465,6 +465,7 @@ static void uhci_probe_port(uhci_controller_t *hc, uint16_t port) {
 
 	if (status & PORT_ENABLE) {
 		usb_device_t *dev = kcalloc(1, sizeof(usb_device_t));
+		assert(dev != NULL);
 		dev->hc = hc;
 		dev->hc_control = uhci_dev_control;
 		// FIXME: usb_dev_t needs a way of knowing which port a usb device is attached to
@@ -549,7 +550,7 @@ static void uhci_controller_init(uint32_t device, uint16_t vendorid, uint16_t de
 		return;
 	}
 
-	uhci_controller_t *hc = (uhci_controller_t *)kcalloc(1, sizeof(struct uhci_controller));
+	uhci_controller_t *hc = kcalloc(1, sizeof(struct uhci_controller));
 	assert(hc != NULL);
 
 	hc->pci_device = device;

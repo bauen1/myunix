@@ -38,7 +38,7 @@ static void ehci_controller_init(uint32_t device, uint16_t vendorid, uint16_t de
 	(void)deviceid;
 	(void)extra;
 
-	ehci_controller_t *hc = (ehci_controller_t *)kcalloc(1, sizeof(ehci_controller_t));
+	ehci_controller_t *hc = kcalloc(1, sizeof(ehci_controller_t));
 	assert(hc != NULL);
 
 	uintptr_t iobase = pci_config_readl(device, PCI_BAR0);

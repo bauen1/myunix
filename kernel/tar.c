@@ -33,8 +33,10 @@ struct tar_obj {
 
 static fs_node_t *fs_node_from_tar(struct tar_obj *tar_obj, uintptr_t offset) {
 	uint8_t buf[512];
-	fs_node_t *v = (fs_node_t *)kcalloc(1, sizeof(fs_node_t));
-	struct tar_obj *new_obj = (struct tar_obj *)kcalloc(1, sizeof(struct tar_obj));
+	fs_node_t *v = kcalloc(1, sizeof(fs_node_t));
+	assert(v != NULL);
+	struct tar_obj *new_obj = kcalloc(1, sizeof(struct tar_obj));
+	assert(new_obj != NULL);
 
 	new_obj->device = tar_obj->device;
 	new_obj->offset = offset;
@@ -108,13 +110,15 @@ static void tar_close(fs_node_t *node) {
 static struct dirent *tar_readdir(struct fs_node *node, uint32_t i) {
 	uint8_t buf[512];
 	if (i == 0) {
-		struct dirent *v = (struct dirent *)kcalloc(1, sizeof(struct dirent));
+		struct dirent *v = kcalloc(1, sizeof(struct dirent));
+		assert(v != NULL);
 		v->ino = 0;
 		strncpy(v->name, ".", 255);
 		return v;
 	}
 	if (i == 1) {
-		struct dirent *v = (struct dirent *)kcalloc(1, sizeof(struct dirent));
+		struct dirent *v = kcalloc(1, sizeof(struct dirent));
+		assert(v != NULL);
 		v->ino = 0;
 		strncpy(v->name, "..", 255);
 		return v;
@@ -132,7 +136,8 @@ static struct dirent *tar_readdir(struct fs_node *node, uint32_t i) {
 		if (!memcmp((void *)buf, node->name, slen_fname)) {
 			j++;
 			if ((i-1) == j) {
-				struct dirent *v = (struct dirent *)kcalloc(1, sizeof(struct dirent));
+				struct dirent *v = kcalloc(1, sizeof(struct dirent));
+				assert(v != NULL);
 				v->ino = i;
 				memcpy(v->name, buf, 100);
 				return v;
@@ -155,8 +160,10 @@ static fs_node_t *tar_finddir(struct fs_node *node, char *name) {
 }
 
 fs_node_t *mount_tar(fs_node_t *device) {
-	fs_node_t *tar_root = (fs_node_t *)kcalloc(1, sizeof(fs_node_t));
-	struct tar_obj *tar_root_obj = (struct tar_obj *)kcalloc(1, sizeof(struct tar_obj));
+	fs_node_t *tar_root = kcalloc(1, sizeof(fs_node_t));
+	assert(tar_root != NULL);
+	struct tar_obj *tar_root_obj = kcalloc(1, sizeof(struct tar_obj));
+	assert(tar_root_obj != NULL);
 
 	tar_root_obj->device = device;
 	tar_root_obj->offset = 0;
