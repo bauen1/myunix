@@ -1,4 +1,5 @@
 // FIXME: memory leaks
+#include <assert.h>
 
 #include <console.h>
 #include <tar.h>
