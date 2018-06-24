@@ -165,11 +165,11 @@ static inline int getexp( unsigned int size )
 		return -1; // Smaller than the quantum.
 	}
 
-	unsigned int shift = MINEXP;
+	int shift = MINEXP;
 
 	while ( shift < MAXEXP )
 	{
-		if ( (unsigned)(1<<shift) > size) {
+		if ( (1<<shift) > size) {
 			break;
 		}
 		shift += 1;
@@ -391,25 +391,34 @@ void * __attribute__((malloc)) kmalloc(size_t size)
 		index = MINEXP;
 	}
 
-	// Find one big enough.
-	// Start at the front of the list.
-	tag = l_freePages[ index ];
-	while ( tag != NULL ) {
-		// If there's enough space in this tag.
-		if ( (tag->real_size - sizeof(struct boundary_tag))
-			>= (size + sizeof(struct boundary_tag) ) )
-		{
-			#ifdef DEBUG
-			printf("Tag search found %i >= %i\n",(tag->real_size - sizeof(struct boundary_tag)), (size + sizeof(struct boundary_tag) ) );
-			#endif
-			break;
+	// look at each bin from smallest to big (possibly splitting the smallest tag found)
+	while ((!tag) && (index < MAXEXP)) {
+		// Find one big enough.
+		// Start at the front of the list.
+		tag = l_freePages[ index ];
+		printf("required size: %u\n", size + sizeof(struct boundary_tag));
+		while ( tag != NULL ) {
+			// If there's enough space in this tag.
+			printf("tag: 0x%x (real_size: %u, next: 0x%x)\n", tag, tag->real_size, tag->next);
+			if ( (tag->real_size - sizeof(struct boundary_tag))
+				>= (size + sizeof(struct boundary_tag) ) )
+			{
+				#ifdef DEBUG
+					printf("Tag search found %i >= %i\n",(tag->real_size - sizeof(struct boundary_tag)), (size + sizeof(struct boundary_tag) ) );
+				#endif
+				break;
 		}
-
-		tag = tag->next;
+			tag = tag->next;
+		}
+		if (!tag) {
+			index++;
+		}
 	}
-
 	// No page found. Make one.
 	if ( tag == NULL ) {
+#ifdef DEBUG
+		printf("tag search failed!\n");
+#endif
 		if ( (tag = allocate_new_tag( size )) == NULL ) {
 			assert(liballoc_unlock() == 0);
 			assert(0);
