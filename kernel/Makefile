@@ -7,20 +7,14 @@ TARGET_ARCH:=$(lastword $(subst -, ,$(TARGET)))
 ARCHDIR=arch/$(TARGET_ARCH)
 
 # default flags
-CFLAGS?=-O2 -g
+CFLAGS?=-O2 -g -Wall -Wextra -Werror
 CPPFLAGS?=
 LDFLAGS?=-g
 LIBS?=
 ASFLAGS?=-g
 
-DESTDIR?=
-PREFIX?=/usr/local
-BOOTDIR?=/boot
-INCLUDEDIR?=$(PREFIX)/include/myunix
-
 # mandatory flags
-CFLAGS:=$(CFLAGS) -Wall -Wextra -ffreestanding -std=gnu99 -fstack-protector -fno-omit-frame-pointer -Wno-attributes -Wno-format -Wcast-align
-CFLAGS+=-Werror
+CFLAGS:=$(CFLAGS) -ffreestanding -std=gnu99 -fstack-protector -fno-omit-frame-pointer -Wno-attributes -Wno-format -Wcast-align
 CPPFLAGS:=$(CPPFLAGS) -D__myunix_kernel -I./include -I./$(ARCHDIR)
 LDFLAGS:=$(LDFLAGS) -static
 LIBS:=$(LIBS) -nostdlib
@@ -31,46 +25,38 @@ SRCS = $(sort $(wildcard $(SRCS_GLOBS)))
 OBJS:= $(subst .c,.o,$(subst .s,.o,$(SRCS)))
 
 # default tools
-
 AS:=nasm
-CC:=gcc
-#CC:=tcc
-LD:=ld
-OBJCOPY:=objcopy
+CC:=$(TARGET_ARCH)-elf-gcc
+#CC:=i386-tcc
+LD:=$(TARGET_ARCH)-ld
+OBJCOPY:=$(TARGET_ARCH)-objcopy
 
 # try to use ../toolchain or user-supplied TOOLCHAIN_PREFIX
 
 ifneq ("","$(wildcard ../toolchain/bin)")
   $(info Trying to use toolchain in ../toolchain; pass TOOLCHAIN_PREFIX='' to use the system's c compiler overwrite)
-  TOOLCHAIN_PREFIX?=$(PWD)/../toolchain/bin/$(TARGET_ARCH)-elf-
+  TOOLCHAIN_PREFIX?=$(PWD)/../toolchain/bin
 else
   $(info toolchain not build, falling back to system c compiler)
 endif
 
 ifdef TOOLCHAIN_PREFIX
-  CC:=$(TOOLCHAIN_PREFIX)$(CC)
-  LD:=$(TOOLCHAIN_PREFIX)$(LD)
-  OBJCOPY:=$(TOOLCHAIN_PREFIX)$(OBJCOPY)
+  CC:=$(TOOLCHAIN_PREFIX)/$(CC)
+  LD:=$(TOOLCHAIN_PREFIX)/$(LD)
+  OBJCOPY:=$(TOOLCHAIN_PREFIX)/$(OBJCOPY)
 endif
 
 # arch-specific flags
 -include $(ARCHDIR)/make.config
-CFLAGS:=$(CFLAGS) $(ARCH_CFLAGS)
-CPPFLAGS:=$(CPPFLAGS) $(ARCH_CPPFLAGS)
-LDFLAGS:=$(LDFLAGS) $(ARCH_LDFLAGS)
-LIBS:=$(ARCH_LIBS) $(LIBS)
-OBJS:=$(ARCH_OBJS) $(OBJS)
 
-# command line overrides
-CFLAGS:=$(CFLAGS) $(EXTRA_CFLAGS)
-CPPFLAGS:=$(CPPFLAGS) $(EXTRA_CPPFLAGS)
-LDFLAGS:=$(LDFLAGS) $(EXTRA_LDFLAGS)
-LIBS:=$(LIBS) $(EXTRA_LIBS)
-ASFLAGS:=$(ASFLAGS) $(EXTRA_ASFLAGS)
-OBJS:=$(OBJS) $(EXTRA_OBJS)
+# apply arch specific flags and command line flags
+CFLAGS:=$(CFLAGS) $(ARCH_CFLAGS) $(EXTRA_CFLAGS)
+CPPFLAGS:=$(CPPFLAGS) $(ARCH_CPPFLAGS) $(EXTRA_CPPFLAGS)
+LDFLAGS:=$(LDFLAGS) $(ARCH_LDFLAGS) $(EXTRA_LDFLAGS)
+LIBS:=$(ARCH_LIBS) $(LIBS) $(EXTRA_LIBS)
+OBJS:=$(ARCH_OBJS) $(OBJS) $(EXTRA_OBJS)
 
 #
-
 DEPS:=$(OBJS:.o=.d)
 
 .DEFAULT: all
@@ -85,10 +71,12 @@ clean:
 	rm -f iso/*.iso iso/kernel.bin
 
 %.o: %.c
-	$(CC) $(CFLAGS) $(CPPFLAGS) -MD -c $< -o $@
+	@$(CC) $(CFLAGS) $(CPPFLAGS) -MD -c $< -o $@
+	@echo CC $< -o $@
 
 %.o: %.s
-	$(AS) $(ASFLAGS) -MF $(@:.o=.d) $< -o $@
+	@$(AS) $(ASFLAGS) -MF $(@:.o=.d) $< -o $@
+	@echo NASM $< -o $@
 
 .PHONY: kernel
 kernel: kernel.elf kernel.sym kernel.bin
@@ -102,7 +90,8 @@ kernel.elf: $(OBJS) $(ARCHDIR)/link.ld
 
 # optional
 kernel.sym: kernel.elf
-	$(OBJCOPY) --only-keep-debug $^ $@
+	@$(OBJCOPY) --only-keep-debug $^ $@
+	@echo OBJCOPY --only-keep-debug $< -o $@
 
 # objcopy
 kernel.bin: kernel.elf
@@ -170,7 +159,6 @@ codespell:
 .PHONY: complexity
 complexity:
 	complexity -h -c $(SRCS)
-#complexity -h -c *.c arch/i686/*.c arch/i686/boot.s include/*.h arch/i686/*.h
 
 #
 
