@@ -21,8 +21,10 @@ Durand Miller <clutter@djm.co.za>
 
 #define LIBALLOC_MAGIC 0xc001c0de
 #define MAXCOMPLETE 5
-#define MAXEXP 32
-#define MINEXP 8
+//#define MAXEXP 32
+#define MAXEXP 16
+//#define MINEXP 8
+#define MINEXP 1
 
 #define MODE_BEST 0
 #define MODE_INSTANT 1
@@ -52,6 +54,7 @@ struct	boundary_tag
 struct boundary_tag * l_freePages[MAXEXP];
 int l_completePages[MAXEXP];
 
+//#define DEBUG
 #ifdef DEBUG
 // real amount of memory allocated
 unsigned int l_allocated = 0;
@@ -544,6 +547,7 @@ void * __attribute__((malloc)) kcalloc(size_t nobj, size_t size) {
 
        real_size = nobj * size;
        p = kmalloc( real_size );
+	assert(p != NULL);
 
        memset( p, 0, real_size );
 
@@ -573,6 +577,7 @@ void* krealloc(void *p, size_t size) {
 	}
 
 	ptr = kmalloc( size );
+	assert(ptr != NULL);
 	memcpy( ptr, p, real_size );
 	kfree( p );
 
