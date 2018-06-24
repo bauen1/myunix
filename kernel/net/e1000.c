@@ -216,7 +216,7 @@ static void e1000_send_packet(void *extra, uint8_t *data, size_t length) {
 }
 
 /* only call with interrupts disabled */
-static ethernet_packet_t *e1000_receive_packet(void *extra) {
+static packet_t *e1000_receive_packet(void *extra) {
 	e1000_t *e1000 = (e1000_t *)extra;
 	assert(e1000 != NULL);
 	assert(e1000->rx_queue != NULL);
@@ -224,7 +224,7 @@ static ethernet_packet_t *e1000_receive_packet(void *extra) {
 		switch_task();
 	}
 
-	return (ethernet_packet_t *)list_dequeue(e1000->rx_queue);
+	return (packet_t *)list_dequeue(e1000->rx_queue);
 }
 
 static unsigned int e1000_irq(unsigned int irq, void *extra) {
@@ -268,7 +268,7 @@ static unsigned int e1000_irq(unsigned int irq, void *extra) {
 				uint16_t length = e1000->rx[rx_index].length;
 				assert(length <= 4096);
 				assert(length != 0);
-				ethernet_packet_t *packet = kcalloc(1, sizeof(ethernet_packet_t));
+				packet_t *packet = kcalloc(1, sizeof(packet_t));
 				assert(packet != NULL);
 				packet->length = length;
 				packet->data = kmalloc(length);
