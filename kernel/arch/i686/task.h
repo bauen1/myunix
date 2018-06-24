@@ -1,7 +1,6 @@
 #ifndef TASK_H
 #define TASK_H 1
 
-extern void kidle(void);
 /* switch directly to next task */
 extern void switch_task(void);
 /* internal methods */

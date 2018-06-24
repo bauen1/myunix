@@ -13,7 +13,7 @@ typedef struct registers {
 	uint32_t edi __attribute__((packed));
 	uint32_t esi __attribute__((packed));
 	uint32_t ebp __attribute__((packed));
-	uint32_t esp __attribute__((packed));
+	uint32_t useless_esp __attribute__((packed));
 	uint32_t ebx __attribute__((packed));
 	uint32_t edx __attribute__((packed));
 	uint32_t ecx __attribute__((packed));
@@ -25,7 +25,7 @@ typedef struct registers {
 	uint32_t eip __attribute__((packed));
 	uint32_t cs __attribute__((packed));
 	uint32_t eflags __attribute__((packed));
-	uint32_t usersp __attribute__((packed));
+	uint32_t esp __attribute__((packed));
 	uint32_t ss __attribute__((packed));
 } __attribute__((packed)) registers_t;
 

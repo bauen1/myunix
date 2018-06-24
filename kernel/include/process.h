@@ -35,7 +35,6 @@ extern process_t *current_process;
 typedef int (ktask_func)(void *extra, char *name);
 void create_ktask(ktask_func func, char *name, void *extra);
 
-process_t *kidle_init(void);
 process_t *process_exec(fs_node_t *f);
 process_t *process_init(uintptr_t start, uintptr_t end);
 

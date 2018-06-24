@@ -78,7 +78,6 @@ static void process_init_kernel_kstack(process_t *process) {
 }
 
 
-// FIXME: kidle is just a glorified ktask with a fancy name and no way to exit
 void create_ktask(ktask_func func, char *name, void *extra) {
 	printf("create_ktask(func: 0x%x, name: '%s');\n", (uintptr_t)func, name);
 
@@ -122,30 +121,6 @@ void __attribute__((noreturn)) _ktask_exit(uint32_t status) {
 	kfree(p);
 	printf(" switch direct!\n");
 	__switch_direct();
-}
-
-process_t *kidle_init() {
-	// TODO: kidle should free the stack used by kmain
-	process_t *process = kcalloc(1, sizeof(process_t));
-	assert(process != NULL);
-	process->is_kernel_task = true;
-	printf("kidle process: 0x%x\n", (uintptr_t)process);
-	process->pdir = kernel_directory;
-	process->pid = 0;
-	// FIXME: we don't really need a fd table, right ?
-	process->fd_table = kcalloc(1, sizeof(fd_table_t));
-	assert(process->fd_table != NULL);
-
-	process_init_kernel_kstack(process);
-
-//	process->esp = kstack_top;
-	process->esp = process->kstack_top;
-	process->ebp = 0/*process->esp*/;
-	process->eip = (uintptr_t)kidle;
-	process->name = kmalloc(6);
-	assert(process->name != NULL);
-	strncpy(process->name, "kidle", 255);
-	return process;
 }
 
 static void process_map_shared_region(process_t *process, uintptr_t start, uintptr_t end, unsigned int permissions) {
@@ -317,7 +292,7 @@ process_t *process_exec(fs_node_t *f) {
 	regs->eip = virt_text_start;
 	regs->cs = 0x1B;
 	regs->eflags = 0x200; // enable interrupts
-	regs->usersp = virt_heap_start + BLOCK_SIZE;
+	regs->esp = virt_heap_start + BLOCK_SIZE;
 	regs->ss = regs->ds;
 
 	process->regs = regs;
@@ -406,7 +381,7 @@ process_t *process_init(uintptr_t start, uintptr_t end) {
 	regs->eip = virt_text_start;
 	regs->cs = 0x1B;
 	regs->eflags = 0x200; // enable interrupts
-	regs->usersp = virt_heap_start + BLOCK_SIZE;
+	regs->esp = virt_heap_start + BLOCK_SIZE;
 	regs->ss = regs->ds;
 
 	process->regs = regs;

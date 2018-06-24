@@ -36,6 +36,14 @@
 extern void *__start_user_shared;
 extern void *__stop_user_shared;
 
+int kidle(void *extra, char *name) {
+	// TODO: free kernel stack of kmain
+	__asm__ __volatile__("sti");
+	while (1) {
+		__asm__ __volatile__ ("hlt");
+	}
+}
+
 // TODO: move the multiboot specific stuff to it's own file
 /* main kernel entry point */
 void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintptr_t esp) {
@@ -210,7 +218,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 		for (multiboot_memory_map_t *mmap = (multiboot_memory_map_t *)mbi->mmap_addr;
 			((uint32_t)mmap) < (mbi->mmap_addr + mbi->mmap_length);
 			mmap = (multiboot_memory_map_t *)((uint32_t)mmap + mmap->size + sizeof(mmap->size))) {
-			printf("memory addr: 0x%x%08x len: 0x%x%08x ",
+			printf("memory addr: 0x%x%8x len: 0x%x%8x ",
 				(uint32_t)(mmap->addr >> 32),
 				(uint32_t)(mmap->addr & 0xFFFFFFFF),
 				(uint32_t)(mmap->len >> 32),
@@ -427,7 +435,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	printf("[%u] [OK] sti\n", (unsigned int)ticks);
 
 	/* start processes */
-	process_add(kidle_init());
+	create_ktask(kidle, "kidle", NULL);
 
 	/* scan for device and initialise them */
 	pci_print_all();
