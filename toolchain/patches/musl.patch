@@ -1,5 +1,5 @@
 diff --git a/Makefile b/Makefile
-index 308ddaae..8bd70f72 100644
+index 308ddaae..27206456 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -17,7 +17,11 @@ includedir = $(prefix)/include
@@ -8,7 +8,7 @@ index 308ddaae..8bd70f72 100644
  
 -SRC_DIRS = $(addprefix $(srcdir)/,src/* crt ldso)
 +#MY_OBJS2 = stdlib setjmp regex string crypt ctype errno exit math stdio
-+MY_OBJS2 = stdlib string env exit unistd thread conf internal errno stdio math locale multibyte stat setjmp time signal ctype regex prng process mman malloc
++MY_OBJS2 = stdlib string env exit unistd thread conf internal errno stdio math locale multibyte stat setjmp time signal ctype regex prng process mman malloc misc
 +MY_OBJS = $(addprefix src/, $(MY_OBJS2))
 +#SRC_DIRS = $(addprefix $(srcdir)/,src/* crt ldso)
 +SRC_DIRS = $(addprefix $(srcdir)/,$(MY_OBJS) crt ldso)
@@ -881,16 +881,15 @@ index 00000000..f3b61e01
 +	add $12,%esp
 +	ret
 diff --git a/crt/rcrt1.c b/crt/rcrt1.c
-index be017153..a69b983c 100644
+index be017153..c9775a0e 100644
 --- a/crt/rcrt1.c
 +++ b/crt/rcrt1.c
-@@ -11,5 +11,7 @@ _Noreturn int __libc_start_main(int (*)(), int, char **,
+@@ -11,5 +11,6 @@ _Noreturn int __libc_start_main(int (*)(), int, char **,
  __attribute__((__visibility__("hidden")))
  _Noreturn void __dls2(unsigned char *base, size_t *sp)
  {
 +
  	__libc_start_main(main, *sp, (void *)(sp+1), _init, _fini, 0);
-+//	__libc_start_main(main, *sp, (void *)(sp+1), _init, _fini, 0);
  }
 diff --git a/include/stdarg.h b/include/stdarg.h
 deleted file mode 100644

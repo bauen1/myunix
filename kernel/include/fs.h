@@ -6,6 +6,16 @@
 
 #define PATH_SEPERATOR '/'
 
+enum fs_node_flags {
+	FS_NODE_FILE        = 0x01,
+	FS_NODE_DIRECTORY   = 0x02,
+	FS_NODE_CHARDEVICE  = 0x04,
+	FS_NODE_BLOCKDEVICE = 0x08,
+	FS_NODE_PIPE        = 0x10,
+	FS_NODE_SYMLINK     = 0x20,
+	FS_NODE_MOUNTPOINT  = 0x40,
+};
+
 struct dirent {
 	uint32_t ino;
 	char name[256];
@@ -24,6 +34,7 @@ typedef void (*mkdir_type_t) (struct fs_node *node, char *name, uint16_t permiss
 
 typedef struct fs_node {
 	char name[256];
+	enum fs_node_flags flags;
 	void *object;	/* optional driver-specific object */
 
 	size_t length;
@@ -39,6 +50,7 @@ typedef struct fs_node {
 	mkdir_type_t mkdir;
 
 	// TODO: garbage collect
+	int32_t __refcount;
 } fs_node_t;
 
 extern fs_node_t *fs_root;

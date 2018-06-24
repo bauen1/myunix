@@ -2,7 +2,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <console.h>
 #include <fs.h>
+#include <heap.h>
 
 fs_node_t *fs_root;
 
@@ -34,6 +36,12 @@ void fs_open(fs_node_t *node, unsigned int flags) {
 	if (!node) {
 		return;
 	}
+
+	if (node->__refcount >= 0) {
+		// lock
+		node->__refcount++;
+	}
+
 	if (node->open) {
 		node->open(node, flags);
 	}
@@ -48,8 +56,21 @@ void fs_close(fs_node_t *node) {
 		return;
 	}
 
-	if (node->close) {
-		node->close(node);
+	if (node->__refcount == -1) {
+		// special case ( TODO: check for FS_NODE_MOUNTPOINT instead
+		return;
+	}
+
+	// lock
+	node->__refcount--;
+
+	if (node->__refcount == 0) {
+		printf("node refcount = 0\n");
+		if (node->close) {
+			node->close(node);
+		}
+		printf("kfree(node: 0x%x)\n", (uintptr_t)node);
+		kfree(node);
 	}
 	return;
 }
@@ -60,7 +81,7 @@ struct dirent *fs_readdir(struct fs_node *node, uint32_t i) {
 		return NULL;
 	}
 
-	if (node->readdir) {
+	if ((node->flags & FS_NODE_DIRECTORY) && (node->readdir != NULL)) {
 		return node->readdir(node, i);
 	} else {
 		return NULL;
@@ -69,13 +90,20 @@ struct dirent *fs_readdir(struct fs_node *node, uint32_t i) {
 
 // FIXME: check if directory
 struct fs_node *fs_finddir(struct fs_node *node, char *name) {
+	printf("fs finddir(node: 0x%x, name: '%s') ", (uintptr_t)node, name);
 	if (!node) {
 		return NULL;
 	}
 
-	if (node->finddir) {
+	if (node->flags & FS_NODE_DIRECTORY) {
+		printf("is dir");
+	}
+
+	if ((node->flags & FS_NODE_DIRECTORY) && (node->finddir != NULL)) {
+		printf(" directory + finddir valid\n");
 		return node->finddir(node, name);
 	} else {
+		printf(" not dir or finddir = NULL\n");
 		return NULL;
 	}
 }
@@ -85,7 +113,7 @@ void fs_create (fs_node_t *node, char *name, uint16_t permissions) {
 		return;
 	}
 
-	if (node->create) {
+	if ((node->flags & FS_NODE_DIRECTORY) && (node->create != NULL)) {
 		return node->create(node, name, permissions);
 	} else {
 		return;
