@@ -1,4 +1,6 @@
+# disable all default rules
 .SUFFIXES:
+
 #
 BUILD?=$(shell uname -s | tr '[:upper:]' '[:lower:]')-$(shell uname -m)
 HOST?=$(BUILD)
@@ -7,16 +9,17 @@ TARGET_ARCH:=$(lastword $(subst -, ,$(TARGET)))
 ARCHDIR=arch/$(TARGET_ARCH)
 
 # default flags
-CFLAGS?=-O2 -g -Wall -Wextra -Werror
+CFLAGS?=-O2 -g -Wall -Wextra -Werror -Wno-attributes -Wno-format -Wcast-align
 CPPFLAGS?=
 LDFLAGS?=-g
 LIBS?=
 ASFLAGS?=-g
 
 # mandatory flags
-CFLAGS:=$(CFLAGS) -ffreestanding -std=gnu99 -fstack-protector -fno-omit-frame-pointer -Wno-attributes -Wno-format -Wcast-align
+# -fno-omit-frame-pointer is needed to generate a stack trace
+CFLAGS:=$(CFLAGS) -ffreestanding -std=gnu99 -fstack-protector -fno-omit-frame-pointer
 CPPFLAGS:=$(CPPFLAGS) -D__myunix_kernel -I./include -I./$(ARCHDIR)
-LDFLAGS:=$(LDFLAGS) -static
+LDFLAGS:=$(LDFLAGS) -static -nostdinc
 LIBS:=$(LIBS) -nostdlib
 ASFLAGS:=$(ASFLAGS) -f elf -w+orphan-labels
 SRC_DIRS = . misc usb net
@@ -28,26 +31,25 @@ OBJS:= $(subst .c,.o,$(subst .s,.o,$(SRCS)))
 AS:=nasm
 CC:=$(TARGET_ARCH)-elf-gcc
 #CC:=i386-tcc
-LD:=$(TARGET_ARCH)-ld
-OBJCOPY:=$(TARGET_ARCH)-objcopy
+OBJCOPY:=$(TARGET_ARCH)-elf-objcopy
 
-# try to use ../toolchain or user-supplied TOOLCHAIN_PREFIX
-
-ifneq ("","$(wildcard ../toolchain/bin)")
-  $(info Trying to use toolchain in ../toolchain; pass TOOLCHAIN_PREFIX='' to use the system's c compiler overwrite)
-  TOOLCHAIN_PREFIX?=$(PWD)/../toolchain/bin
-else
-  $(info toolchain not build, falling back to system c compiler)
+# if the user didn't supply TOOLCHAIN_PREFIX try to use ../toolchain and fallback to no toolchain
+ifndef TOOLCHAIN_PREFIX
+  ifneq ("","$(wildcard ../toolchain/bin)")
+    $(info Trying to use toolchain in ../toolchain; pass TOOLCHAIN_PREFIX='' to use the system's c compiler overwrite)
+    TOOLCHAIN_PREFIX?=$(PWD)/../toolchain/bin
+  else
+    $(info toolchain not build, falling back to system c compiler)
+  endif
 endif
 
 ifdef TOOLCHAIN_PREFIX
   CC:=$(TOOLCHAIN_PREFIX)/$(CC)
-  LD:=$(TOOLCHAIN_PREFIX)/$(LD)
   OBJCOPY:=$(TOOLCHAIN_PREFIX)/$(OBJCOPY)
 endif
 
 # arch-specific flags
--include $(ARCHDIR)/make.config
+-include $(ARCHDIR)/config.mk
 
 # apply arch specific flags and command line flags
 CFLAGS:=$(CFLAGS) $(ARCH_CFLAGS) $(EXTRA_CFLAGS)
@@ -55,19 +57,23 @@ CPPFLAGS:=$(CPPFLAGS) $(ARCH_CPPFLAGS) $(EXTRA_CPPFLAGS)
 LDFLAGS:=$(LDFLAGS) $(ARCH_LDFLAGS) $(EXTRA_LDFLAGS)
 LIBS:=$(ARCH_LIBS) $(LIBS) $(EXTRA_LIBS)
 OBJS:=$(ARCH_OBJS) $(OBJS) $(EXTRA_OBJS)
-
-#
 DEPS:=$(OBJS:.o=.d)
 
+#
 .DEFAULT: all
 .PHONY: all
-all: kernel
+all: iso
+
+.PHONY: iso
+iso: iso/grub_iso.iso
 
 .PHONY: clean
 clean:
 	rm -f kernel.elf kernel.sym kernel.bin
-	rm -f $(OBJS) *.o */*.o */*/*.o
-	rm -f $(DEPS) *.d */*.d */*/*.d
+	@rm -f $(OBJS) *.o */*.o */*/*.o
+	@echo rm -f objs
+	@rm -f $(DEPS) *.d */*.d */*/*.d
+	@echo rm -f deps
 	rm -f iso/*.iso iso/kernel.bin
 
 %.o: %.c
@@ -81,12 +87,15 @@ clean:
 .PHONY: kernel
 kernel: kernel.elf kernel.sym kernel.bin
 
-# link using gcc / ld
+# TODO: this should probably be in arch/*/config.mak (partially)
+# link using gcc / tcc
 kernel.elf: $(OBJS) $(ARCHDIR)/link.ld
-	$(LD) $(LDFLAGS) $(LIBS) -T $(ARCHDIR)/link.ld -o $@ $(OBJS)
+	@$(CC) $(LDFLAGS) $(LIBS) -T $(ARCHDIR)/link.ld -o $@ $(OBJS)
+	@echo LD $< -o $@
 # link using tcc
 #kernel.elf: $(OBJS)
-#	$(LD) $(LDFLAGS) $(LIBS) -o $@ -nostdinc -Wl,--image-base=0x100000 -Wl,--section-alignment=0x1000 $(OBJS)
+#	@$(CC) $(LDFLAGS) $(LIBS) -Wl,-Ttext=0x100000 -Wl,--section-alignment=0x1000 -o $@ $(OBJS)
+#	@echo LD $< -o $@
 
 # optional
 kernel.sym: kernel.elf
@@ -95,26 +104,24 @@ kernel.sym: kernel.elf
 
 # objcopy
 kernel.bin: kernel.elf
-	$(OBJCOPY) --strip-debug $^ $@
+	@$(OBJCOPY) --strip-debug $^ $@
+	@echo OBJCOPY --strip-debug $< -o $@
 # link again using tcc
 #kernel.bin: kernel.elf
-#	$(LD) $(LDFLAGS) $(LIBS) -nostdinc -Wl,--image-base=0x100000 -Wl,--section-alignment=0x1000 -Wl,--oformat=binary -o $@ $(OBJS)
+#	@$(CC) $(LDFLAGS) $(LIBS) -Wl,-Ttext=0x100000 -Wl,--section-alignment=0x1000 -Wl,--oformat=binary -o $@ $(OBJS)
+#	@echo LD --oformat=binary $< -o $@
 
 iso/kernel.bin: kernel.bin
 	cp $< $@
 
 iso/grub_eltorito.iso: iso/grub/grub.cfg iso/kernel.bin iso/
-	grub-mkimage -c iso/grub/grub.cfg -v -p \(cd\)/grub/ -o $@ -O i386-pc-eltorito biosdisk iso9660 part_msdos multiboot boot echo normal
+	grub-mkimage -c iso/grub/grub.cfg -v -p \(cd\)/grub/ -o $@ -O i386-pc-eltorito biosdisk iso9660 part_msdos multiboot boot echo normal all_video 915resolution vga video videoinfo gfxterm
 
 iso/grub_iso.iso: iso/grub_eltorito.iso iso
 	rm -f $@
 	xorriso -as mkisofs -o $@ -b grub_eltorito.iso -r iso -no-emul-boot -boot-info-table
 
-.PHONY: iso
-iso: iso/grub_iso.iso
-
 # virtual machine targets
-
 ifeq ("$(TARGET_ARCH)","i686")
   QEMU?=qemu-system-i386
 else
@@ -123,6 +130,9 @@ endif
 
 QEMUFLAGS?=-serial stdio -no-shutdown -no-reboot $(ARCH_QEMUFLAGS) $(EXTRA_QEMUFLAGS)
 
+.PHONY: run
+run: run-grub
+
 .PHONY: run-grub
 run-grub: iso/grub_iso.iso
 	$(QEMU) $(QEMUFLAGS) -cdrom $<
@@ -130,21 +140,6 @@ run-grub: iso/grub_iso.iso
 .PHOYN: debug-grub
 debug-grub: iso/grub_iso.iso
 	$(QEMU) $(QEMUFLAGS) -cdrom $< -s -S
-
-.PHONY: run-qemu
-run-qemu: kernel.bin
-	$(QEMU) $(QEMUFLAGS) -kernel kernel.bin -initrd "iso/modules/initrd.tar"
-
-.PHONY: debug-qemu
-debug-qemu: kernel.bin
-	$(QEMU) $(QEMUFLAGS) -s -S -kernel kernel.bin
-
-.PHONY: run
-run: run-qemu
-
-.PHONY: gdb
-gdb: kernel.elf .gdbinit
-	gdb kernel.elf -e .gdbinit
 
 # tests
 
