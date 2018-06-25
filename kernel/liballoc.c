@@ -396,10 +396,14 @@ void * __attribute__((malloc)) kmalloc(size_t size)
 		// Find one big enough.
 		// Start at the front of the list.
 		tag = l_freePages[ index ];
+		#ifdef DEBUG
 		printf("required size: %u\n", size + sizeof(struct boundary_tag));
+		#endif
 		while ( tag != NULL ) {
 			// If there's enough space in this tag.
+			#ifdef DEBUG
 			printf("tag: 0x%x (real_size: %u, next: 0x%x)\n", (uintptr_t)tag, tag->real_size, (uintptr_t)tag->next);
+			#endif
 			if ( (tag->real_size - sizeof(struct boundary_tag))
 				>= (size + sizeof(struct boundary_tag) ) )
 			{
