@@ -208,7 +208,8 @@ static void e1000_send_packet(void *extra, uint8_t *data, size_t length) {
 	uintptr_t tx_addr = e1000->tx[tx_index].addr;
 	memcpy((void *)(tx_addr), data, length);
 	e1000->tx[tx_index].length = length;
-	e1000->tx[tx_index].cmd = (1<<0) | (1<<1) | (1<<3);
+	e1000->tx[tx_index].cmd = (1<<0) | (1<<1) | (1<<3) \
+		| (1<<2);
 	e1000->tx[tx_index].status = 0;
 
 	tx_index = (tx_index + 1) % E1000_NUM_TX_DESC;

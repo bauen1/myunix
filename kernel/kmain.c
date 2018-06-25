@@ -37,6 +37,8 @@ extern void *__start_user_shared;
 extern void *__stop_user_shared;
 
 int kidle(void *extra, char *name) {
+	(void)extra;
+	(void)name;
 	// TODO: free kernel stack of kmain
 	__asm__ __volatile__("sti");
 	while (1) {

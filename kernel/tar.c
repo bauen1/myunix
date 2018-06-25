@@ -9,14 +9,14 @@
 #include <oct2bin.h>
 
 struct tar_header {
-	char name[100];
-	uint32_t mode;
-	uint32_t gid;
-	uint32_t uid;
-	char fsize[12];
-	char last_mod[12];
-	uint32_t checksum;
-	uint8_t type;
+	char name[100] __attribute__((packed));
+	uint32_t mode __attribute__((packed));
+	uint32_t gid __attribute__((packed));
+	uint32_t uid __attribute__((packed));
+	char fsize[12] __attribute__((pcked));
+	char last_mod[12] __attribute__((packed));
+	uint32_t checksum __attribute__((pcked));
+	uint8_t type __attribute__((packed));
 	char linked_name[100] __attribute__((packed));
 } __attribute__((packed));
 
@@ -26,7 +26,6 @@ struct tar_obj {
 	uintptr_t offset;
 	enum fs_node_flags flags;
 	uint32_t length;
-	
 };
 
 static uint32_t tar_read(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buffer);
@@ -46,9 +45,9 @@ static struct tar_obj *tar_create_obj(fs_node_t *device, uintptr_t offset) {
 	uint8_t buf[512];
 	fs_read(device, offset, 512, buf);
 	obj->length = oct2bin(buf + 124, 11);
-	obj->name = kmalloc(strlen(buf) + 1);
+	obj->name = kmalloc(strlen((char *)buf) + 1);
 	assert(obj->name);
-	strncpy(obj->name, buf, 100);
+	strncpy(obj->name, (char *)buf, 100);
 
 	return obj;
 }

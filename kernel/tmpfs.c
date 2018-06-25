@@ -6,11 +6,10 @@
 #include <list.h>
 #include <string.h>
 
-static struct tmpfs_object {
+struct tmpfs_object {
 	char *name;
 	enum fs_node_flags flags;
 	list_t *childs;
-//	list_t *childs;
 };
 
 static uint32_t tmpfs_read(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buf);
@@ -32,6 +31,7 @@ static struct tmpfs_object *tmpfs_create_obj(char *name, enum fs_node_flags flag
 	strncpy(obj->name, name, 255);
 	obj->childs = list_init();
 	assert(obj->childs != NULL);
+	return obj;
 }
 
 static fs_node_t *fs_node_from_tmpfs(struct tmpfs_object *tmpfs_obj) {
@@ -78,6 +78,7 @@ static void tmpfs_open(fs_node_t *node, unsigned int flags) {
 }
 
 static void tmpfs_close(fs_node_t *node) {
+	(void)node;
 /*
 	struct tmpfs_object *obj = (struct tmpfs_object *)node->object;
 	kfree(obj->childs);
@@ -172,7 +173,7 @@ static void tmpfs_mkdir(fs_node_t *node, char *name, uint16_t permissions) {
 	size_t name_strlen = strlen(name);
 	for (node_t *v = childs->head; v != NULL; v = v->next) {
 		struct tmpfs_object *obj2 = (struct tmpfs_object *)v->value;
-		if (!memcmp(name, obj->name, name_strlen + 1)) {
+		if (!memcmp(name, obj2->name, name_strlen + 1)) {
 			printf("already exists\n");
 			return;
 		}
@@ -198,7 +199,7 @@ static void tmpfs_create (fs_node_t *node, char *name, uint16_t permissions) {
 	size_t name_strlen = strlen(name);
 	for (node_t *v = childs->head; v != NULL; v = v->next) {
 		struct tmpfs_object *obj2 = (struct tmpfs_object *)v->value;
-		if (!memcmp(name, obj->name, name_strlen + 1)) {
+		if (!memcmp(name, obj2->name, name_strlen + 1)) {
 			printf("already exists\n");
 			return;
 		}

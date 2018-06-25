@@ -65,7 +65,7 @@ unsigned int l_inuse = 0;
 // flag to indicate initializtion.
 static int l_initialized = 0;
 // minimum number of pages to allocate
-static unsigned int l_pageCount = 16; // FIXME: replace with #define ?
+static unsigned int l_pageCount = 8; // was 16; // FIXME: replace with #define ?
 
 // ***********   HELPER FUNCTIONS  *******************************
 
@@ -160,23 +160,23 @@ static inline int getexp( unsigned int size )
 {
 	if ( size < (1<<MINEXP) ) {
 		#ifdef DEBUG
-		printf("getexp returns -1 for %i less than MINEXP\n", size );
+		printf("getexp returns -1 for %u less than MINEXP\n", size );
 		#endif
 		return -1; // Smaller than the quantum.
 	}
 
-	int shift = MINEXP;
+	unsigned int shift = MINEXP;
 
 	while ( shift < MAXEXP )
 	{
-		if ( (1<<shift) > size) {
+		if ( (unsigned)(1<<shift) > size) {
 			break;
 		}
 		shift += 1;
 	}
 
 	#ifdef DEBUG
-	printf("getexp returns %i (%i bytes) for %i size\n", shift - 1, (1<<(shift -1)), size );
+	printf("getexp returns %u (%i bytes) for %u size\n", shift - 1, (1<<(shift -1)), size );
 	#endif
 
 	return shift - 1;
@@ -189,8 +189,8 @@ static void dump_array()
 	struct boundary_tag *tag = NULL;
 
 	printf("------ Free pages array ---------\n");
-	printf("System memory allocated: %i\n", l_allocated );
-	printf("Memory in used (malloc'ed): %i\n", l_inuse );
+	printf("System memory allocated: %u\n", l_allocated );
+	printf("Memory in used (malloc'ed): %u\n", l_inuse );
 
 		for ( i = 0; i < MAXEXP; i++ )
 		{
@@ -202,7 +202,7 @@ static void dump_array()
 				if ( tag->split_left  != NULL  ) {
 					printf("*");
 				}
-				printf("%i", tag->real_size );
+				printf("%u", tag->real_size );
 				if ( tag->split_right != NULL  ) {
 					printf("*");
 				}
@@ -355,7 +355,7 @@ static struct boundary_tag* allocate_new_tag( unsigned int size )
 
 
 	#ifdef DEBUG
-	printf("Resource allocated %x of %i pages (%i bytes) for %i size.\n", tag, pages, pages * PAGE_SIZE, size );
+	printf("Resource allocated %x of %u pages (%u bytes) for %u size.\n", (uintptr_t)tag, pages, pages * PAGE_SIZE, size );
 
 	l_allocated += pages * PAGE_SIZE;
 
@@ -399,7 +399,7 @@ void * __attribute__((malloc)) kmalloc(size_t size)
 		printf("required size: %u\n", size + sizeof(struct boundary_tag));
 		while ( tag != NULL ) {
 			// If there's enough space in this tag.
-			printf("tag: 0x%x (real_size: %u, next: 0x%x)\n", tag, tag->real_size, tag->next);
+			printf("tag: 0x%x (real_size: %u, next: 0x%x)\n", (uintptr_t)tag, tag->real_size, (uintptr_t)tag->next);
 			if ( (tag->real_size - sizeof(struct boundary_tag))
 				>= (size + sizeof(struct boundary_tag) ) )
 			{
@@ -449,9 +449,9 @@ void * __attribute__((malloc)) kmalloc(size_t size)
 		if ( childIndex >= 0 )
 		{
 			#ifdef DEBUG
-			printf("Seems to be splittable: %i >= 2^%i .. %i\n", remainder, childIndex, (1<<childIndex) );
+			printf("Seems to be splittable: %u >= 2^%i .. %i\n", remainder, childIndex, (1<<childIndex) );
 			struct boundary_tag *new_tag = split_tag( tag );
-			printf("Old tag has become %i bytes, new tag is now %i bytes (%i exp)\n", tag->real_size, new_tag->real_size, new_tag->index );
+			printf("Old tag has become %u bytes, new tag is now %u bytes (%i exp)\n", tag->real_size, new_tag->real_size, new_tag->index );
 			#else
 			split_tag(tag);
 			#endif
@@ -462,7 +462,7 @@ void * __attribute__((malloc)) kmalloc(size_t size)
 
 	#ifdef DEBUG
 	l_inuse += size;
-	printf("malloc: %x,  %i, %i\n", ptr, (int)l_inuse / 1024, (int)l_allocated / 1024 );
+	printf("malloc: %x,  %i, %i\n", (uintptr_t)ptr, (int)l_inuse / 1024, (int)l_allocated / 1024 );
 	dump_array();
 	#endif
 
@@ -490,13 +490,13 @@ void kfree(void *ptr)
 
 	#ifdef DEBUG
 	l_inuse -= tag->size;
-	printf("free: %x, %i, %i\n", ptr, (int)l_inuse / 1024, (int)l_allocated / 1024 );
+	printf("free: %x, %i, %i\n", (uintptr_t)ptr, (int)l_inuse / 1024, (int)l_allocated / 1024 );
 	#endif
 
 	// MELT LEFT...
 	while ( (tag->split_left != NULL) && (tag->split_left->index >= 0) ) {
 		#ifdef DEBUG
-		printf("Melting tag left into available memory. Left was %i, becomes %i (%i)\n", tag->split_left->real_size, tag->split_left->real_size + tag->real_size, tag->split_left->real_size );
+		printf("Melting tag left into available memory. Left was %u, becomes %u (%u)\n", tag->split_left->real_size, tag->split_left->real_size + tag->real_size, tag->split_left->real_size );
 		#endif
 		tag = melt_left( tag );
 		remove_tag( tag );
@@ -505,7 +505,7 @@ void kfree(void *ptr)
 	// MELT RIGHT...
 	while ( (tag->split_right != NULL) && (tag->split_right->index >= 0) ) {
 		#ifdef DEBUG
-		printf("Melting tag right into available memory. This was was %i, becomes %i (%i)\n", tag->real_size, tag->split_right->real_size + tag->real_size, tag->split_right->real_size );
+		printf("Melting tag right into available memory. This was was %u, becomes %u (%u)\n", tag->real_size, tag->split_right->real_size + tag->real_size, tag->split_right->real_size );
 		#endif
 		tag = absorb_right( tag );
 	}
@@ -527,7 +527,7 @@ void kfree(void *ptr)
 
 			#ifdef DEBUG
 			l_allocated -= pages * PAGE_SIZE;
-			printf("Resource freeing %x of %i pages\n", tag, pages );
+			printf("Resource freeing %x of %u pages\n", (uintptr_t)tag, pages );
 			dump_array();
 			#endif
 
@@ -543,7 +543,7 @@ void kfree(void *ptr)
 	insert_tag( tag, index );
 
 	#ifdef DEBUG
-	printf("Returning tag with %i bytes (requested %i bytes), which has exponent: %i\n", tag->real_size, tag->size, index );
+	printf("Returning tag with %u bytes (requested %u bytes), which has exponent: %i\n", tag->real_size, tag->size, index );
 	dump_array();
 	#endif
 

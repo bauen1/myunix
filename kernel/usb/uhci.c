@@ -22,47 +22,64 @@
 #define MAX_QH 16
 #define MAX_TD 128
 
-#define REG_CMD       0x00
-#define REG_STS       0x02
-#define REG_INTR      0x04
-#define REG_FRNUM     0x06
-#define REG_FRBASEADD 0x08
-#define REG_SOF       0x0C
-#define REG_PORT1     0x10
-#define REG_PORT2     0x12
+// TODO: make use of this
+enum uhci_packet_type {
+	PACKET_IN = 0x69,
+	PACKET_OUT = 0xE1,
+	PACKET_SETUP = 0x2D,
+};
 
-#define CMD_START     0x0001
-#define CMD_HCRESET   0x0002
-#define CMD_GRESET    0x0004
-#define CMD_GLOBAL_RESUME 0x0008
-#define CMD_FORCE_GLOBAL_RESUME 0x0010
-#define CMD_SWDBG     0x0020
-#define CMD_CONFIG    0x0040
-#define CND_MAXP      0x0080
+enum uhci_reg {
+	REG_CMD       = 0x00,
+	REG_STS       = 0x02,
+	REG_INTR      = 0x04,
+	REG_FRNUM     = 0x06,
+	REG_FRBASEADD = 0x08,
+	REG_SOF       = 0x0C,
+	REG_PORT1     = 0x10,
+	REG_PORT2     = 0x12,
+};
 
-#define PORT_CONNECT        0x0001
-#define PORT_CONNECT_CHANGE 0x0002
-#define PORT_ENABLE         0x0004
-#define PORT_ENABLE_CHANGE  0x0008
-#define PORT_LINE_STATUS    0x0030
-#define PORT_RESUME_DETECT  0x0040
-// reserved                 0x0080
-#define PORT_LOWSPEED       0x0100
-#define PORT_RESET          0x0200
-// reserved
+enum uchi_cmd {
+	UHCI_CMD_START   = 0x0001,
+	UHCI_CMD_HCRESET = 0x0002,
+	UHCI_CMD_GRESET  = 0x0004,
+	UHCI_CMD_GLOBAL_RESUME = 0x0008,
+	UHCI_CMD_FORCE_GLOBAL_RESUME = 0x0010,
+	UHCI_CMD_SWDBG   = 0x0020,
+	UHCI_CMD_CONFIG  = 0x0040,
+	UHCI_CMD_MAXP    = 0x0080,
+};
 
-#define TD_PTR_TERMINATE 0x01
-#define TD_PTR_QH        0x02
-#define TD_PTR_DEPTH     0x04
+enum uhci_port {
+	PORT_CONNECT        = 0x0001,
+	PORT_CONNECT_CHANGE = 0x0002,
+	PORT_ENABLE         = 0x0004,
+	PORT_ENABLE_CHANGE  = 0x0008,
+	PORT_LINE_STATUS    = 0x0030,
+	PORT_RESUME_DETECT  = 0x0040,
+	// reserved           0x0080
+	PORT_LOWSPEED       = 0x0100,
+	PORT_RESET          = 0x0200,
+	// reserved           0x0400,
+};
 
-#define TD_CTRL_BITSTUFF    (1<<17)
-#define TD_CTRL_CRC_TIMEOUT (1<<18)
-#define TD_CTRL_NAK         (1<<19)
-#define TD_CTRL_BABBLE      (1<<20)
-#define TD_CTRL_DATABUFFER  (1<<21)
-#define TD_CTRL_STALLED     (1<<22)
-#define TD_CTRL_ACTIVE      (1<<23)
-#define TD_CTRL_LOWSPEED    (1<<26)
+enum uhci_td_ptr_flags {
+	TD_PTR_TERMINATE = 0x01,
+	TD_PTR_QH        = 0x02,
+	TD_PTR_DEPTH     = 0x04,
+};
+
+enum uhci_td_ctrl {
+	TD_CTRL_BITSTUFF    = (1<<17),
+	TD_CTRL_CRC_TIMEOUT = (1<<18),
+	TD_CTRL_NAK         = (1<<19),
+	TD_CTRL_BABBLE      = (1<<20),
+	TD_CTRL_DATABUFFER  = (1<<21),
+	TD_CTRL_STALLED     = (1<<22),
+	TD_CTRL_ACTIVE      = (1<<23),
+	TD_CTRL_LOWSPEED    = (1<<26),
+};
 
 /* minimum alignment: 16 */
 typedef struct uhci_td {
@@ -108,30 +125,30 @@ typedef struct uhci_controller {
 } uhci_controller_t;
 
 __attribute__((unused))
-static uint32_t uhci_reg_readl(uhci_controller_t *hc, uint16_t reg) {
+static uint32_t uhci_reg_readl(uhci_controller_t *hc, /*uint16_t*/ enum uhci_reg reg) {
 	return inl(hc->iobase + reg);
 }
 
-static void uhci_reg_writel(uhci_controller_t *hc, uint16_t reg, uint32_t data) {
+static void uhci_reg_writel(uhci_controller_t *hc, /*uint16_t*/ enum uhci_reg reg, uint32_t data) {
 	outl(hc->iobase + reg, data);
 	iowait();
 }
 
-static uint16_t uhci_reg_readw(uhci_controller_t *hc, uint16_t reg) {
+static uint16_t uhci_reg_readw(uhci_controller_t *hc, enum uhci_reg reg) {
 	return inw(hc->iobase + reg);
 }
 
-static void uhci_reg_writew(uhci_controller_t *hc, uint16_t reg, uint16_t data) {
+static void uhci_reg_writew(uhci_controller_t *hc, enum uhci_reg reg, uint16_t data) {
 	outw(hc->iobase + reg, data);
 	iowait();
 }
 
 __attribute__((unused))
-static uint8_t uhci_reg_readb(uhci_controller_t *hc, uint16_t reg) {
+static uint8_t uhci_reg_readb(uhci_controller_t *hc, enum uhci_reg reg) {
 	return inb(hc->iobase + reg);
 }
 
-static void uhci_reg_writeb(uhci_controller_t *hc, uint16_t reg, uint8_t data) {
+static void uhci_reg_writeb(uhci_controller_t *hc, enum uhci_reg reg, uint8_t data) {
 	outl(hc->iobase + reg, data);
 	iowait();
 }
@@ -199,7 +216,7 @@ static void uhci_init_td(uhci_td_t *td, uhci_td_t *prev, unsigned int speed, uin
 	td->link = TD_PTR_TERMINATE;
 	td->td_next = NULL;
 
-	td->control = (3 << 27) | TD_CTRL_ACTIVE;
+	td->control = TD_CTRL_ACTIVE | (1<<28) | (1<<27);
 	if (speed == 1) { // 1 = low speed
 		td->control |= TD_CTRL_LOWSPEED;
 	}
@@ -400,10 +417,9 @@ void uhci_dev_control(void *_hc, usb_device_t *dev, usb_transfer_t *trans) {
 	uhci_td_t *head = td;
 	uhci_td_t *prev = NULL;
 
-	uint8_t toggle = 0;
 	uint8_t packet_type = 0x2D; // SETUP
-	uint32_t packet_size = sizeof(usb_dev_req_t);
-	uhci_init_td(td, prev, speed, addr, endp, toggle, packet_type, sizeof(usb_dev_req_t) - 1, req);
+	uhci_init_td(td, prev, speed, addr, endp, 0, packet_type, sizeof(usb_dev_req_t) - 1, req);
+
 	prev = td;
 
 	if (type & 0x80) { // dev to host
@@ -412,36 +428,35 @@ void uhci_dev_control(void *_hc, usb_device_t *dev, usb_transfer_t *trans) {
 		packet_type = 0xE1; // OUT
 	}
 
-	uint8_t *it = (uint8_t *)trans->data;
-	uint8_t *end = it + len;
-	while (it < end) {
+	size_t num_data = (len + max_len - 1) / max_len;
+	size_t progress = 0;
+	for (size_t i = 0; i < num_data; i++) {
+		size_t chunk = len - progress;
+		if (chunk > max_len) {
+			chunk = max_len;
+		}
+
 		td = uhci_alloc_td(hc);
 		assert(td != NULL);
-
-		toggle ^= 1;
-		packet_size = end - it;
-		if (packet_size > max_len) {
-			packet_size = max_len;
-		}
-		uhci_init_td(td, prev, speed, addr, endp, toggle, packet_type, packet_size - 1, it);
-
-		it += packet_size;
+		uhci_init_td(td, prev, speed, addr, endp, (i % 2 != 0),
+			packet_type, chunk - 1, (uint8_t *)((uintptr_t)trans->data + progress));
 		prev = td;
+		progress += chunk;
 	}
 
 	// status packet (???)
-/*	td = uhci_alloc_td(hc);
+	td = uhci_alloc_td(hc);
 	assert(td != NULL);
-	toggle ^= 1;
-//	toggle = 1;
 	if (type & 0x80) { // dev to host
 		packet_type = 0xE1; // OUT
 	} else {
 		packet_type = 0x69; // IN
 	}
 
-	uhci_init_td(td, prev, speed, addr, endp, toggle, packet_type, 0x7FF, 0);
-*/
+	// TODO: use irqs
+	// also maybe no detect short here ?
+	uhci_init_td(td, prev, speed, addr, endp, 0, packet_type, 0x7FF, 0);
+
 	uhci_qh_t *qh = uhci_alloc_qh(hc);
 	assert(qh != NULL);
 	uhci_init_qh(qh, trans, head);
@@ -559,9 +574,8 @@ static void uhci_controller_init(uint32_t device, uint16_t vendorid, uint16_t de
 
 	uint8_t irq = pci_config_readb(device, PCI_IRQ);
 	if ((irq == 0) || (irq == 0xFF)) {
-		// FIXME: find a free IRQ line
-		irq = 9;
-		uint32_t r = pci_config_readw(device, PCI_IRQ);
+		irq = 10;
+		uint32_t r = pci_config_readl(device, PCI_IRQ);
 		r &= ~0xFF;
 		r |= irq;
 		pci_config_writel(device, PCI_IRQ, r);
@@ -572,33 +586,16 @@ static void uhci_controller_init(uint32_t device, uint16_t vendorid, uint16_t de
 	// we currently don't use the IRQ, so disable it
 
 	printf("host controller reset!\n");
-	uhci_reg_writew(hc, REG_CMD, CMD_HCRESET);
+	uhci_reg_writew(hc, REG_CMD, UHCI_CMD_HCRESET);
 	_sleep(5);
 	while (1) {
 		uint16_t v = uhci_reg_readw(hc, REG_CMD);
-		if ((v & CMD_HCRESET) == 0) {
+		if ((v & UHCI_CMD_HCRESET) == 0) {
 			printf("complete\n");
 			break;
 		}
 		_sleep(5);
 	}
-	uhci_reg_writew(hc, REG_CMD, uhci_reg_readw(hc, REG_CMD) | CMD_FORCE_GLOBAL_RESUME);
-	iowait();
-	_sleep(20);
-	uhci_reg_writew(hc, REG_CMD, uhci_reg_readw(hc, REG_CMD) & ~CMD_FORCE_GLOBAL_RESUME);
-
-
-	uhci_reg_writew(hc, REG_CMD, uhci_reg_readw(hc, REG_CMD) | CMD_GLOBAL_RESUME);
-	iowait();
-	_sleep(50);
-	uhci_reg_writew(hc, REG_CMD, uhci_reg_readw(hc, REG_CMD) & ~CMD_GLOBAL_RESUME);
-
-
-	uhci_reg_writew(hc, REG_STS, 0x3F);
-
-
-	uhci_reg_writew(hc, REG_INTR, 0); // disable interrupts
-
 	// FIXME: handle the this better
 	hc->framelist = dma_malloc(sizeof(uint32_t) * 1024); // minimum alignment: 4kb
 	hc->queue_heads = dma_malloc(sizeof(uhci_qh_t) * MAX_QH);
@@ -618,12 +615,12 @@ static void uhci_controller_init(uint32_t device, uint16_t vendorid, uint16_t de
 	// FIXME: disable legacy
 	uhci_reg_writew(hc, 0xc0, 0x8f00);
 
-	uhci_reg_writew(hc, REG_CMD, uhci_reg_readw(hc, REG_CMD) & ~CMD_START);
+	uhci_reg_writew(hc, REG_CMD, uhci_reg_readw(hc, REG_CMD) & ~UHCI_CMD_START);
 	uhci_reg_writel(hc, REG_FRBASEADD, (uintptr_t)hc->framelist);
 	iowait();
 	uhci_reg_writew(hc, REG_FRNUM, 0); // reset index to 0
 	iowait();
-	uhci_reg_writew(hc, REG_CMD, uhci_reg_readw(hc, REG_CMD) & ~CMD_START);
+	uhci_reg_writew(hc, REG_CMD, uhci_reg_readw(hc, REG_CMD) & ~UHCI_CMD_START);
 	
 
 	uhci_reg_writeb(hc, REG_SOF, 0x40); // 12mhz timing
@@ -632,8 +629,23 @@ static void uhci_controller_init(uint32_t device, uint16_t vendorid, uint16_t de
 	iowait();
 	uhci_reg_writeb(hc, REG_INTR, 0xF); // enable all available interrupts
 
+	uhci_reg_writew(hc, REG_CMD, uhci_reg_readw(hc, REG_CMD) | UHCI_CMD_FORCE_GLOBAL_RESUME);
+	iowait();
+	_sleep(20);
+	uhci_reg_writew(hc, REG_CMD, uhci_reg_readw(hc, REG_CMD) & ~UHCI_CMD_FORCE_GLOBAL_RESUME);
+
+
+	uhci_reg_writew(hc, REG_CMD, uhci_reg_readw(hc, REG_CMD) | UHCI_CMD_GLOBAL_RESUME);
+	iowait();
+	_sleep(50);
+	uhci_reg_writew(hc, REG_CMD, uhci_reg_readw(hc, REG_CMD) & ~UHCI_CMD_GLOBAL_RESUME);
+
+
+	uhci_reg_writew(hc, REG_STS, 0x3F);
+
+
 	// enable controller here
-	uhci_reg_writew(hc, REG_CMD, CMD_START | CMD_CONFIG );
+	uhci_reg_writew(hc, REG_CMD, UHCI_CMD_START | UHCI_CMD_CONFIG );
 
 	uhci_controller_probe(hc);
 	printf("\n");
