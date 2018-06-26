@@ -12,22 +12,26 @@ static uintptr_t bpp, pitch;
 static volatile void *vmem = NULL;
 
 void tty_init(uintptr_t vmem_ptr, uint32_t w, uint32_t h, uint32_t fb_bpp, uint32_t fb_pitch) {
-	width = w;
-	height = h;
-	bpp = fb_bpp / 8;
-	pitch = fb_pitch;
-	vmem = (void *)vmem_ptr;
-
-	assert(fb_bpp == 0x10);
-	assert(width > 0);
-	assert(height > 0);
-
 	tty_clear_screen();
 	printf("tty framebuffer:\n");
 	printf(" addr: 0x%x\n", vmem_ptr);
 	printf(" width: %u height: %u\n", w, h);
 	printf(" framebuffer_bpp: 0x%x\n", bpp);
 	printf(" bytes per text line: 0x%x\n", pitch);
+	if (fb_bpp != 0x10) {
+		printf("fb_bpp not supported: 0x%x (only supports 0x10)\n", fb_bpp);
+		return;
+	}
+	if (fb_bpp % 8 != 0) {
+		printf("fb_bpp not dividable by 8, disabling tty\n");
+		return;
+	}
+	width = w;
+	height = h;
+	bpp = fb_bpp / 8;
+	pitch = fb_pitch;
+
+	vmem = (void *)vmem_ptr;
 }
 
 static void tty_update_cursor() {
