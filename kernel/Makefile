@@ -11,7 +11,7 @@ ARCHDIR=arch/$(TARGET_ARCH)
 # default flags
 CFLAGS?=-O2 -g -Wall -Wextra -Werror -Wno-attributes -Wno-format -Wcast-align
 CPPFLAGS?=
-LDFLAGS?=-g
+LDFLAGS?=
 LIBS?=
 ASFLAGS?=-g
 
@@ -65,7 +65,7 @@ DEPS:=$(OBJS:.o=.d)
 all: iso
 
 .PHONY: iso
-iso: iso/grub_iso.iso
+iso: myunix2.iso
 
 .PHONY: clean
 clean:
@@ -88,14 +88,10 @@ clean:
 kernel: kernel.elf kernel.sym kernel.bin
 
 # TODO: this should probably be in arch/*/config.mak (partially)
-# link using gcc / tcc
-kernel.elf: $(OBJS) $(ARCHDIR)/link.ld
-	@$(CC) $(LDFLAGS) $(LIBS) -T $(ARCHDIR)/link.ld -o $@ $(OBJS)
+# link using gcc or tcc
+kernel.elf: $(OBJS)
+	@$(CC) $(LDFLAGS) $(LIBS) -g -Wl,-Ttext=0x100000 -o $@ $(OBJS)
 	@echo LD $< -o $@
-# link using tcc
-#kernel.elf: $(OBJS)
-#	@$(CC) $(LDFLAGS) $(LIBS) -Wl,-Ttext=0x100000 -Wl,--section-alignment=0x1000 -o $@ $(OBJS)
-#	@echo LD $< -o $@
 
 # optional
 kernel.sym: kernel.elf
@@ -108,18 +104,14 @@ kernel.bin: kernel.elf
 	@echo OBJCOPY --strip-debug $< -o $@
 # link again using tcc
 #kernel.bin: kernel.elf
-#	@$(CC) $(LDFLAGS) $(LIBS) -Wl,-Ttext=0x100000 -Wl,--section-alignment=0x1000 -Wl,--oformat=binary -o $@ $(OBJS)
-#	@echo LD --oformat=binary $< -o $@
+#	@$(CC) $(LDFLAGS) $(LIBS) -Wl,-Ttext=0x100000 -o $@ $(OBJS)
+#	@echo LD $< -o $@
 
 iso/kernel.bin: kernel.bin
 	cp $< $@
 
-iso/grub_eltorito.iso: iso/grub/grub.cfg iso/kernel.bin iso/
-	grub-mkimage -c iso/grub/grub.cfg -v -p \(cd\)/grub/ -o $@ -O i386-pc-eltorito biosdisk iso9660 part_msdos multiboot boot echo normal all_video 915resolution vga video videoinfo gfxterm
-
-iso/grub_iso.iso: iso/grub_eltorito.iso iso
-	rm -f $@
-	xorriso -as mkisofs -o $@ -b grub_eltorito.iso -r iso -no-emul-boot -boot-info-table
+myunix2.iso: iso/kernel.bin
+	grub-mkrescue -o $@ --product-name "myunix2" --product-version="v0.0" iso
 
 # virtual machine targets
 ifeq ("$(TARGET_ARCH)","i686")
@@ -134,11 +126,11 @@ QEMUFLAGS?=-serial stdio -no-shutdown -no-reboot $(ARCH_QEMUFLAGS) $(EXTRA_QEMUF
 run: run-grub
 
 .PHONY: run-grub
-run-grub: iso/grub_iso.iso
+run-grub: myunix2.iso
 	$(QEMU) $(QEMUFLAGS) -cdrom $<
 
 .PHOYN: debug-grub
-debug-grub: iso/grub_iso.iso
+debug-grub: myunix2.iso
 	$(QEMU) $(QEMUFLAGS) -cdrom $< -s -S
 
 # tests

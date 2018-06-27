@@ -9,3 +9,4 @@ kernel/kernel.sym
 kernel/kernel.elf
 tar_root/init
 init.elf
+kernel/myunix2.iso
