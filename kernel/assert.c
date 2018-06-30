@@ -19,6 +19,10 @@ void __attribute__((noreturn)) __attribute__((used)) __stack_chk_fail() {
 }
 
 static bool is_mapped(uintptr_t v_addr) {
+	if (kernel_directory == NULL) {
+		return true;
+	}
+
 	uintptr_t v = kernel_directory->tables[v_addr >> 22];
 	if (!(v & PAGE_DIRECTORY_PRESENT)) {
 		printf("PAGE TABLE NOT PRESENT!\n");
