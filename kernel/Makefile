@@ -59,6 +59,16 @@ LIBS:=$(ARCH_LIBS) $(LIBS) $(EXTRA_LIBS)
 OBJS:=$(ARCH_OBJS) $(OBJS) $(EXTRA_OBJS)
 DEPS:=$(OBJS:.o=.d)
 
+# test if we need to use the linker script
+ifneq (,$(ARCH_LDSCRIPT))
+  ifneq (,$(findstring gcc,$(CC)))
+    $(info Found gcc in CC, trying to link with linker script)
+    LDFLAGS:=$(LDFLAGS) -Wl,-T $(ARCH_LDSCRIPT)
+  else
+    $(info not linking with gcc)
+  endif
+endif
+
 #
 .DEFAULT: all
 .PHONY: all
@@ -74,7 +84,7 @@ clean:
 	@echo rm -f objs
 	@rm -f $(DEPS) *.d */*.d */*/*.d
 	@echo rm -f deps
-	rm -f iso/*.iso iso/kernel.bin
+	rm -f iso/*.iso *.iso iso/kernel.bin
 
 %.o: %.c
 	@$(CC) $(CFLAGS) $(CPPFLAGS) -MD -c $< -o $@
