@@ -16,10 +16,13 @@ static unsigned char serialbuffer[SERIALBUFFER_LENGTH];
 
 static unsigned int irq4_handler(unsigned int irq, void *extra) {
 	assert(extra != NULL);
-	// FIXME: not checking if the irq was meant for us
-	ringbuffer_write_byte((ringbuffer_t *)extra, inb(PORT));
-	irq_ack(irq);
-	return IRQ_HANDLED;
+	if (inb(PORT + 5) & 1) { // byte received ?
+		ringbuffer_write_byte((ringbuffer_t *)extra, inb(PORT));
+		irq_ack(irq);
+		return IRQ_HANDLED;
+	}
+
+	return IRQ_IGNORED;
 }
 
 #define serial_is_transmit_ready() (inb(PORT + 5) & 0x20)
@@ -32,6 +35,7 @@ void serial_init() {
 	// init serial COM0
 	outb(PORT + 1, 0x00); // Disable all interrupts
 	outb(PORT + 3, 0x80); // enable DLAB
+	// 38400 baud
 	outb(PORT + 0, 0x03); // divisor low
 	outb(PORT + 1, 0x00); // divisor high
 	outb(PORT + 3, 0x03); // disable DLAB, 8 bits, no parity one stop
@@ -42,6 +46,9 @@ void serial_init() {
 }
 
 void serial_putc(char c) {
+	if (c == '\n') {
+		serial_putc('\r');
+	}
 	while (serial_is_transmit_ready() == 0) {
 		switch_task();
 	}
