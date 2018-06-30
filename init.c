@@ -6,6 +6,7 @@
 
 int main(int argc, char *argv[]) {
 	setvbuf(stdin, NULL, _IONBF, 0);
+	setvbuf(stdout, NULL, _IONBF, 0);
 	printf("hello from /init!\n");
 	printf("argc: %i\n", argc);
 	for (int i = 0; i < argc; i++) {
