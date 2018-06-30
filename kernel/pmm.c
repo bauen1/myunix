@@ -9,81 +9,86 @@
 #include <string.h>
 
 uint32_t *block_map;
-uint32_t block_map_size;
+uint32_t block_map_size; // number of block_map entries / 32
 static uint32_t block_map_last;
 
 /* mark block block as used */
 inline void pmm_set_block(uintptr_t block) {
+	assert(block < block_map_size);
 	block_map[block / 32] |= (1 << (block % 32));
 }
 
 /* mark block as available  */
 inline void pmm_unset_block(uintptr_t block) {
+	assert(block < block_map_size);
 	block_map[block / 32] &= ~(1 << (block % 32));
 }
 
 /* test if block is used  */
 inline bool pmm_test_block(uintptr_t block) {
+	assert(block < block_map_size);
 	return (block_map[block / 32] & (1 << (block % 32)));
 }
 
 /* find the first free block */
 inline uint32_t pmm_find_first_free() {
-	for (uint32_t i = 0; i < block_map_size; i++) {
+	for (uintptr_t i = 0; i < block_map_size / 32; i++) {
 		if (block_map[i] == 0xFFFFFFFF) {
-			// skip, it's pointless to check
+			// all blocks used, skip
 			continue;
 		}
-		for (uint8_t j = 0; j < 32; j++) {
+		for (unsigned int j = 0; j < 32; j++) {
 			uint32_t bit = (1 << j);
-			if ( ! (block_map[i] & bit)) {
+			if (block_map[i] & bit) {
+				// skip
+				continue;
+			} else {
 				return i * 32 + j;
 			}
 		}
 	}
 
-	assert(0);
 	return 0;
 }
 
 // TODO: optimise
-inline uint32_t pmm_find_first_free_region(size_t size) {
+inline uint32_t pmm_find_region(size_t size) {
 	assert(size != 0);
 
 	if (size == 1) {
 		return pmm_find_first_free();
 	}
 
-	for (uint32_t i = 0; i < block_map_size; i++) {
+	for (uintptr_t i = 0; i < block_map_size / 32; i++) {
 		if (block_map[i] == 0xFFFFFFFF) {
-			// all blocks are used, skip this entry
+			// all blocks used, skip
 			continue;
 		}
-
-		for (uint8_t j = 0; j < 32; j++) {
+		for (unsigned int j = 0; j < 32; j++) {
 			uint32_t bit = (1 << j);
 			if (block_map[i] & bit) {
 				// skip
 				continue;
-			}
-
-			uint32_t start = i*32+j;
-			uint32_t len = 1;
-			while (len < size) {
-				if (pmm_test_block(start + len)) {
-					// block used
-					break;
+			} else {
+				uint32_t start = i * 32 + j;
+				size_t len = 1; // start = blocks[0]
+				while (len < size) {
+					if (pmm_test_block(start + len)) {
+						// used
+						break;
+					} else {
+						len++;
+						assert((len + start) < block_map_size);
+					}
+				}
+				if (len == size) {
+					return start;
 				} else {
-					len++;
+					i = i + len / 32;
+					j = j + len % 32;
 				}
 			}
-
-			if (len == size) {
-				return start;
-			} else {
-				i = i + len / 32;
-				j = j + len;
-			}
+			assert(0);
 		}
 	}
 
@@ -93,7 +98,7 @@ inline uint32_t pmm_find_first_free_region(size_t size) {
 
 uintptr_t pmm_alloc_blocks(size_t size) {
 	assert(size != 0);
-	uint32_t block = pmm_find_first_free_region(size);
+	uint32_t block = pmm_find_region(size);
 	if (block == 0) {
 		return 0;
 	}
@@ -101,6 +106,7 @@ uintptr_t pmm_alloc_blocks(size_t size) {
 	for (size_t i = 0; i < size; i++) {
 		pmm_set_block(block + i);
 	}
+
 	return block * BLOCK_SIZE;
 }
 
@@ -115,14 +121,20 @@ void pmm_free_blocks(uintptr_t p, size_t size) {
 }
 
 uintptr_t pmm_alloc_blocks_safe(size_t size) {
+#ifdef DEBUG
+	printf("pmm_alloc_blocks_safe(size: %u)\n", size);
+#endif
 	uintptr_t v = pmm_alloc_blocks(size);
-	assert((uintptr_t)v != 0);
+	if (v == 0) {
+		printf("pmm_alloc_blocks_size(size: %u); failed!!\n", size);
+		assert(0);
+	}
 	return v;
 }
 
 uint32_t pmm_count_free_blocks() {
 	uint32_t count = 0;
-	for (uint32_t i = 0; i <= block_map_size; i++) {
+	for (uint32_t i = 0; i < block_map_size; i++) {
 		if (! pmm_test_block(i)) {
 			count++;
 		}

@@ -93,7 +93,7 @@ void map_direct_kernel(uintptr_t v) {
 inline uintptr_t vmm_find_dma_region(size_t size) {
 	assert(size != 0);
 
-	for (uint32_t i = 0; i < block_map_size; i++) {
+	for (uint32_t i = 0; i < block_map_size / 32; i++) {
 		if (block_map[i] == 0xFFFFFFFF) {
 			// skip
 			continue;
@@ -101,19 +101,20 @@ inline uintptr_t vmm_find_dma_region(size_t size) {
 
 		// check every bit in block_map[i]
 		for (uint8_t j = 0; j < 32; j++) {
-			uint32_t bit = (1 << j);
-			if (block_map[i] & bit) {
-				// skip
-				continue;
-			}
-
-			uint32_t start = i*32+j;
+			uint32_t start = i * 32 + j;
 			uint32_t len = 0;
+
 			while (len < size) {
 				uintptr_t v_addr = (start + len) * BLOCK_SIZE;
-				if (pmm_test_block(start + len) ||
-					(get_page(get_table(v_addr, kernel_directory), v_addr) != 0)) {
+#ifdef DEBUG
+				printf("  start: 0x%x (len: 0x%x)\n", start, len);
+#endif
+				if (pmm_test_block(start + len)) {
 					// block used
+					break;
+				}
+				if (get_page(get_table(v_addr, kernel_directory), v_addr) != 0) {
+					// block mapped
 					break;
 				} else {
 					len++;
