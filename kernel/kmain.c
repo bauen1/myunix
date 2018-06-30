@@ -96,7 +96,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 			halt();
 		}
 	} else {
-		printf("no framebuffer found assuming default i386 vga text mode\n");
+		printf("no framebuffer found, trying to initialize i386 vga text mode\n");
 		fb_start = TTY_DEFAULT_VMEM_ADDR;
 		fb_size = TTY_DEFAULT_HEIGHT * 2 * TTY_DEFAULT_WIDTH;
 		tty_init((uintptr_t)fb_start,
@@ -128,14 +128,14 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	gdt_init();
 	printf("[%u] [OK] gdt_init\n", (unsigned int)ticks);
 
-	pic_init();
-	printf("[%u] [OK] pic_init\n", (unsigned int)ticks);
-
 	idt_install();
 	printf("[%u] [OK] idt_install\n", (unsigned int)ticks);
 
 	isr_init();
 	printf("[%u] [OK] isr_init\n", (unsigned int)ticks);
+
+	pic_init();
+	printf("[%u] [OK] pic_init\n", (unsigned int)ticks);
 
 	irq_init();
 	printf("[%u] [OK] irq_init\n", (unsigned int)ticks);
@@ -256,22 +256,27 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 		halt();
 	}
 
-	printf("free %u kb\n", pmm_count_free_blocks() / 4);
+	printf("free %u kb\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
 
 	// mark the kernel (and modules) as used
-	for (uintptr_t i = (uintptr_t)&_start & 0xFFFFF000; i < real_end; i += 0x1000) {
-		pmm_set_block((i)/BLOCK_SIZE);
+	assert(((uintptr_t)&_start & 0xFFF) == 0);
+	for (uintptr_t i = (uintptr_t)&_start; i < real_end; i += BLOCK_SIZE) {
+		pmm_set_block((i) / BLOCK_SIZE);
 	}
-	printf("free memory: %ukb\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
 
-	printf("pmm block_map: 0x%x - 0x%x\n", (uintptr_t)block_map, ((uintptr_t)block_map + block_map_size / 8));
+	printf("free %u kb\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
 
-	for (uintptr_t i = (uintptr_t)block_map; i < (uintptr_t)((uintptr_t)block_map + block_map_size/8); i += BLOCK_SIZE) {
-		pmm_set_block((i)/BLOCK_SIZE);
+	printf("pmm block_map: 0x%x - 0x%x\n", (uintptr_t)block_map,
+		((uintptr_t)block_map + block_map_size / 32));
+
+	for (uintptr_t i = 0; i < (block_map_size / 32); i += BLOCK_SIZE) {
+		pmm_set_block(((uintptr_t)block_map + i) / BLOCK_SIZE);
 	}
 
 	// special purpose
 	pmm_set_block(0);
+
+	printf("free %u kb\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
 
 	// TODO: copy everything of interest out of the multiboot info to a known, safe location
 	// TODO: remember to free information once its no longer needed
@@ -339,9 +344,11 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 		// TODO: implement (if needed)
 	}
 
+	printf("free %u kb\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
 	// you can use pmm_alloc_* atfer here
 	vmm_init();
 	printf("[%u] [OK] vmm_init\n", (unsigned int)ticks);
+	printf("free %u kb\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
 
 	// directly map the multiboot structure
 	map_direct_kernel(((uintptr_t)mbi) & ~0xFFF);
@@ -405,23 +412,28 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	/* map the bss section read-write */
 	map_pages((uintptr_t)&__bss_start, (uintptr_t)&__bss_end, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, ".bss       ");
 
+	/* these mappings may overwrite the mappings above */
+
+	/* map the shared user section read-only (we may have to change that to read-write in the future) */
 	map_pages((uintptr_t)&__start_user_shared, (uintptr_t)&__stop_user_shared, PAGE_TABLE_PRESENT, "user_shared");
 
 	map_pages((uintptr_t)&__start_mod_info, (uintptr_t)&__stop_mod_info, PAGE_TABLE_PRESENT, "mod_info   ");
 
 	/* directly map the pmm block map */
-	map_pages((uintptr_t)block_map, (uintptr_t)block_map + (block_map_size / 8), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "pmm_map    ");
+	map_pages((uintptr_t)block_map, (uintptr_t)block_map + (block_map_size / 32), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "pmm_map    ");
 
 	/* map the framebuffer / textbuffer */
 	if ((fb_start != 0) & (fb_size != 0)) {
 		map_pages(fb_start, (fb_start + fb_size), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "framebuffer");
 	} else {
-		printf("WARNING: not mapping framebuffer!\n");
+		printf("no framebuffer found, not mapping\n");
 	}
 
 	/* enable paging */
 	vmm_enable();
 	printf("[%u] [OK] vmm_enable\n", (unsigned int)ticks);
+
+	printf("free %u kb\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
 
 	liballoc_init();
 	printf("[%u] [OK] liballoc_init\n", (unsigned int)ticks);
@@ -434,10 +446,14 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 
 	/* enable interrupts */
 	__asm__ __volatile__ ("sti");
-	printf("[%u] [OK] sti\n", (unsigned int)ticks);
+	printf("[%u] [OK] enable interrupts\n", (unsigned int)ticks);
+
+	printf("free %u kb\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
 
 	/* start processes */
 	create_ktask(kidle, "kidle", NULL);
+
+	printf("free %u kb\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
 
 	/* scan for device and initialise them */
 	pci_print_all();
@@ -445,6 +461,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	/* initialize all drivers */
 	modules_init();
 
+	printf("free %u kb\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
 	assert(mbi->flags & MULTIBOOT_INFO_MODS);
 	printf("we have modules!\n");
 
@@ -496,11 +513,13 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 		}
 	}
 
+	printf("free %u kb\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
 	if (ramdisk == NULL) {
 		printf("no ramdisk found! unable to continue !\n");
 		halt();
 	}
 
+	printf("free %u kb\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
 	fs_node_t *tar_root = mount_tar(ramdisk);
 	assert(tar_root != NULL);
 	fs_mount_root(tar_root);
@@ -535,7 +554,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 		process_add(p);
 	}
 
-	printf("%u kb free\n", pmm_count_free_blocks() / 4);
+	printf("%u kb free\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
 	// TODO: free anything left lying around that won't be needed (eg. multiboot info)
 	process_enable();
 

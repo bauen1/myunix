@@ -119,5 +119,4 @@ void framebuffer_init(uintptr_t fb_addr, uint32_t fb_pitch, uint32_t fb_width,
 	printf(" green_mask_size: 0x%x\n", fb_green_ms);
 	printf(" blue_field_position: 0x%x\n", fb_blue_fp);
 	printf(" blue_mask_size: 0x%x\n", fb_blue_ms);
-	printf("\n");
 }

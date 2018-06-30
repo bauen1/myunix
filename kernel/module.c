@@ -14,7 +14,10 @@ void modules_init() {
 	for (uintptr_t i = 0; i < mod_info_length; i += sizeof(module_info_t)) {
 		uintptr_t v_addr = mod_info_start + i;
 		module_info_t *mod_info = (module_info_t *)(v_addr);
-		assert(mod_info != NULL);
+		if (mod_info->name == NULL) {
+			printf("name == NULL, assuming end\n");
+			break;
+		}
 		assert(mod_info->name != NULL);
 		assert(mod_info->init != NULL);
 		printf("init: %s\n", mod_info->name);

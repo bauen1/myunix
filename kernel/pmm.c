@@ -92,7 +92,6 @@ inline uint32_t pmm_find_region(size_t size) {
 		}
 	}
 
-	assert(0);
 	return 0;
 }
 
@@ -126,9 +125,11 @@ uintptr_t pmm_alloc_blocks_safe(size_t size) {
 #endif
 	uintptr_t v = pmm_alloc_blocks(size);
 	if (v == 0) {
-		printf("pmm_alloc_blocks_size(size: %u); failed!!\n", size);
+		printf("Out Of Memory!\n");
+		printf("while pmm_alloc_blocks_size(size: %u); failed!!\n", size);
 		assert(0);
 	}
+
 	return v;
 }
 
@@ -139,6 +140,7 @@ uint32_t pmm_count_free_blocks() {
 			count++;
 		}
 	}
+
 	return count;
 }
 

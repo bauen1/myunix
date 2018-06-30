@@ -43,19 +43,17 @@ static void process_init_kernel_kstack(process_t *process) {
 	uintptr_t v_kstack = find_vspace(kernel_directory, process->kstack_size + 4);
 	assert(v_kstack != 0);
 
+	printf("kstack (including guard: 0x%8x - 0x%8x\n", process->kstack, (process->kstack_size + 4) * BLOCK_SIZE);
 	// kstack guard
 	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
-	printf(" kstack 0x%8x => GUARD\n", v_kstack);
 	v_kstack += BLOCK_SIZE;
 	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
-	printf(" kstack 0x%8x => GUARD\n", v_kstack);
 	v_kstack += BLOCK_SIZE;
 
 	process->kstack = v_kstack;
 	for (size_t i = 0; i < process->kstack_size; i++) { // skip guard
 		uintptr_t v_kaddr = v_kstack + i * BLOCK_SIZE;
 		uintptr_t block = pmm_alloc_blocks_safe(1);
-		printf(" kstack 0x%8x => 0x%8x\n", v_kaddr, block);
 		assert((get_page(get_table(v_kaddr, kernel_directory), v_kaddr) & PAGE_TABLE_PRESENT) == 0);
 		map_page(get_table(v_kaddr, kernel_directory), v_kaddr, block,
 			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
@@ -67,14 +65,11 @@ static void process_init_kernel_kstack(process_t *process) {
 
 	v_kstack += kstack_length;
 	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
-	printf(" kstack 0x%8x => GUARD\n", v_kstack);
 	v_kstack += BLOCK_SIZE;
 	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
-	printf(" kstack 0x%8x => GUARD\n", v_kstack);
 
-	printf("kstack_length: 0x%x\n", kstack_length);
 	memset((void *)process->kstack, 0, kstack_length);
-	printf("kstack: 0x%8x - 0x%8x\n", process->kstack, process->kstack_top);
+//	printf("kstack: 0x%8x - 0x%8x\n", process->kstack, process->kstack_top);
 }
 
 
@@ -167,22 +162,20 @@ static void process_init_kstack(process_t *process) {
 	process->kstack_size = KSTACK_SIZE;
 	uintptr_t v_kstack = find_vspace(kernel_directory, process->kstack_size + 4);
 	assert(v_kstack != 0);
+	printf("kstack (including guard: 0x%8x - 0x%8x\n", process->kstack, (process->kstack_size + 4) * BLOCK_SIZE);
 
 	// kstack guard
 	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
 	map_page(get_table_alloc(v_kstack, process->pdir), v_kstack, PAGE_VALUE_GUARD, 0);
-	printf(" kstack 0x%8x => GUARD\n", v_kstack);
 	v_kstack += BLOCK_SIZE;
 	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
 	map_page(get_table_alloc(v_kstack, process->pdir), v_kstack, PAGE_VALUE_GUARD, 0);
-	printf(" kstack 0x%8x => GUARD\n", v_kstack);
 	v_kstack += BLOCK_SIZE;
 
 	process->kstack = v_kstack;
 	for (size_t i = 0; i < process->kstack_size; i++) { // skip guard
 		uintptr_t v_kaddr = v_kstack + i * BLOCK_SIZE;
 		uintptr_t block = pmm_alloc_blocks_safe(1);
-		printf(" kstack 0x%8x => 0x%8x\n", v_kaddr, block);
 		assert((get_page(get_table(v_kaddr, kernel_directory), v_kaddr) & PAGE_TABLE_PRESENT) == 0);
 		map_page(get_table(v_kaddr, kernel_directory), v_kaddr, block,
 			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
@@ -197,15 +190,12 @@ static void process_init_kstack(process_t *process) {
 	v_kstack += kstack_length;
 	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
 	map_page(get_table_alloc(v_kstack, process->pdir), v_kstack, PAGE_VALUE_GUARD, 0);
-	printf(" kstack 0x%8x => GUARD\n", v_kstack);
 	v_kstack += BLOCK_SIZE;
 	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
 	map_page(get_table_alloc(v_kstack, process->pdir), v_kstack, PAGE_VALUE_GUARD, 0);
-	printf(" kstack 0x%8x => GUARD\n", v_kstack);
 
-	printf("kstack_length: 0x%x\n", kstack_length);
 	memset((void *)process->kstack, 0, kstack_length);
-	printf("kstack: 0x%8x - 0x%8x\n", process->kstack, process->kstack_top);
+//	printf("kstack: 0x%8x - 0x%8x\n", process->kstack, process->kstack_top);
 }
 
 process_t *process_exec(fs_node_t *f) {
