@@ -180,8 +180,7 @@ static void e1000_init_rx(e1000_t *e1000) {
 	e1000_cmd_writel(e1000, E1000_REG_RX_DESC_LENGTH, size);
 	e1000_cmd_writel(e1000, E1000_REG_RX_DESC_HEAD, 0);
 	e1000_cmd_writel(e1000, E1000_REG_RX_DESC_TAIL, E1000_NUM_RX_DESC - 1);
-	e1000_cmd_writel(e1000, E1000_REG_RX_CTRL,
-		(
+	e1000_cmd_writel(e1000, E1000_REG_RX_CTRL, (
 			(1<<1) | // enable
 			(1<<5) | // long packet
 			(1<<15) | // broadcast accept
@@ -384,7 +383,7 @@ static void e1000_device_init(uint32_t device, uint16_t deviceid, void *extra) {
 	e1000_cmd_writel(e1000, 0x5404, e1000_cmd_readl(e1000, 0x5404) | (1<<31)); // FIXME: research what this actually does
 
 	// link reset
-	e1000_cmd_writel(e1000, E1000_REG_CTRL, (1<<4));
+	e1000_cmd_writel(e1000, E1000_REG_RX_CTRL, (1<<4));
 
 	// FIXME: this is a bit late
 	e1000_init_tx(e1000);

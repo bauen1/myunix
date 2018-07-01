@@ -43,7 +43,7 @@ void print_stack_trace(unsigned int max_frames) {
 	__asm__ __volatile__ (
 		"mov %%ebp, %0"
 		: "=r" (ebp_r)
-	);
+		);
 	uintptr_t * ebp = (uintptr_t *)ebp_r;
 
 	printf("stack trace:\n");
