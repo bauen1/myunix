@@ -43,7 +43,7 @@ static void process_init_kernel_kstack(process_t *process) {
 	uintptr_t v_kstack = find_vspace(kernel_directory, process->kstack_size + 4);
 	assert(v_kstack != 0);
 
-	printf("kstack (including guard: 0x%8x - 0x%8x\n", process->kstack, (process->kstack_size + 4) * BLOCK_SIZE);
+	printf("kstack (including guard: 0x%8x - 0x%8x\n", v_kstack, (process->kstack_size + 4) * BLOCK_SIZE);
 	// kstack guard
 	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
 	v_kstack += BLOCK_SIZE;
@@ -162,7 +162,7 @@ static void process_init_kstack(process_t *process) {
 	process->kstack_size = KSTACK_SIZE;
 	uintptr_t v_kstack = find_vspace(kernel_directory, process->kstack_size + 4);
 	assert(v_kstack != 0);
-	printf("kstack (including guard: 0x%8x - 0x%8x\n", process->kstack, (process->kstack_size + 4) * BLOCK_SIZE);
+	printf("kstack (including guard: 0x%8x - 0x%8x\n", v_kstack, (process->kstack_size + 4) * BLOCK_SIZE);
 
 	// kstack guard
 	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
