@@ -31,7 +31,7 @@ inline bool pmm_test_block(uintptr_t block) {
 }
 
 /* find the first free block */
-inline uint32_t pmm_find_first_free() {
+static uint32_t pmm_find_first_free() {
 	for (uintptr_t i = 0; i < block_map_size / 32; i++) {
 		if (block_map[i] == 0xFFFFFFFF) {
 			// all blocks used, skip
@@ -126,7 +126,7 @@ uintptr_t pmm_alloc_blocks_safe(size_t size) {
 	uintptr_t v = pmm_alloc_blocks(size);
 	if (v == 0) {
 		printf("Out Of Memory!\n");
-		printf("while pmm_alloc_blocks_size(size: %u); failed!!\n", size);
+		printf("while pmm_alloc_blocks_size(size: %u); failed!!\n", (uintptr_t)size);
 		assert(0);
 	}
 

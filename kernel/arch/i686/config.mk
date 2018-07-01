@@ -13,6 +13,7 @@ $(ARCHDIR)/idt_load.o \
 $(ARCHDIR)/isrs.o \
 $(ARCHDIR)/paging.o \
 $(ARCHDIR)/task.o \
-$(ARCHDIR)/memcpy.o
+$(ARCHDIR)/memcpy.o \
+$(ARCHDIR)/mmio.o
 
 ARCH_LDSCRIPT:= $(ARCHDIR)/link.ld

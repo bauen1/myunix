@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <mmio.h>
 #include <console.h>
 #include <cpu.h>
 #include <heap.h>
@@ -18,26 +19,28 @@
 #include <string.h>
 #include <vmm.h>
 
-#define E1000_REG_CTRL 0x0
-#define E1000_REG_STATUS 0x8
+enum e1000_reg {
+	E1000_REG_CTRL = 0x0,
+	E1000_REG_STATUS = 0x8,
 
-#define E1000_REG_INTERRUPT_CAUSE_READ 0xc0
+	E1000_REG_INTERRUPT_CAUSE_READ = 0xc0,
 
-#define E1000_REG_TX_CTRL        0x0400
-#define E1000_REG_TX_DESC_LOW    0x3800
-#define E1000_REG_TX_DESC_HIGH   0x3804
-#define E1000_REG_TX_DESC_LENGTH 0x3808
-#define E1000_REG_TX_DESC_HEAD   0x3810
-#define E1000_REG_TX_DESC_TAIL   0x3818
+	E1000_REG_TX_CTRL        = 0x0400,
+	E1000_REG_TX_DESC_LOW    = 0x3800,
+	E1000_REG_TX_DESC_HIGH   = 0x3804,
+	E1000_REG_TX_DESC_LENGTH = 0x3808,
+	E1000_REG_TX_DESC_HEAD   = 0x3810,
+	E1000_REG_TX_DESC_TAIL   = 0x3818,
 
-#define E1000_REG_RX_CTRL        0x0100
-#define E1000_REG_RX_DESC_LOW    0x2800
-#define E1000_REG_RX_DESC_HIGH   0x2804
-#define E1000_REG_RX_DESC_LENGTH 0x2808
-#define E1000_REG_RX_DESC_HEAD   0x2810
-#define E1000_REG_RX_DESC_TAIL   0x2818
+	E1000_REG_RX_CTRL        = 0x0100,
+	E1000_REG_RX_DESC_LOW    = 0x2800,
+	E1000_REG_RX_DESC_HIGH   = 0x2804,
+	E1000_REG_RX_DESC_LENGTH = 0x2808,
+	E1000_REG_RX_DESC_HEAD   = 0x2810,
+	E1000_REG_RX_DESC_TAIL   = 0x2818,
 
-#define E1000_REG_EEPROM 0x0014
+	E1000_REG_EEPROM = 0x0014,
+};
 
 #define E1000_NUM_RX_DESC 32
 #define E1000_NUM_TX_DESC 8
@@ -69,7 +72,6 @@ typedef struct e1000 {
 	uintptr_t iobase_size;
 	bool eeprom_exists;
 	uint8_t mac[6];
-//	unsigned int rx_index;
 	e1000_rx_desc_t *rx;
 	e1000_tx_desc_t *tx;
 	list_t *rx_queue;
@@ -77,15 +79,12 @@ typedef struct e1000 {
 } e1000_t;
 
 /* helpers */
-#define mmio_writel(addr, value) ((*((volatile uint32_t *)((addr))) = (value)))
-#define mmio_readl(addr) (*((volatile uint32_t *)((addr))))
-
-static void e1000_cmd_writel(e1000_t *e1000, uint16_t address, uint32_t value) {
-	mmio_writel(e1000->iobase + address, value);
+static void e1000_cmd_writel(e1000_t *e1000, volatile enum e1000_reg address, uint32_t value) {
+	mmio_write32(e1000->iobase + address, value);
 }
 
-static uint32_t e1000_cmd_readl(e1000_t *e1000, uint16_t address) {
-	return mmio_readl(e1000->iobase + address);
+static uint32_t e1000_cmd_readl(e1000_t *e1000, volatile enum e1000_reg address) {
+	return  mmio_read32(e1000->iobase + address);
 }
 
 static bool e1000_has_eeprom(e1000_t *e1000) {
@@ -153,7 +152,7 @@ static void e1000_init_tx(e1000_t *e1000) {
 		(1<<1) |
 		(1<<3) |
 		(1<<8) |
-		(1<<18));
+		(1<<18) | e1000_cmd_readl(e1000, E1000_REG_TX_CTRL));
 
 }
 
