@@ -4,6 +4,7 @@
 #include <stddef.h>
 
 void liballoc_init(void);
+void liballoc_dump(void);
 
 void * __attribute__((malloc)) kmalloc(size_t size);
 void * __attribute__((malloc)) kcalloc(size_t nmemb, size_t size);
