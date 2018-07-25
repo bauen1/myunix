@@ -131,6 +131,12 @@ static void vprintf(const char *fmt, va_list args) {
 					utoa(va_arg(args, unsigned int), &buf[0], 10, width);
 					puts(buf);
 					break;
+				case 'p':
+					putc('0');
+					putc('x');
+					utoa(va_arg(args, unsigned int), &buf[0], 16, width);
+					puts(buf);
+					break;
 				case 'x':
 					utoa(va_arg(args, unsigned int), &buf[0], 16, width);
 					puts(buf);
