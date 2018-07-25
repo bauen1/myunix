@@ -1,3 +1,4 @@
+#include <sys/mman.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,6 +13,19 @@ int main(int argc, char *argv[]) {
 	for (int i = 0; i < argc; i++) {
 		printf("argv[%i]: '%s'\n", i, argv[i]);
 	}
+/*	printf("mmap: 0x%x\n", (uintptr_t)mmap(0, 0x2000, 3, MAP_ANONYMOUS, -1, 0));
+
+	char **c = malloc(20*sizeof(char *));
+	printf("allocating 20 times 10kb\n");
+	for (int i = 0; i<20;i++) {
+		c[i] = malloc(10*1024);
+	}
+	printf("freeing\n");
+	for (int i = 0; i < 20; i++) {
+		free(c[i]);
+	}
+	free(c);
+*/
 	while(1) {
 		putchar(getchar());
 	}

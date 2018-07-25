@@ -1,19 +1,22 @@
 .DEFAULT: all
 .PHONY: all
-all: kernel/iso/modules/initrd.tar init.elf
+all: kernel/iso/modules/initrd.tar userspace/init.elf
 
 CC:=./toolchain/opt/bin/i386-tcc
 LD:=$(CC)
 
 CFLAGS=-g
 
-init.o: init.c
+%.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-init.elf: init.o
+%.elf: %.o
 	$(LD) $(LDFLAGS) -Wl,-Ttext=0x1000000 -static -g -o $@ $< $(AFTER_LDFLAGS)
 
-tar_root/init: init.o
+tar_root/init: userspace/init.o userspace/init.elf
+	$(LD) $(LDFLAGS) -Wl,-Ttext=0x1000000 -static -Wl,--oformat=binary -o $@ $< $(AFTER_LDFLAGS)
+
+tar_root/bin/%: userspace/%.o
 	$(LD) $(LDFLAGS) -Wl,-Ttext=0x1000000 -static -Wl,--oformat=binary -o $@ $< $(AFTER_LDFLAGS)
 
 kernel/iso/modules/initrd.tar: tar_root tar_root/init
@@ -21,7 +24,9 @@ kernel/iso/modules/initrd.tar: tar_root tar_root/init
 
 .PHONY: clean
 clean:
-	rm -f init.o init.elf
+	rm -f userspace/*.o userspace/*.elf
+	rm -f tar_root/bin/*
+	rm -f tar_root/init
 	rm -f kernel/iso/modules/initrd.tar
 
 .PHONY: update-musl-patch
