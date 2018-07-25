@@ -43,7 +43,7 @@ static void process_init_kernel_kstack(process_t *process) {
 	uintptr_t v_kstack = find_vspace(kernel_directory, process->kstack_size + 4);
 	assert(v_kstack != 0);
 
-	printf("kstack (including guard: 0x%8x - 0x%8x\n", v_kstack, (process->kstack_size + 4) * BLOCK_SIZE);
+	printf("kstack (including guard: 0x%8x - 0x%8x\n", v_kstack, v_kstack + (process->kstack_size + 4) * BLOCK_SIZE);
 	// kstack guard
 	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
 	v_kstack += BLOCK_SIZE;
@@ -162,7 +162,7 @@ static void process_init_kstack(process_t *process) {
 	process->kstack_size = KSTACK_SIZE;
 	uintptr_t v_kstack = find_vspace(kernel_directory, process->kstack_size + 4);
 	assert(v_kstack != 0);
-	printf("kstack (including guard: 0x%8x - 0x%8x\n", v_kstack, (process->kstack_size + 4) * BLOCK_SIZE);
+	printf("kstack (including guard: 0x%8x - 0x%8x\n", v_kstack, v_kstack + (process->kstack_size + 4) * BLOCK_SIZE);
 
 	// kstack guard
 	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
@@ -353,7 +353,7 @@ process_t *process_init(uintptr_t start, uintptr_t end) {
 			PAGE_TABLE_PRESENT | PAGE_TABLE_USER | PAGE_TABLE_READWRITE);
 	}
 
-	registers_t *regs = (registers_t *)(process->kstack - sizeof(registers_t));
+	registers_t *regs = (registers_t *)(process->kstack_top - sizeof(registers_t));
 	regs->old_directory = (uint32_t)real_pdir;
 	regs->gs = 0x23;
 	regs->fs = 0x23;
@@ -380,6 +380,28 @@ process_t *process_init(uintptr_t start, uintptr_t end) {
 	process->ebp = process->esp;
 	process->eip = (uintptr_t)return_to_regs;
 	return process;
+}
+
+void __attribute__((noreturn)) process_exit(unsigned int status) {
+	printf("process_exit (pid: %u) status: %u\n", current_process->pid, status);
+	process_t *p = current_process;
+	process_remove(p);
+	process_destroy(p);
+	__switch_direct();
+}
+
+// if the caller is using the kstack, he better not try to allocate memory before the next task switch
+void process_destroy(process_t *process) {
+	if (process->is_kernel_task) {
+		// kernel task
+		// FIXME: implement instead of panic
+		assert(0);
+	} else {
+		// user process
+	}
+	// TODO: close the file descriptors
+	kfree(process->fd_table);
+	kfree(process->name);
 }
 
 process_t *next_process() {

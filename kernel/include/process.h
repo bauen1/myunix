@@ -37,9 +37,11 @@ void create_ktask(ktask_func func, char *name, void *extra);
 
 process_t *process_exec(fs_node_t *f);
 process_t *process_init(uintptr_t start, uintptr_t end);
+void process_destroy(process_t *process);
 
 void process_add(process_t *p);
 void process_remove(process_t *p);
+void __attribute__((noreturn)) process_exit(unsigned int status);
 void __attribute__((noreturn)) process_enable(void);
 
 #endif

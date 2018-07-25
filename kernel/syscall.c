@@ -238,9 +238,7 @@ static uint32_t syscall_getpid(registers_t *regs) {
 
 static void __attribute__((noreturn)) syscall_exit(registers_t *regs) {
 	printf("pid %u exit(%u)\n", current_process->pid, regs->ebx);
-	while (1) {
-		switch_task();
-	}
+	process_exit(regs->ebx);
 }
 
 static uint32_t syscall_open(registers_t *regs) {
