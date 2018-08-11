@@ -126,7 +126,7 @@ uintptr_t pmm_alloc_blocks_safe(size_t size) {
 	uintptr_t v = pmm_alloc_blocks(size);
 	if (v == 0) {
 		printf("Out Of Memory!\n");
-		printf("while pmm_alloc_blocks_size(size: %u); failed!!\n", (uintptr_t)size);
+		printf(" pmm_alloc_blocks_size(size: %u) failed!!\n", (uintptr_t)size);
 		assert(0);
 	}
 

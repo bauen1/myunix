@@ -5,6 +5,12 @@ extern handle_isr
 section isrs
 global isrs_start
 isrs_start:
+
+global isrs_kernel_directory_ptr:data (isrs_kernel_directory_ptr.end - isrs_kernel_directory_ptr)
+isrs_kernel_directory_ptr:
+	dd 0
+.end:
+
 isr_common_stub:
 	pusha
 
@@ -15,7 +21,7 @@ isr_common_stub:
 
 	mov eax, cr3 ; save the page directory
 	push eax
-	mov eax, DWORD [ kernel_directory ]
+	mov eax, DWORD [ isrs_kernel_directory_ptr ]
 	mov cr3, eax
 
 	mov ax, 0x10        ; kernel data segment gdt index
