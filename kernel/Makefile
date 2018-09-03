@@ -162,7 +162,6 @@ complexity:
 .PHONY: todo
 todo:
 	grep --color=always "TODO" -r .
-	grep --color=always "XXX" -r .
 	grep --color=always "FIXME" -r .
 
 #

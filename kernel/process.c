@@ -1,4 +1,7 @@
 // TODO: better file descriptor implementation
+/*
+Implement process cleanup, by having kidle reap / free removed processes
+*/
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -285,7 +288,6 @@ process_t *process_exec(fs_node_t *f) {
 	process->fd_table->entries[1] = &tty_node;
 	process->fd_table->entries[2] = &tty_node;
 
-	// FIXME: use dma_malloc ?
 	uintptr_t real_pdir = pmm_alloc_blocks_safe(1);
 	process->pdir = (page_directory_t *)find_vspace(kernel_directory, 1);
 	assert(process->pdir != 0);
@@ -562,6 +564,7 @@ void process_remove(process_t *p) {
 	list_remove(process_list, p);
 }
 
+// FIXME: doesn't check if interrupts were already disabled
 void process_add(process_t *p) {
 	__asm__ __volatile__ ("cli");
 	assert(p != NULL);

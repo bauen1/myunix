@@ -1,5 +1,3 @@
-// TODO: we need a way to allocate continuous memory and get the physical address
-// FIXME: way too much magic numbers
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -18,6 +16,8 @@
 #include <process.h>
 #include <string.h>
 #include <vmm.h>
+
+// FIXME: way too much magic numbers
 
 enum e1000_reg {
 	E1000_REG_CTRL = 0x0,
@@ -231,11 +231,12 @@ static unsigned int e1000_irq(unsigned int irq, void *extra) {
 	e1000_t *e1000 = (e1000_t *)extra;
 
 	uint32_t status = e1000_cmd_readl(e1000, 0xc0);
-	irq_ack(irq);
 
 	if (!status) {
 		return IRQ_IGNORED;
 	}
+
+	irq_ack(irq);
 
 	bool should_return;
 	if (status & 0x04) { // link status change

@@ -116,7 +116,7 @@ static void tar_close(fs_node_t *node) {
 
 // FIXME: implement correctly
 static struct dirent *tar_readdir(struct fs_node *node, uint32_t i) {
-	printf("tar_readdir(node: 0x%x, i: %u)\n", (uintptr_t)node, i);
+//	printf("tar_readdir(node: 0x%x, i: %u)\n", (uintptr_t)node, i);
 	uint8_t buf[512];
 	if (i == 0) {
 		struct dirent *v = kcalloc(1, sizeof(struct dirent));

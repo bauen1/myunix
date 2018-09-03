@@ -403,21 +403,27 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 		// TODO: implement
 	}
 
+	// FIXME: we're not mapping the isrs section, yet it still somehow works, this is a disaster waiting to happen
 	/* map the code section read-only */
-	map_pages((uintptr_t)&__text_start, (uintptr_t)&__text_end, PAGE_TABLE_PRESENT, ".text      ");
+	map_pages((uintptr_t)&__text_start, (uintptr_t)&__text_end,
+		PAGE_TABLE_PRESENT,                        ".text      ");
 
 	/* map the data section read-write */
-	map_pages((uintptr_t)&__data_start, (uintptr_t)&__data_end, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, ".data      ");
+	map_pages((uintptr_t)&__data_start, (uintptr_t)&__data_end,
+		PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, ".data      ");
 
 	/* map the bss section read-write */
-	map_pages((uintptr_t)&__bss_start, (uintptr_t)&__bss_end, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, ".bss       ");
+	map_pages((uintptr_t)&__bss_start,  (uintptr_t)&__bss_end,
+		PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, ".bss       ");
 
 	/* these mappings may overwrite the mappings above */
 
 	/* map the shared user section read-only (we may have to change that to read-write in the future) */
-	map_pages((uintptr_t)&__start_user_shared, (uintptr_t)&__stop_user_shared, PAGE_TABLE_PRESENT, "user_shared");
+	map_pages((uintptr_t)&__start_user_shared, (uintptr_t)&__stop_user_shared,
+		PAGE_TABLE_PRESENT, "user_shared");
 
-	map_pages((uintptr_t)&__start_mod_info, (uintptr_t)&__stop_mod_info, PAGE_TABLE_PRESENT, "mod_info   ");
+	map_pages((uintptr_t)&__start_mod_info, (uintptr_t)&__stop_mod_info,
+		PAGE_TABLE_PRESENT, "mod_info   ");
 
 	/* directly map the pmm block map */
 	map_pages((uintptr_t)block_map, (uintptr_t)block_map + (block_map_size / 32), PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE, "pmm_map    ");
