@@ -6,6 +6,7 @@
 #include <heap.h>
 #include <list.h>
 #include <module.h>
+#include <net/checksum.h>
 #include <net/net.h>
 #include <net/e1000.h>
 #include <process.h>
@@ -13,51 +14,19 @@
 
 // TODO: we need a global routing table, an option to enable ipv4 forwarding
 // TODO: arp table for each network interface
+// TODO: implement arp lookup
+// TODO: implement routing
+// TODO: move the tcp, arp, dns and icmp code to seprate files
+
 
 static int ktask_net(void *extra, char *name);
 
 list_t *netif_list;
 
-/* big endian to little endian helpers */
-// host to network long
-uint32_t htonl(uint32_t hostlong) {
-	return ((hostlong & 0xFF) << 24) | ((hostlong & 0xFF00) << 8) |
-		((hostlong & 0xFF0000) >> 8) | ((hostlong & 0xFF000000) >> 24);
-}
-// host to network short
-uint16_t htons(uint16_t hostshort) {
-	return ((hostshort & 0x00FF) << 8) | ((hostshort & 0xFF00) >> 8);
-}
-// network to host long
-uint32_t ntohl(uint32_t netlong) {
-	return ntohl(netlong);
-}
-
-// network to host short
-uint16_t ntohs(uint16_t netshort) {
-	return htons(netshort);
-}
-
-/* checksum helpers */
-static uint16_t calc_checksum(uint8_t *data, size_t size) {
-	uint32_t v = 0;
-	uint16_t *s = (uint16_t *)data;
-	for (unsigned int i = 0; i < (size / sizeof(uint16_t)); i++) {
-		v += ntohs(s[i]);
-	}
-
-	if (v > 0xFFFF) {
-		v = ((v & 0xFFFF0000) >> 16) + (v & 0xFFFF);
-	}
-
-	uint16_t checksum = (~( v & 0xFFFF)) & 0xFFFF;
-	return checksum;
-}
-
 static uint16_t ipv4_calculate_checksum(ipv4_packet_t *packet) {
 	uint16_t old_checksum = packet->checksum;
 	packet->checksum = 0;
-	uint16_t checksum = calc_checksum((uint8_t *)packet, sizeof(ipv4_packet_t));
+	uint16_t checksum = net_calc_checksum((uint8_t *)packet, sizeof(ipv4_packet_t));
 	packet->checksum = old_checksum;
 	return checksum;
 }
@@ -71,7 +40,7 @@ static bool ipv4_is_checksum_valid(ipv4_packet_t *packet) {
 void net_register_netif(send_packet_t send, receive_packet_t receive, uint8_t *mac, void *extra) {
 	assert(send != NULL);
 	assert(receive != NULL);
-	assert(extra != NULL); // technically valid
+	assert(extra != NULL); // technically valid, but most likely a bug
 	netif_t *netif = kcalloc(1, sizeof(netif_t));
 	assert(netif != NULL);
 	netif->send_packet = send;
@@ -84,6 +53,7 @@ void net_register_netif(send_packet_t send, receive_packet_t receive, uint8_t *m
 	netif->ip[3] = 2;
 	list_insert(netif_list, netif);
 
+	// TODO: add the mac address to the kernel task
 	create_ktask(ktask_net, "[net]", netif);
 }
 
@@ -107,7 +77,8 @@ static bool net_send_ethernet(netif_t *netif, uint8_t *src, uint8_t *dest, enum 
 	return true;
 }
 
-static bool net_send_arp(netif_t *netif, uint8_t *srcmac, uint8_t *destmac, uint16_t opcode, uint8_t *srchw, uint8_t *srcpr, uint8_t *dsthw, uint8_t *dstpr) {
+static bool net_send_arp(netif_t *netif, uint8_t *srcmac, uint8_t *destmac,
+	uint16_t opcode, uint8_t *srchw, uint8_t *srcpr, uint8_t *dsthw, uint8_t *dstpr) {
 	size_t size = sizeof(arp_packet_t);
 	arp_packet_t *packet = kcalloc(1, size);
 	if (packet == NULL) {
@@ -126,6 +97,15 @@ static bool net_send_arp(netif_t *netif, uint8_t *srcmac, uint8_t *destmac, uint
 	bool success = net_send_ethernet(netif, srcmac, destmac, ETHERNET_TYPE_ARP, (uint8_t *)packet, size);
 	kfree(packet);
 	return success;
+}
+
+static bool net_send_arp_request(netif_t *netif, uint8_t *ip) {
+	uint8_t broadcast[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+	uint8_t dest_hw[6] = {0, 0, 0, 0, 0, 0};
+	bool v = net_send_arp(netif, netif->mac, broadcast,
+		ARP_OPCODE_REQUEST, netif->mac, netif->ip, dest_hw, ip);
+
+	return v;
 }
 
 static bool net_send_ipv4(netif_t *netif, uint8_t *srcmac, uint8_t *destmac, uint16_t identification, enum ipv4_type protocol, uint8_t *srcip, uint8_t *destip, uint8_t *data, size_t data_size) {
@@ -166,7 +146,7 @@ static void send_echo_reply(netif_t *netif, ethernet_packet_t *ethernet_packet, 
 	echo_reply->sequence = echo_req->sequence;
 
 	memcpy(echo_reply->data, echo_req->data, size - sizeof(ipv4_packet_t));
-	icmp_reply->checksum = htons(calc_checksum((uint8_t *)icmp_reply, ipv4_data_length));
+	icmp_reply->checksum = htons(net_calc_checksum((uint8_t *)icmp_reply, ipv4_data_length));
 
 	bool success = net_send_ipv4(netif, netif->mac, ethernet_packet->src, ipv4_packet->identification,
 		IPV4_TYPE_ICMP, netif->ip, ipv4_packet->srcip, (uint8_t *)icmp_reply, size);
@@ -188,7 +168,7 @@ static void handle_icmp(netif_t *netif, ethernet_packet_t *ethernet_packet, size
 	printf("    checksum: 0x%4x\n", ntohs(icmp_packet->checksum));
 	uint16_t old_checksum = ntohs(icmp_packet->checksum);
 	icmp_packet->checksum = 0;
-	if (old_checksum != calc_checksum((uint8_t *)icmp_packet, ipv4_data_length)) {
+	if (old_checksum != net_calc_checksum((uint8_t *)icmp_packet, ipv4_data_length)) {
 		printf("checksum invalid!\n");
 		return;
 	}
@@ -220,12 +200,13 @@ static void handle_ipv4(netif_t *netif, ethernet_packet_t *ethernet_packet, size
 	}
 	if (((ipv4_packet->version_ihl & 0xF0) >> 4) != 4) {
 		printf("   version mismatch: 0x%x expected: 0x%x\n", (ipv4_packet->version_ihl & 0xF0) >> 4, 4);
+		return;
 	}
 	// just ignore this (we need to implement quite a bit to support it)
 	// printf("  dscp_ecn   : 0x%2x\n", ipv4_packet->dscp_ecn);
 	size_t ipv4_packet_length = ntohs(ipv4_packet->length);
 	printf("  length     : 0x%4x\n", ipv4_packet_length);
-	if (ipv4_packet_length < 20) {
+	if (ipv4_packet_length < sizeof(ipv4_packet_t)) {
 		printf("   packet too short!\n");
 		return;
 	}
@@ -269,6 +250,7 @@ static void handle_ipv4(netif_t *netif, ethernet_packet_t *ethernet_packet, size
 		ipv4_packet->dstip[0], ipv4_packet->dstip[1], ipv4_packet->dstip[2], ipv4_packet->dstip[3]);
 
 	// TODO: handle extra headers
+	// TODO: FIXME: ensure there are no headers if we can't handle them
 
 	if (!memcmp(ipv4_packet->dstip, netif->ip, 4)) {
 		printf("   for us!\n");
@@ -317,6 +299,7 @@ static void handle_arp(netif_t *netif, ethernet_packet_t *ethernet_packet, size_
 	}
 	if (arp_packet->plen != 4) {
 		printf("  protocol length mismatch: 0x%2x expected: 0x%2x\n", arp_packet->plen, 4);
+		return;
 	}
 
 	switch (ntohs(arp_packet->opcode)) {
@@ -328,7 +311,7 @@ static void handle_arp(netif_t *netif, ethernet_packet_t *ethernet_packet, size_
 				arp_packet->dsthw[0], arp_packet->dsthw[1], arp_packet->dsthw[2], arp_packet->dsthw[3], arp_packet->dsthw[4], arp_packet->dsthw[5]);
 
 			if (!memcmp(netif->ip, arp_packet->dstpr, 4)) {
-				printf("   we are requesed, sending reply ...");
+				printf("   we are requested, sending reply ...");
 				if (net_send_arp(netif, netif->mac, ethernet_packet->src, ARP_OPCODE_REPLY,
 					netif->mac, netif->ip, arp_packet->srchw, arp_packet->srcpr)) {
 					printf(" sent!\n");
@@ -384,9 +367,6 @@ static int ktask_net(void *extra, char *name) {
 			kfree(packet);
 			continue;
 		}
-
-		// TODO: check checksum
-		// TODO: check if the packet was meant for us, if not, route it
 
 		printf(" dst: %2x:%2x:%2x:%2x:%2x:%2x\n",
 			packet->dest[0], packet->dest[1], packet->dest[2], packet->dest[3], packet->dest[4], packet->dest[5]);
