@@ -12,6 +12,46 @@
 #include <process.h>
 #include <string.h>
 
+//#define DEBUG
+
+#ifdef DEBUG
+#define DEBUG_ETHERNET
+#define DEBUG_IPV4
+#define DEBUG_ICMP
+#define DEBUG_UDP
+#define DEBUG_TCP
+#endif
+
+#ifdef DEBUG_ETHERNET
+#define debug_ethernet(...) printf(__VA_ARGS__)
+#else
+#define debug_ethernet(...)
+#endif
+
+#ifdef DEBUG_IPV4
+#define debug_ipv4(...) printf(__VA_ARGS__)
+#else
+#define debug_ipv4(...)
+#endif
+
+#ifdef DEBUG_ICMP
+#define debug_icmp(...) printf(__VA_ARGS__)
+#else
+#define debug_icmp(...)
+#endif
+
+#ifdef DEBUG_UDP
+#define debug_udp(...) printf(__VA_ARGS__)
+#else
+#define debug_udp(...)
+#endif
+
+#ifdef DEBUG_TCP
+#define debug_tcp(...) printf(__VA_ARGS__)
+#else
+#define debug_tcp(...)
+#endif
+
 // TODO: we need a global routing table, an option to enable ipv4 forwarding
 // TODO: arp table for each network interface
 // TODO: implement arp lookup
@@ -158,18 +198,18 @@ static void handle_icmp(netif_t *netif, ethernet_packet_t *ethernet_packet, size
 	ipv4_packet_t *ipv4_packet, size_t ipv4_data_length) {
 	(void)ethernet_length;
 	if (ipv4_data_length < sizeof(icmp_packet_t)) {
-		printf("    length too short!\n");
+		debug_icmp("    length too short!\n");
 		return;
 	}
 
 	icmp_packet_t *icmp_packet = (icmp_packet_t *)(&ipv4_packet->data);
-	printf("    type    : 0x%2x\n", icmp_packet->type);
-	printf("    code    : 0x%2x\n", icmp_packet->code);
-	printf("    checksum: 0x%4x\n", ntohs(icmp_packet->checksum));
+	debug_icmp("    type    : 0x%2x\n", icmp_packet->type);
+	debug_icmp("    code    : 0x%2x\n", icmp_packet->code);
+	debug_icmp("    checksum: 0x%4x\n", ntohs(icmp_packet->checksum));
 	uint16_t old_checksum = ntohs(icmp_packet->checksum);
 	icmp_packet->checksum = 0;
 	if (old_checksum != net_calc_checksum((uint8_t *)icmp_packet, ipv4_data_length)) {
-		printf("checksum invalid!\n");
+		debug_icmp("checksum invalid!\n");
 		return;
 	}
 	icmp_packet->checksum = htons(old_checksum);
@@ -179,100 +219,112 @@ static void handle_icmp(netif_t *netif, ethernet_packet_t *ethernet_packet, size
 			send_echo_reply(netif, ethernet_packet,
 					ipv4_packet, ipv4_data_length,
 					icmp_packet);
-			printf("     icmp echo request\n");
+			debug_icmp("     icmp echo request\n");
+			break;
+		case ICMP_TYPE_ECHO_REPLY:
+			debug_icmp("     icmp echo reply ??\n");
+			break;
+		case ICMP_TYPE_DEST_UNREACHABLE:
+			debug_icmp("     icmp destination unreachable\n");
+			break;
+		case ICMP_TYPE_ROUTER_ADVERTISEMENT:
+			debug_icmp("     icmp router advertisement\n");
+			break;
+		case ICMP_TYPE_ROUTER_SOLICITATION:
+			debug_icmp("     icmp router solicitation\n");
 			break;
 		default:
-			printf("     unknown type\n");
+			debug_icmp("     unknown type\n");
 			break;
 	}
 }
 
 static void handle_ipv4(netif_t *netif, ethernet_packet_t *ethernet_packet, size_t length) {
 	if (length < (sizeof(ethernet_packet_t) + sizeof(ipv4_packet_t))) {
-		printf("  length too short!\n");
+		debug_ipv4("  length too short!\n");
 		return;
 	}
 
 	ipv4_packet_t *ipv4_packet = (ipv4_packet_t *)(&ethernet_packet->data);
 	if ((ipv4_packet->version_ihl & 0x0F) != 5) {
-		printf("   ihl mismatch: 0x%x expected: 0x%x\n", ipv4_packet->version_ihl & 0xF, 5);
+		debug_ipv4("   ihl mismatch: 0x%x expected: 0x%x\n", ipv4_packet->version_ihl & 0xF, 5);
 		return;
 	}
 	if (((ipv4_packet->version_ihl & 0xF0) >> 4) != 4) {
-		printf("   version mismatch: 0x%x expected: 0x%x\n", (ipv4_packet->version_ihl & 0xF0) >> 4, 4);
+		debug_ipv4("   version mismatch: 0x%x expected: 0x%x\n", (ipv4_packet->version_ihl & 0xF0) >> 4, 4);
 		return;
 	}
 	// just ignore this (we need to implement quite a bit to support it)
-	// printf("  dscp_ecn   : 0x%2x\n", ipv4_packet->dscp_ecn);
+	// debug_ipv4("  dscp_ecn   : 0x%2x\n", ipv4_packet->dscp_ecn);
 	size_t ipv4_packet_length = ntohs(ipv4_packet->length);
-	printf("  length     : 0x%4x\n", ipv4_packet_length);
+	debug_ipv4("  length          : 0x%4x\n", ipv4_packet_length);
 	if (ipv4_packet_length < sizeof(ipv4_packet_t)) {
-		printf("   packet too short!\n");
+		debug_ipv4("   packet too short!\n");
 		return;
 	}
 
 	if (length < (ipv4_packet_length + sizeof(ethernet_packet_t) + 4)) {
 		// 4 byte crc ethernet checksum
-		printf("   ipv4 packet length invalid!\n");
+		debug_ipv4("   ipv4 packet length invalid!\n");
 		return;
 	}
-	printf("  identification: 0x%4x\n", ntohs(ipv4_packet->identification));
+	debug_ipv4("  identification  : 0x%4x\n", ntohs(ipv4_packet->identification));
 	uint16_t flags_fragment_offset = ntohs(ipv4_packet->flags_fragment_offset);
 	uint8_t flags = (flags_fragment_offset & 0xE000) >> 13;
 	// FIXME: convert into real bytes
 	size_t fragment_offset = flags_fragment_offset & 0x1FFF;
-	printf("  flags           : 0x%1x\n", flags);
-	printf("  fragment offset : 0x%4x\n", fragment_offset);
+	debug_ipv4("  flags           : 0x%1x\n", flags);
+	debug_ipv4("  fragment offset : 0x%4x\n", fragment_offset);
 	if (flags & 0x1) {
-		printf("   reserved flag set!\n");
+		debug_ipv4("   reserved flag set!\n");
 		return;
 	}
 	if (flags & 0x4) {
 		// TODO: implement
-		printf("   packet fragmented!\n");
+		debug_ipv4("   packet fragmented!\n");
 		return;
 	}
-	printf("  flags fragment offset: 0x%4x\n", ntohs(ipv4_packet->flags_fragment_offset));
-	printf("  ttl        : 0x%2x\n", ipv4_packet->ttl);
+	debug_ipv4("  flags fragment offset: 0x%4x\n", ntohs(ipv4_packet->flags_fragment_offset));
+	debug_ipv4("  ttl              : 0x%2x\n", ipv4_packet->ttl);
 	// TODO: handle ttl=0 when routing
-	printf("  protocol   : 0x%2x\n", ipv4_packet->protocol);
+	debug_ipv4("  protocol         : 0x%2x\n", ipv4_packet->protocol);
 
-	printf("  checksum   : 0x%4x ", ntohs(ipv4_packet->checksum));
+	debug_ipv4("  checksum         : 0x%4x ", ntohs(ipv4_packet->checksum));
 	if (! ipv4_is_checksum_valid(ipv4_packet)) {
-		printf("invalid!\n");
+		debug_ipv4("invalid!\n");
 		return;
 	} else {
-		printf("valid!\n");
+		debug_ipv4("valid!\n");
 	}
-	printf("  src        : %u.%u.%u.%u\n",
+	debug_ipv4("  src              : %u.%u.%u.%u\n",
 		ipv4_packet->srcip[0], ipv4_packet->srcip[1], ipv4_packet->srcip[2], ipv4_packet->srcip[3]);
-	printf("  dst        : %u.%u.%u.%u\n",
+	debug_ipv4("  dst              : %u.%u.%u.%u\n",
 		ipv4_packet->dstip[0], ipv4_packet->dstip[1], ipv4_packet->dstip[2], ipv4_packet->dstip[3]);
 
 	// TODO: handle extra headers
 	// TODO: FIXME: ensure there are no headers if we can't handle them
 
 	if (!memcmp(ipv4_packet->dstip, netif->ip, 4)) {
-		printf("   for us!\n");
+		debug_ipv4("   for us!\n");
 		size_t data_length = ipv4_packet_length - 20;
 		switch(ipv4_packet->protocol) {
 			case IPV4_TYPE_ICMP:
-				printf("   icmp\n");
+				debug_ipv4("   icmp\n");
 				handle_icmp(netif, ethernet_packet, length, ipv4_packet, data_length);
 				break;
 			case IPV4_TYPE_TCP:
-				printf("   tcp\n");
+				debug_ipv4("   tcp\n");
 				break;
 			case IPV4_TYPE_UDP:
-				printf("   udp\n");
+				debug_ipv4("   udp\n");
 				break;
 			default:
-				printf("   unknown protocol!\n");
+				debug_ipv4("   unknown protocol!\n");
 				break;
 		}
 	} else {
 		// TODO: route the packet
-		printf("   not for us!\n");
+		debug_ipv4("   not for us!\n");
 	}
 	return;
 }
@@ -331,17 +383,9 @@ static void handle_arp(netif_t *netif, ethernet_packet_t *ethernet_packet, size_
 			printf("   arp reply!\n");
 			break;
 		default:
-			printf("unknown arp opcode!\n");
-			printf("  opcode       : 0x%4x\n", ntohs(arp_packet->opcode));
-			printf("  src hardware : %2x:%2x:%2x:%2x:%2x:%2x\n",
-				arp_packet->srchw[0], arp_packet->srchw[1], arp_packet->srchw[2], arp_packet->srchw[3], arp_packet->srchw[4], arp_packet->srchw[5]);
-			printf("  src ip       : %u.%u.%u.%u\n",
-				arp_packet->srcpr[0], arp_packet->srcpr[1], arp_packet->srcpr[2], arp_packet->srcpr[3]);
-
-			printf("  dst hardware : %2x:%2x:%2x:%2x:%2x:%2x\n",
-				arp_packet->dsthw[0], arp_packet->dsthw[1], arp_packet->dsthw[2], arp_packet->dsthw[3], arp_packet->dsthw[4], arp_packet->dsthw[5]);
-			printf("  dst ip       : %u.%u.%u.%u\n",
-				arp_packet->dstpr[0], arp_packet->dstpr[1], arp_packet->dstpr[2], arp_packet->dstpr[3]);
+			printf("  unknown arp opcode!\n");
+			printf("   opcode       : 0x%4x\n", ntohs(arp_packet->opcode));
+			printf("  ignoring\n");
 			break;
 	}
 }
@@ -361,29 +405,35 @@ static int ktask_net(void *extra, char *name) {
 		ethernet_packet_t *packet = (ethernet_packet_t *)(recv_packet->data);
 		// we don't need it anymore, free it
 		kfree(recv_packet);
-		printf("received ethernet packet length: 0x%x\n", (uintptr_t)length);
+		debug_ethernet("received ethernet packet length: 0x%x\n", (uintptr_t)length);
 		if (length < sizeof(ethernet_packet_t)) {
-			printf("packet too short!\n");
+			/* TODO: might want to increment a counter here */
+			debug_ethernet("packet too short!\n");
 			kfree(packet);
 			continue;
 		}
 
-		printf(" dst: %2x:%2x:%2x:%2x:%2x:%2x\n",
+		debug_ethernet(" dst: %2x:%2x:%2x:%2x:%2x:%2x\n",
 			packet->dest[0], packet->dest[1], packet->dest[2], packet->dest[3], packet->dest[4], packet->dest[5]);
-		printf(" src: %2x:%2x:%2x:%2x:%2x:%2x\n",
+		debug_ethernet(" src: %2x:%2x:%2x:%2x:%2x:%2x\n",
 			packet->src[0], packet->src[1], packet->src[2], packet->src[3], packet->src[4], packet->src[5]);
-		printf(" type: 0x%4x\n", ntohs(packet->type));
+		debug_ethernet(" type: 0x%4x", ntohs(packet->type));
 		switch (ntohs(packet->type)) {
 			case ETHERNET_TYPE_ARP:
+				debug_ethernet(" (arp)\n");
 				handle_arp(netif, packet, length);
 				break;
 			case ETHERNET_TYPE_IPV4:
-				printf(" ipv4\n");
+				debug_ethernet(" (ipv4)\n");
 				handle_ipv4(netif, packet, length);
-				// TODO: implement
+				// TODO: check if the packet was meant for us, if not, route it
+				break;
+			case 0x86dd: // TODO: macro for this magic number
+				debug_ethernet(" (ipv6)\n");
 				break;
 			default:
-				printf("  unknown type\n");
+				debug_ethernet(" (unknown)\n");
+				break;
 		}
 		kfree(packet);
 	}
