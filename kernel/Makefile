@@ -37,7 +37,7 @@ OBJCOPY:=$(TARGET_ARCH)-elf-objcopy
 ifndef TOOLCHAIN_PREFIX
   ifneq ("","$(wildcard ../toolchain/bin)")
     $(info Trying to use toolchain in ../toolchain; pass TOOLCHAIN_PREFIX='' to use the system's c compiler overwrite)
-    TOOLCHAIN_PREFIX?=$(PWD)/../toolchain/bin
+    TOOLCHAIN_PREFIX := $(dir $(lastword $(MAKEFILE_LIST)))/../toolchain/bin
   else
     $(info toolchain not build, falling back to system c compiler)
   endif
