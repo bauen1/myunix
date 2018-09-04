@@ -9,17 +9,16 @@
 #include <net/checksum.h>
 #include <net/net.h>
 #include <net/e1000.h>
+//#include <net/sky2.h>
+#include <net/tcp.h>
+#include <net/udp.h>
 #include <process.h>
 #include <string.h>
-
-//#define DEBUG
 
 #ifdef DEBUG
 #define DEBUG_ETHERNET
 #define DEBUG_IPV4
 #define DEBUG_ICMP
-#define DEBUG_UDP
-#define DEBUG_TCP
 #endif
 
 #ifdef DEBUG_ETHERNET
@@ -38,18 +37,6 @@
 #define debug_icmp(...) printf(__VA_ARGS__)
 #else
 #define debug_icmp(...)
-#endif
-
-#ifdef DEBUG_UDP
-#define debug_udp(...) printf(__VA_ARGS__)
-#else
-#define debug_udp(...)
-#endif
-
-#ifdef DEBUG_TCP
-#define debug_tcp(...) printf(__VA_ARGS__)
-#else
-#define debug_tcp(...)
 #endif
 
 // TODO: we need a global routing table, an option to enable ipv4 forwarding
@@ -76,11 +63,12 @@ static bool ipv4_is_checksum_valid(ipv4_packet_t *packet) {
 	return calc_checksum == ntohs(packet->checksum);
 }
 
-/**/
+/* called by network card drivers after init */
 void net_register_netif(send_packet_t send, receive_packet_t receive, uint8_t *mac, void *extra) {
 	assert(send != NULL);
 	assert(receive != NULL);
 	assert(extra != NULL); // technically valid, but most likely a bug
+
 	netif_t *netif = kcalloc(1, sizeof(netif_t));
 	assert(netif != NULL);
 	netif->send_packet = send;
@@ -91,13 +79,27 @@ void net_register_netif(send_packet_t send, receive_packet_t receive, uint8_t *m
 	netif->ip[1] = 0;
 	netif->ip[2] = 0;
 	netif->ip[3] = 2;
+	netif->gateway[0] = 10;
+	netif->gateway[1] = 0;
+	netif->gateway[2] = 0;
+	netif->gateway[3] = 1;
+	netif->gateway_mac[0] = 0;
+	netif->gateway_mac[1] = 0;
+	netif->gateway_mac[2] = 0;
+	netif->gateway_mac[3] = 0;
+	netif->gateway_mac[4] = 0;
+	netif->gateway_mac[5] = 0;
+	netif->gateway_mac_configured = false;
+	netif->arp_cache = list_init();
+	assert(netif->arp_cache != NULL);
+
 	list_insert(netif_list, netif);
 
 	// TODO: add the mac address to the kernel task
 	create_ktask(ktask_net, "[net]", netif);
 }
 
-static bool net_send_ethernet(netif_t *netif, uint8_t *src, uint8_t *dest, enum ethernet_type ethernet_type, uint8_t *data, size_t data_size) {
+bool net_send_ethernet(netif_t *netif, uint8_t *src, uint8_t *dest, enum ethernet_type ethernet_type, uint8_t *data, size_t data_size) {
 	// TODO: handle routing here
 	size_t size = sizeof(ethernet_packet_t) + data_size;
 	if (size < 60) { // padding
@@ -148,7 +150,7 @@ static bool net_send_arp_request(netif_t *netif, uint8_t *ip) {
 	return v;
 }
 
-static bool net_send_ipv4(netif_t *netif, uint8_t *srcmac, uint8_t *destmac, uint16_t identification, enum ipv4_type protocol, uint8_t *srcip, uint8_t *destip, uint8_t *data, size_t data_size) {
+bool net_send_ipv4(netif_t *netif, uint8_t *destmac, uint16_t identification, enum ipv4_type protocol, uint8_t *srcip, uint8_t *destip, uint8_t *data, size_t data_size) {
 	size_t size = sizeof(ipv4_packet_t) + data_size;
 	ipv4_packet_t *packet = kcalloc(1, size);
 	if (packet == NULL) {
@@ -167,7 +169,17 @@ static bool net_send_ipv4(netif_t *netif, uint8_t *srcmac, uint8_t *destmac, uin
 	memcpy(packet->dstip, destip, 4);
 	memcpy(packet->data, data, data_size);
 	packet->checksum = htons(ipv4_calculate_checksum(packet));
-	bool success = net_send_ethernet(netif, srcmac, destmac, ETHERNET_TYPE_IPV4, (uint8_t *)packet, size);
+	bool success = false;
+	if (destmac != NULL) {
+		success = net_send_ethernet(netif, netif->mac, destmac, ETHERNET_TYPE_IPV4, (uint8_t *)packet, size);
+	} else {
+		if (!netif->gateway_mac_configured) { // check if gateway was configured (FIXME: 0 might be valid)
+			success = false;
+			printf("%s: failure: gateway mac not configured!\n", __func__);
+		} else {
+			success = net_send_ethernet(netif, netif->mac, gateway_mac, ETHERNET_TYPE_IPV4, (uint8_t *)packet, size);
+		}
+	}
 	kfree(packet);
 	return success;
 }
@@ -188,7 +200,7 @@ static void send_echo_reply(netif_t *netif, ethernet_packet_t *ethernet_packet, 
 	memcpy(echo_reply->data, echo_req->data, size - sizeof(ipv4_packet_t));
 	icmp_reply->checksum = htons(net_calc_checksum((uint8_t *)icmp_reply, ipv4_data_length));
 
-	bool success = net_send_ipv4(netif, netif->mac, ethernet_packet->src, ipv4_packet->identification,
+	bool success = net_send_ipv4(netif, ethernet_packet->src, ipv4_packet->identification,
 		IPV4_TYPE_ICMP, netif->ip, ipv4_packet->srcip, (uint8_t *)icmp_reply, size);
 	(void)success;
 	kfree(icmp_reply);
@@ -314,9 +326,11 @@ static void handle_ipv4(netif_t *netif, ethernet_packet_t *ethernet_packet, size
 				break;
 			case IPV4_TYPE_TCP:
 				debug_ipv4("   tcp\n");
+				handle_tcp(netif, ethernet_packet, length, ipv4_packet, data_length);
 				break;
 			case IPV4_TYPE_UDP:
 				debug_ipv4("   udp\n");
+				handle_udp(netif, ethernet_packet, length, ipv4_packet, data_length);
 				break;
 			default:
 				debug_ipv4("   unknown protocol!\n");
@@ -381,6 +395,18 @@ static void handle_arp(netif_t *netif, ethernet_packet_t *ethernet_packet, size_
 				arp_packet->dstpr[0], arp_packet->dstpr[1], arp_packet->dstpr[2], arp_packet->dstpr[3],
 				arp_packet->dsthw[0], arp_packet->dsthw[1], arp_packet->dsthw[2], arp_packet->dsthw[3], arp_packet->dsthw[4], arp_packet->dsthw[5]);
 			printf("   arp reply!\n");
+			if (!memcmp(arp_packet->srcpr, netif->gateway, 4)) {
+				printf("    arp reply for gateway\n");
+				memcpy(gateway_mac, arp_packet->srchw, 6);
+				netif->gateway_mac_configured = true;
+				bool success = net_send_udp(netif, netif->gateway, 1234, 4321, 13, "hello world!\n");
+				if (success) {
+					printf("success!!!!!\n");
+				} else {
+					printf("failure!!!\n");
+				}
+			}
+			// TODO: check if we requested the arp
 			break;
 		default:
 			printf("  unknown arp opcode!\n");
@@ -396,6 +422,8 @@ static int ktask_net(void *extra, char *name) {
 	if (netif == NULL) { // should not happen
 		return -1;
 	}
+
+	net_send_arp_request(netif, netif->gateway);
 
 	while (1) {
 		packet_t *recv_packet = netif->receive_packet(netif->extra);
@@ -426,9 +454,8 @@ static int ktask_net(void *extra, char *name) {
 			case ETHERNET_TYPE_IPV4:
 				debug_ethernet(" (ipv4)\n");
 				handle_ipv4(netif, packet, length);
-				// TODO: check if the packet was meant for us, if not, route it
 				break;
-			case 0x86dd: // TODO: macro for this magic number
+			case ETHERNET_TYPE_IPV6:
 				debug_ethernet(" (ipv6)\n");
 				break;
 			default:

@@ -2,6 +2,7 @@
 #define NET_H 1
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 #include <list.h>
@@ -19,6 +20,7 @@
 enum ethernet_type {
 	ETHERNET_TYPE_ARP  = 0x0806,
 	ETHERNET_TYPE_IPV4 = 0x0800,
+	ETHERNET_TYPE_IPV6 = 0x86dd,
 };
 
 typedef struct {
@@ -95,15 +97,6 @@ typedef struct {
 	uint8_t data[] __attribute__((packed));
 } __attribute__((packed)) icmp_echo_packet_t;
 
-/* UDP */
-typedef struct {
-	uint16_t srcport __attribute__((packed));
-	uint16_t dstport __attribute__((packed));
-	uint16_t length __attribute__((packed));
-	uint16_t checksum __attribute__((packed));
-	uint8_t data[] __attribute__((packed));
-} __attribute__((packed)) udp_packet_t;
-
 /* other stuff */
 
 typedef struct {
@@ -120,9 +113,16 @@ typedef struct {
 	uint8_t mac[6];
 	void *extra;
 	uint8_t ip[4];
+	uint8_t gateway[4];
+	uint8_t gateway_mac[6];
+	bool gateway_mac_configured; // FIXME: create arp_entry_t
 } netif_t;
 
 void net_register_netif(send_packet_t send, receive_packet_t receive, uint8_t *mac, void *extra);
+
+bool net_send_ethernet(netif_t *netif, uint8_t *src, uint8_t *dest, enum ethernet_type ethernet_type, uint8_t *data, size_t data_size);
+// if destmac = NULL; send to gateway
+bool net_send_ipv4(netif_t *netif, uint8_t *destmac, uint16_t identification, enum ipv4_type protocol, uint8_t *srcip, uint8_t *destip, uint8_t *data, size_t data_size);
 
 void net_init(void);
 
