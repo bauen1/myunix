@@ -4,37 +4,83 @@
 
 #include <console.h>
 #include <framebuffer.h>
+#include <heap.h>
 #include <string.h>
 #include <8x8_font.h>
 
 static volatile void *vmem = NULL;
+static void *backbuffer0 = NULL;
+static void *backbuffer1 = NULL;
 
-static volatile uint32_t pitch, width, height, bpp;
-
+static volatile uintptr_t pitch, width, height, bpp;
 static unsigned int cursor_x, cursor_y;
 
+void framebuffer_enable_double_buffer() {
+	if (vmem == NULL) {return;}
+
+	// TODO: backbuffers could be larger than actually needed
+	backbuffer0 = kmalloc((size_t)((height + 1) * pitch));
+	if (backbuffer0 == NULL) {
+		printf("failed to allocate backbuffer0\n");
+	}
+	backbuffer1 = kmalloc((size_t)((height + 1) * pitch));
+	if (backbuffer1 == NULL) {
+		kfree((void *)backbuffer0);
+		backbuffer0 = NULL;
+		printf("failed to allocate backbuffer1\n");
+	}
+
+
+	memcpy(backbuffer0, (void *)vmem, (size_t)((height + 1) * pitch));
+	memcpy(backbuffer1, backbuffer0, (size_t)((height + 1) * pitch));
+
+	printf("double buffer:  %p\n", backbuffer0);
+	printf("tripple buffer: %p\n", backbuffer0);
+}
+
+static inline void framebuffer_copy_to_front() {
+	if (backbuffer0 == NULL) {return;}
+	if (backbuffer1 == NULL) {return;}
+
+	for (uintptr_t y = 0; y < height; y++) {
+		// check for every line, could be extended to check every pixel
+		if (memcmp((void *)((uintptr_t)backbuffer0 + y * pitch), (void *)((uintptr_t)backbuffer1 + y * pitch), pitch)) {
+			memcpy((void *)((uintptr_t)vmem + y * pitch), (void *)((uintptr_t)backbuffer0 + y * pitch), pitch);
+			memcpy((void *)((uintptr_t)backbuffer1 + y * pitch), (void *)((uintptr_t)backbuffer0 + y * pitch), pitch);
+		}
+	}
+}
+
 // assumes 24bpp
-static inline void framebuffer_setpixel(const unsigned int x, const unsigned int y, uint32_t v) {
-	assert(x <= width);
-	assert(y <= height);
-	uint8_t *where = (uint8_t *)((uintptr_t)(vmem) + y * pitch + x * (bpp / 8));
-	where[0] = (v >> 0) & 0xFF;
-	where[1] = (v >> 1) & 0xFF;
-	where[2] = (v >> 2) & 0xFF;
+static inline void framebuffer_setpixel(const uintptr_t x, const uintptr_t y, uint32_t v) {
+	assert(x < width);
+	assert(y < height);
+	if (backbuffer0 == NULL) {
+		uint8_t *where = (uint8_t *)((uintptr_t)(vmem) + y * pitch + x * (bpp / 8));
+		where[0] = (v >> 0) & 0xFF;
+		where[1] = (v >> 1) & 0xFF;
+		where[2] = (v >> 2) & 0xFF;
+	} else {
+		uint8_t *where = (uint8_t *)((uintptr_t)(backbuffer0) +  y * pitch + x * (bpp / 8));
+		where[0] = (v >> 0) & 0xFF;
+		where[1] = (v >> 1) & 0xFF;
+		where[2] = (v >> 2) & 0xFF;
+	}
 }
 
 static void framebuffer_clear(uint32_t v) {
-	for (unsigned int y = 0; y < height; y++) {
-		for (unsigned int x = 0; x < width; x++) {
+	for (uintptr_t y = 0; y < height; y++) {
+		for (uintptr_t x = 0; x < width; x++) {
 			framebuffer_setpixel(x, y, v);
 		}
 	}
+	framebuffer_copy_to_front();
 }
 
 static inline void put_c_at(const char c, const unsigned int x, const unsigned int y) {
 	for (int i = 0; i < 8; i++) {
 		for (int j = 0; j < 8; j++) {
-			if (font8x8_basic[(unsigned char)c][i] & (1 << j)) {
+			if (((unsigned char)c < 128) && font8x8_basic[(unsigned char)c][i] & (1 << j)) {
 				framebuffer_setpixel(x + j, y + i, 0xFFFFFF);
 			} else {
 				/* do nothing */
@@ -45,15 +91,21 @@ static inline void put_c_at(const char c, const unsigned int x, const unsigned i
 }
 
 static void framebuffer_scroll() {
-	for (unsigned int y = 0; y < (height - 8); y++) {
-		memcpy((void *)((uintptr_t)vmem + y * pitch), (void *)((uintptr_t)vmem + (y + 8) * pitch), pitch);
+	for (uintptr_t y = 0; y < (height - 8); y++) {
+		if (backbuffer0 == NULL) {
+			memcpy((void *)((uintptr_t)vmem + y * pitch), (void *)((uintptr_t)vmem + (y + 8) * pitch), pitch);
+		} else {
+			memcpy((void *)((uintptr_t)backbuffer0 + y * pitch), (void *)((uintptr_t)backbuffer0 + (y + 8) * pitch), pitch);
+		}
 	}
 
-	for (unsigned int x = 0; x < width; x++) {
-		for (unsigned int y = 0; y < 8; y++) {
+	for (uintptr_t x = 0; x < width; x++) {
+		for (uintptr_t y = 0; y < 8; y++) {
 			framebuffer_setpixel(x, height - y - 1, 0xDE00EE);
 		}
 	}
+
+	framebuffer_copy_to_front();
 }
 
 void framebuffer_putc(const char c) {

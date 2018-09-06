@@ -447,6 +447,9 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	syscall_init();
 	printf("[%u] [OK] syscall_init\n", (unsigned int)ticks);
 
+	framebuffer_enable_double_buffer();
+	printf("[%u] [OK] tripple framebuffer enabled\n", (unsigned int)ticks);
+
 	keyboard_init();
 	printf("[%u] [OK] keyboard_init\n", (unsigned int)ticks);
 
