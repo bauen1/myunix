@@ -222,10 +222,10 @@ static void uhci_init_td(uhci_td_t *td, uhci_td_t *prev, unsigned int speed, uin
 	}
 
 	td->token = (
-		(len << 21) |
-		(data_toggle << 19) |
-		(endpt << 15) |
-		(addr << 8)
+		((uint32_t)len << 21) |
+		((uint32_t)data_toggle << 19) |
+		((uint32_t)endpt << 15) |
+		((uint32_t)addr << 8)
 	) | packet_type;
 
 	td->buffer = (uint32_t)data;
@@ -610,8 +610,6 @@ static void uhci_controller_init(uint32_t device, uint16_t vendorid, uint16_t de
 		hc->framelist[i] = TD_PTR_QH | (uint32_t)hc->async_qhs;
 	}
 
-	__asm__ __volatile__("lock; addl $0,0(%%esp)" ::: "memory");
-
 	// FIXME: disable legacy
 	uhci_reg_writew(hc, 0xc0, 0x8f00);
 
@@ -621,7 +619,6 @@ static void uhci_controller_init(uint32_t device, uint16_t vendorid, uint16_t de
 	uhci_reg_writew(hc, REG_FRNUM, 0); // reset index to 0
 	iowait();
 	uhci_reg_writew(hc, REG_CMD, uhci_reg_readw(hc, REG_CMD) & ~UHCI_CMD_START);
-	
 
 	uhci_reg_writeb(hc, REG_SOF, 0x40); // 12mhz timing
 	iowait();
