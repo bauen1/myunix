@@ -15,19 +15,19 @@ static uint32_t block_map_last;
 /* mark block block as used */
 inline void pmm_set_block(uintptr_t block) {
 	assert(block < block_map_size);
-	block_map[block / 32] |= (1 << (block % 32));
+	block_map[block / 32] |= ((uint32_t)1 << (block % 32));
 }
 
 /* mark block as available  */
 inline void pmm_unset_block(uintptr_t block) {
 	assert(block < block_map_size);
-	block_map[block / 32] &= ~(1 << (block % 32));
+	block_map[block / 32] &= ~((uint32_t)1 << (block % 32));
 }
 
 /* test if block is used  */
 inline bool pmm_test_block(uintptr_t block) {
 	assert(block < block_map_size);
-	return (block_map[block / 32] & (1 << (block % 32)));
+	return (block_map[block / 32] & ((uint32_t)1 << (block % 32)));
 }
 
 /* find the first free block */
@@ -38,7 +38,7 @@ static uint32_t pmm_find_first_free() {
 			continue;
 		}
 		for (unsigned int j = 0; j < 32; j++) {
-			uint32_t bit = (1 << j);
+			uint32_t bit = ((uint32_t)1 << j);
 			if (block_map[i] & bit) {
 				// skip
 				continue;
