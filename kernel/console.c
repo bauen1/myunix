@@ -101,6 +101,7 @@ void puts(const char *s) {
 static void vprintf(const char *fmt, va_list args) {
 	char buf[256]; // probably too much
 	char *s;
+	int tmp;
 
 	while (*fmt != 0) {
 		if (*fmt == '%') {
@@ -117,6 +118,10 @@ static void vprintf(const char *fmt, va_list args) {
 			switch (*fmt) {
 				case '%':
 					putc('%');
+					break;
+				case 'c':
+					tmp = va_arg(args, int);
+					putc(tmp);
 					break;
 				case 's':
 					s = va_arg(args, char *);
