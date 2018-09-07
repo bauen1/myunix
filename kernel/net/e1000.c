@@ -351,8 +351,8 @@ static void e1000_device_init(uint32_t device, uint16_t deviceid, void *extra) {
 	cmd |= (1<<6);   // set link up
 	cmd &= ~(1<<3);  // disable link reset
 	cmd &= ~(1<<7);  // disable invert loss-of-signal
-	cmd &= ~(1<<31); // disable phy reset
-	cmd &= ~(1<<30); // disable vlan ( TODO: implement )
+	cmd &= ~(1U<<31); // disable phy reset
+//	cmd &= ~(1<<30); // disable vlan ( TODO: implement )
 	e1000_cmd_writel(e1000, E1000_REG_CTRL, cmd);
 
 	// disable flow control
@@ -362,6 +362,12 @@ static void e1000_device_init(uint32_t device, uint16_t deviceid, void *extra) {
 	e1000_cmd_writel(e1000, 0x0170, 0); // flow control transmit timer value
 
 	_sleep(100); // FIXME: not needed ?
+
+	cmd = e1000_cmd_readl(e1000, E1000_REG_CTRL);
+	cmd &= ~(1<<30);
+	e1000_cmd_writel(e1000, E1000_REG_CTRL, cmd);
+
+	_sleep(100);
 
 	unsigned int irq = pci_config_readb(e1000->pcidevice, PCI_IRQ);
 	printf("irq: %u\n", irq);
@@ -378,9 +384,11 @@ static void e1000_device_init(uint32_t device, uint16_t deviceid, void *extra) {
 		e1000_cmd_writel(e1000, 0x4000 + i * 4, 0);
 	}
 
-	e1000_cmd_writel(e1000, 0x5400, *(uint32_t*)(&(e1000->mac[0])));
-	e1000_cmd_writel(e1000, 0x5404, *(uint16_t*)(&(e1000->mac[4])));
-	e1000_cmd_writel(e1000, 0x5404, e1000_cmd_readl(e1000, 0x5404) | (1<<31)); // FIXME: research what this actually does
+	uint32_t mac_low = e1000->mac[0] + ((uint32_t)e1000->mac[1] << 8) + ((uint32_t)e1000->mac[2] << 16) + ((uint32_t)e1000->mac[3] << 24);
+	e1000_cmd_writel(e1000, 0x5400, mac_low);
+	uint16_t mac_high = e1000->mac[4] + ((uint16_t)e1000->mac[5] << 8);
+	e1000_cmd_writel(e1000, 0x5404, (uint32_t)mac_high);
+	e1000_cmd_writel(e1000, 0x5404, e1000_cmd_readl(e1000, 0x5404) | (1UL<<31)); // FIXME: research what this actually does
 
 	// link reset
 	e1000_cmd_writel(e1000, E1000_REG_RX_CTRL, (1<<4));
@@ -395,10 +403,10 @@ static void e1000_device_init(uint32_t device, uint16_t deviceid, void *extra) {
 		(1<<0) | // tx desc written back
 		(1<<1) | // tx queue empty
 		(1<<2) | // link status change
-		(1<<4) | // rx desc min threshold
+//		(1<<4) | // rx desc min threshold
 		(1<<6) | // receiver fifo overrun
 		(1<<7) | // receiver timer int
-		(1<<15) | // tx desc low threshold
+//		(1<<15) | // tx desc low threshold
 		0);
 //		(1<<2) | (1<<6) | (1<<7)|(1<<1)|1);
 
