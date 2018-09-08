@@ -74,6 +74,12 @@ endif
 .PHONY: all
 all: iso
 
+.PHONY: debug
+ifneq (,$(findstring debug,$(MAKECMDGOALS)))
+include ubsan/config.mk
+endif
+debug: all
+
 .PHONY: iso
 iso: myunix2.iso
 
