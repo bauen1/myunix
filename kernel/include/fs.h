@@ -24,8 +24,8 @@ struct dirent {
 struct fs_node;
 typedef uint32_t (*read_type_t) (struct fs_node *node, uint32_t offset, uint32_t size, uint8_t *buffer);
 typedef uint32_t (*write_type_t) (struct fs_node *node, uint32_t offset, uint32_t size, uint8_t *buffer);
-typedef void (*open_type_t) (struct fs_node *node, unsigned int flags);
-typedef void (*close_type_t) (struct fs_node *node);
+typedef void (*open_type_t) (struct fs_node *node, unsigned int flags); // called everytime a program opens the file node
+typedef void (*close_type_t) (struct fs_node *node); // called when the last program closes a file node, free all driver objects related
 typedef struct dirent *(*readdir_type_t) (struct fs_node *node, uint32_t i);
 typedef struct fs_node *(*finddir_type_t) (struct fs_node *node, char *name);
 typedef void (*create_type_t) (struct fs_node *node, char *name, uint16_t permissions);
@@ -36,6 +36,8 @@ typedef struct fs_node {
 	char name[256];
 	enum fs_node_flags flags;
 	void *object;	/* optional driver-specific object */
+
+	// TODO: symlink support
 
 	size_t length;
 
@@ -54,6 +56,9 @@ typedef struct fs_node {
 } fs_node_t;
 
 extern fs_node_t *fs_root;
+/* allocating / freeing a node */
+fs_node_t *fs_alloc_node();
+void fs_free_node(fs_node_t **node);
 
 uint32_t fs_read(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buffer);
 uint32_t fs_write(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buffer);
