@@ -51,7 +51,7 @@ void handle_udp(netif_t *netif, ethernet_packet_t *ethernet_packet, size_t ether
 	}
 }
 
-bool net_send_udp(netif_t *netif, uint8_t *destip, uint16_t srcport, uint16_t dstport, uint16_t length, uint8_t *data) {
+bool net_send_udp(netif_t *netif, uint8_t *destip, uint16_t srcport, uint16_t dstport, uint16_t length, const uint8_t *data) {
 	size_t size = sizeof(udp_packet_t) + length;
 	udp_packet_t *packet = kcalloc(1, size);
 	if (packet == NULL) {
@@ -61,7 +61,7 @@ bool net_send_udp(netif_t *netif, uint8_t *destip, uint16_t srcport, uint16_t ds
 
 	packet->srcport = htons(srcport);
 	packet->dstport = htons(dstport);
-	packet->length = htons(length);
+	packet->length = htons(size);
 	packet->checksum = 0;
 	memcpy(packet->data, data, length);
 	// FIXME: pretty sure identification = 0 isn't valid (more than once atleast)

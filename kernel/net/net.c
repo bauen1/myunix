@@ -177,7 +177,7 @@ bool net_send_ipv4(netif_t *netif, uint8_t *destmac, uint16_t identification, en
 			success = false;
 			printf("%s: failure: gateway mac not configured!\n", __func__);
 		} else {
-			success = net_send_ethernet(netif, netif->mac, gateway_mac, ETHERNET_TYPE_IPV4, (uint8_t *)packet, size);
+			success = net_send_ethernet(netif, netif->mac, netif->gateway_mac, ETHERNET_TYPE_IPV4, (uint8_t *)packet, size);
 		}
 	}
 	kfree(packet);
@@ -287,6 +287,7 @@ static void handle_ipv4(netif_t *netif, ethernet_packet_t *ethernet_packet, size
 	size_t fragment_offset = flags_fragment_offset & 0x1FFF;
 	debug_ipv4("  flags           : 0x%1x\n", flags);
 	debug_ipv4("  fragment offset : 0x%4x\n", fragment_offset);
+	(void)fragment_offset;
 	if (flags & 0x1) {
 		debug_ipv4("   reserved flag set!\n");
 		return;
@@ -397,9 +398,10 @@ static void handle_arp(netif_t *netif, ethernet_packet_t *ethernet_packet, size_
 			printf("   arp reply!\n");
 			if (!memcmp(arp_packet->srcpr, netif->gateway, 4)) {
 				printf("    arp reply for gateway\n");
-				memcpy(gateway_mac, arp_packet->srchw, 6);
+				memcpy(netif->gateway_mac, arp_packet->srchw, 6);
 				netif->gateway_mac_configured = true;
-				bool success = net_send_udp(netif, netif->gateway, 1234, 4321, 13, "hello world!\n");
+				const char *msg = "hello from the other side. I must have called a thousand times!\n";
+				bool success = net_send_udp(netif, netif->gateway, 1234, 4321, strlen(msg) + 1, (const uint8_t *)msg);
 				if (success) {
 					printf("success!!!!!\n");
 				} else {

@@ -15,6 +15,6 @@ typedef struct {
 void handle_udp(netif_t *netif, ethernet_packet_t *ethernet_packet, size_t ethernet_length,
 	ipv4_packet_t *ipv4_packet, size_t ipv4_data_length);
 
-bool net_send_udp(netif_t *netif, uint8_t *destip, uint16_t srcport, uint16_t dstport, uint16_t length, uint8_t *data);
+bool net_send_udp(netif_t *netif, uint8_t *destip, uint16_t srcport, uint16_t dstport, uint16_t length, const uint8_t *data);
 
 #endif
