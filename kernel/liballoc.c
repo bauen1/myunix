@@ -190,7 +190,7 @@ void liballoc_dump()
 
 // ***************************************************************
 
-static bool liballoc_verify_magic(struct liballoc_minor *min, void *ptr) {
+static bool __attribute__((no_sanitize_undefined)) liballoc_verify_magic(struct liballoc_minor *min, void *ptr) {
 	(void)min;
 	(void)ptr;
 	if ( min->magic != LIBALLOC_MAGIC ) {
@@ -292,7 +292,7 @@ void liballoc_init() {
 	#endif
 }
 
-void *kmalloc(size_t req_size) {
+void * __attribute__((no_sanitize_undefined)) kmalloc(size_t req_size) {
 	int startedBet = 0;
 	unsigned long long bestSize = 0;
 	void *p = NULL;
@@ -569,7 +569,7 @@ void *kmalloc(size_t req_size) {
 	return NULL;
 }
 
-void kfree(void *ptr)
+void __attribute__((no_sanitize_undefined)) kfree(void *ptr)
 {
 	struct liballoc_minor *min;
 	struct liballoc_major *maj;
