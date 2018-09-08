@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stddef.h>
 
 #include <fs.h>
@@ -13,6 +14,10 @@ static uint32_t ramdisk_read(fs_node_t *node, uint32_t offset, uint32_t size, ui
 		size = node->length - offset;
 	}
 
+	if (size == 0) {
+		return 0;
+	}
+
 	memcpy(buffer, (void *)(((uintptr_t)node->object) + offset), size);
 	return size;
 }
@@ -25,6 +30,11 @@ static uint32_t ramdisk_write(fs_node_t *node, uint32_t offset, uint32_t size, u
 	if (offset + size > node->length) {
 		size = node->length - offset;
 	}
+
+	if (size == 0) {
+		return 0;
+	}
+
 	memcpy((void *)(((uintptr_t)node->object) + offset), buffer, size);
 	return size;
 }
@@ -41,7 +51,8 @@ static void ramdisk_close(fs_node_t *node) {
 }
 
 fs_node_t *ramdisk_init(uintptr_t ptr, size_t size) {
-	fs_node_t *node = kcalloc(1, sizeof(fs_node_t));
+	fs_node_t *node = fs_alloc_node();
+	assert(node != NULL);
 	memcpy((void *)node->name, "ramdisk", 8);
 	node->read = ramdisk_read;
 	node->write = ramdisk_write;

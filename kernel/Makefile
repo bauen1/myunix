@@ -120,7 +120,7 @@ kernel.bin: kernel.elf
 iso/kernel.bin: kernel.bin
 	cp $< $@
 
-myunix2.iso: iso/kernel.bin
+myunix2.iso: iso/kernel.bin iso/boot/grub/grub.cfg iso/modules/initrd.tar
 	grub-mkrescue -o $@ --product-name "myunix2" --product-version="v0.0" iso
 
 # virtual machine targets

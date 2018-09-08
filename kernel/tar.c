@@ -10,15 +10,24 @@
 
 struct tar_header {
 	char name[100] __attribute__((packed));
-	uint32_t mode __attribute__((packed));
-	uint32_t gid __attribute__((packed));
-	uint32_t uid __attribute__((packed));
+	char mode[8] __attribute__((packed));
+	char gid[8] __attribute__((packed));
+	char uid[8] __attribute__((packed));
 	char fsize[12] __attribute__((pcked));
 	char last_mod[12] __attribute__((packed));
-	uint32_t checksum __attribute__((pcked));
-	uint8_t type __attribute__((packed));
+	char checksum[8] __attribute__((packed));
+	char type __attribute__((packed));
 	char linked_name[100] __attribute__((packed));
+	char ustar_indicator[6] __attribute__((packed));
+	char ustar_version[2] __attribute__((packed));
+	char owner_user_name[32] __attribute__((packed));
+	char owner_group_name[32] __attribute__((packed));
+	char device_major_number[8] __attribute__((packed));
+	char device_minor_number[8] __attribute__((packed));
+	char filename_prefix[155] __attribute__((packed));
+	char __free[12] __attribute__((packed));
 } __attribute__((packed));
+static_assert(sizeof(struct tar_header) == 512);
 
 struct tar_obj {
 	fs_node_t *device;
@@ -106,12 +115,9 @@ static void tar_open(fs_node_t *node, unsigned int flags) {
 }
 
 static void tar_close(fs_node_t *node) {
-	(void)node;
-	printf("tar close\n");
 	struct tar_obj *tar_obj = (struct tar_obj *)node->object;
 	kfree(tar_obj->name);
 	kfree(tar_obj);
-	return;
 }
 
 // FIXME: implement correctly
@@ -128,7 +134,7 @@ static struct dirent *tar_readdir(struct fs_node *node, uint32_t i) {
 	if (i == 1) {
 		struct dirent *v = kcalloc(1, sizeof(struct dirent));
 		assert(v != NULL);
-		v->ino = 0;
+		v->ino = 1;
 		strncpy(v->name, "..", 255);
 		return v;
 	}
@@ -159,7 +165,6 @@ static struct dirent *tar_readdir(struct fs_node *node, uint32_t i) {
 }
 
 static fs_node_t *tar_finddir(struct fs_node *node, char *name) {
-	printf("tar_finddir(0x%x, '%s');\n", (uintptr_t)node, name);
 	struct tar_obj *obj = (struct tar_obj *)node->object;
 	uintptr_t off = tar_lookup(((struct tar_obj *)node->object)->device, name);
 	if (off == (unsigned)-1) {
@@ -180,7 +185,6 @@ fs_node_t *mount_tar(fs_node_t *device) {
 	tar_root_obj->name = kmalloc(1);
 	tar_root_obj->name[0] = 0;
 	tar_root_obj->flags = FS_NODE_DIRECTORY;
-//	strncpy(tar_root->name, "tar_root", 255);
 
 	fs_node_t *tar_root = fs_node_from_tar(tar_root_obj);
 	fs_open(tar_root, 0);

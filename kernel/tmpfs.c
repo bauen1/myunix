@@ -35,7 +35,7 @@ static struct tmpfs_object *tmpfs_create_obj(char *name, enum fs_node_flags flag
 }
 
 static fs_node_t *fs_node_from_tmpfs(struct tmpfs_object *tmpfs_obj) {
-	fs_node_t *f = kcalloc(1, sizeof(fs_node_t));
+	fs_node_t *f = fs_alloc_node();
 	assert(f != NULL);
 	strncpy(f->name, tmpfs_obj->name, 255);
 	f->flags = tmpfs_obj->flags;
@@ -212,22 +212,6 @@ static void tmpfs_create (fs_node_t *node, char *name, uint16_t permissions) {
 }
 
 fs_node_t *mount_tmpfs() {
-/*	fs_node_t *root = kcalloc(1, sizeof(fs_node_t));
-	assert(root != NULL);
-	strncpy(root->name, "tmpfs", 255);
-	root->flags = FS_NODE_DIRECTORY;
-	root->read = tmpfs_read;
-	root->write = tmpfs_write;
-	root->open = tmpfs_open;
-	root->close = tmpfs_close;
-	root->readdir = tmpfs_readdir;
-	root->finddir = tmpfs_finddir;
-	root->create = tmpfs_create;
-	root->unlink = tmpfs_unlink;
-	root->mkdir = tmpfs_mkdir;
-	root->object = list_init();
-	return root;
-*/
 	struct tmpfs_object *tmpfs_root = tmpfs_create_obj("tmpfs", FS_NODE_DIRECTORY);
 	fs_node_t *root_node = fs_node_from_tmpfs(tmpfs_root);
 	fs_open(root_node, 0);
