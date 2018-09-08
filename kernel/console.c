@@ -98,7 +98,7 @@ void puts(const char *s) {
 	}
 }
 
-static void vprintf(const char *fmt, va_list args) {
+void vprintf(const char *fmt, va_list args) {
 	char buf[256]; // probably too much
 	char *s;
 	int tmp;
