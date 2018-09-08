@@ -106,24 +106,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 			TTY_DEFAULT_WIDTH * 2);
 	}
 
-	if (mbi->flags & MULTIBOOT_INFO_BOOT_LOADER_NAME) {
-		printf("mbi->boot_loader_name: '%s'\n", (char *)mbi->boot_loader_name);
-	}
-
-	if (mbi->flags & MULTIBOOT_INFO_ELF_SHDR) {
-		printf("mbi->u.elf_sec.num: 0x%x\n", mbi->u.elf_sec.num);
-		printf("mbi->u.elf_sec.size: 0x%x\n", mbi->u.elf_sec.size);
-		printf("mbi->u.elf_sec.addr: 0x%x\n", mbi->u.elf_sec.addr);
-		printf("mbi->u.elf_sec.shndx: 0x%x\n", mbi->u.elf_sec.shndx);
-	}
-
-	if (mbi->flags & MULTIBOOT_INFO_VIDEO_INFO) {
-		printf("mbi->vbe_control_info: 0x%x\n", mbi->vbe_control_info);
-		printf("mbi->vbe_mode_info: 0x%x\n", mbi->vbe_mode_info);
-		printf("mbi->vbe_interface_seg: 0x%x\n", mbi->vbe_interface_seg);
-		printf("mbi->vbe_interface_off: 0x%x\n", mbi->vbe_interface_off);
-		printf("mbi->vbe_interface_len: 0x%x\n", mbi->vbe_interface_len);
-	}
+	multiboot_dump(mbi);
 
 	gdt_init();
 	printf("[%u] [OK] gdt_init\n", (unsigned int)ticks);
@@ -142,12 +125,6 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 
 	pit_init();
 	printf("[%u] [OK] pit_init\n", (unsigned int)ticks);
-
-	if (mbi->flags & MULTIBOOT_INFO_MEMORY) {
-		printf("mem_lower: %ukb\n", mbi->mem_lower);
-		printf("mem_upper: %ukb\n", mbi->mem_upper);
-		mem_avail = 1024 * (1024 + mbi->mem_upper);
-	}
 
 	if (mbi->flags & MULTIBOOT_INFO_MODS) {
 		printf("[%u] %u modules\n", (unsigned int)ticks, mbi->mods_count);
