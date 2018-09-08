@@ -80,19 +80,19 @@ iso: myunix2.iso
 .PHONY: clean
 clean:
 	rm -f kernel.elf kernel.sym kernel.bin
-	@rm -f $(OBJS) *.o */*.o */*/*.o
 	@echo rm -f objs
-	@rm -f $(DEPS) *.d */*.d */*/*.d
+	@rm -f $(OBJS) *.o */*.o */*/*.o
 	@echo rm -f deps
+	@rm -f $(DEPS) *.d */*.d */*/*.d
 	rm -f iso/*.iso *.iso iso/kernel.bin
 
 %.o: %.c
-	@$(CC) $(CFLAGS) $(CPPFLAGS) -MD -c $< -o $@
 	@echo CC $< -o $@
+	@$(CC) $(CFLAGS) $(CPPFLAGS) -MD -c $< -o $@
 
 %.o: %.s
-	@$(AS) $(ASFLAGS) -MF $(@:.o=.d) $< -o $@
 	@echo NASM $< -o $@
+	@$(AS) $(ASFLAGS) -MF $(@:.o=.d) $< -o $@
 
 .PHONY: kernel
 kernel: kernel.elf kernel.sym kernel.bin
@@ -100,22 +100,22 @@ kernel: kernel.elf kernel.sym kernel.bin
 # TODO: this should probably be in arch/*/config.mak (partially)
 # link using gcc or tcc
 kernel.elf: $(OBJS)
-	@$(CC) $(LDFLAGS) $(LIBS) -g -Wl,-Ttext=0x100000 -o $@ $(OBJS)
 	@echo LD $< -o $@
+	@$(CC) $(LDFLAGS) $(LIBS) -g -Wl,-Ttext=0x100000 -o $@ $(OBJS)
 
 # optional
 kernel.sym: kernel.elf
-	@$(OBJCOPY) --only-keep-debug $^ $@
 	@echo OBJCOPY --only-keep-debug $< -o $@
+	@$(OBJCOPY) --only-keep-debug $^ $@
 
 # objcopy
 kernel.bin: kernel.elf
-	@$(OBJCOPY) --strip-debug $^ $@
 	@echo OBJCOPY --strip-debug $< -o $@
+	@$(OBJCOPY) --strip-debug $^ $@
 # link again using tcc
 #kernel.bin: kernel.elf
-#	@$(CC) $(LDFLAGS) $(LIBS) -Wl,-Ttext=0x100000 -o $@ $(OBJS)
 #	@echo LD $< -o $@
+#	@$(CC) $(LDFLAGS) $(LIBS) -Wl,-Ttext=0x100000 -o $@ $(OBJS)
 
 iso/kernel.bin: kernel.bin
 	cp $< $@
