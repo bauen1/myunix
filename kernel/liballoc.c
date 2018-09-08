@@ -575,12 +575,12 @@ void kfree(void *ptr)
 	struct liballoc_major *maj;
 
 	if ( ptr == NULL ) {
-		assert(0);
 		l_warningCount += 1;
 		#if defined DEBUG || defined INFO
 		printf( "liballoc: WARNING: kfree( NULL ) called from %x\n",
 							__builtin_return_address(0) );
 		#endif
+		assert(0);
 		return;
 	}
 
