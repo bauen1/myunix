@@ -80,7 +80,7 @@ void net_register_netif(send_packet_t send, receive_packet_t receive, uint8_t *m
 	netif->ip[2] = 0;
 	netif->ip[3] = 2;
 	netif->gateway[0] = 10;
-	netif->gateway[1] = 0;
+	netif->gateway[1] = 20;
 	netif->gateway[2] = 0;
 	netif->gateway[3] = 1;
 	netif->gateway_mac[0] = 0;

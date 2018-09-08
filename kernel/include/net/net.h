@@ -116,6 +116,7 @@ typedef struct {
 	uint8_t gateway[4];
 	uint8_t gateway_mac[6];
 	bool gateway_mac_configured; // FIXME: create arp_entry_t
+	list_t *arp_cache;
 } netif_t;
 
 void net_register_netif(send_packet_t send, receive_packet_t receive, uint8_t *mac, void *extra);
