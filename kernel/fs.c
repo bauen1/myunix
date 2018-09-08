@@ -19,6 +19,9 @@ fs_node_t *fs_alloc_node() {
 }
 
 void fs_free_node(fs_node_t **node) {
+	assert(*node != fs_root);
+	if ((*node)->close) {
+		(*node)->close(*node);
 	}
 	kfree(*node);
 	*node = NULL;
