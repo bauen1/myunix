@@ -525,12 +525,11 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	}
 
 	{
-		fs_node_t *f = fs_finddir(fs_root, "init");
+		fs_node_t *f = kopen("/init", 0);
 		if (f == NULL) {
 			printf("could not find init!\n");
 			assert(0);
 		}
-		fs_open(f, 0);
 		process_t *p = process_exec(f);
 		fs_close(f);
 		p->pid = 1;
