@@ -6,19 +6,23 @@
 #include <list.h>
 #include <string.h>
 
+/**
+TODO: implement file support
+*/
 struct tmpfs_object {
 	char *name;
 	enum fs_node_flags flags;
 	list_t *childs;
+	int __refcount;
 };
 
-static uint32_t tmpfs_read(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buf);
-static uint32_t tmpfs_write(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buf);
+static uint32_t tmpfs_read(fs_node_t *node, uint32_t offset, uint32_t size, void *buf);
+static uint32_t tmpfs_write(fs_node_t *node, uint32_t offset, uint32_t size, void *buf);
 static void tmpfs_open(fs_node_t *node, unsigned int flags);
 static void tmpfs_close(fs_node_t *node);
 static struct dirent *tmpfs_readdir(fs_node_t *node, uint32_t i);
 static fs_node_t *tmpfs_finddir(fs_node_t *node, char *name);
-static void tmpfs_unlink (fs_node_t *node, char *name);
+static int tmpfs_unlink (fs_node_t *node, char *name);
 static void tmpfs_mkdir(fs_node_t *node, char *name, uint16_t permissions);
 static void tmpfs_create (fs_node_t *node, char *name, uint16_t permissions);
 
@@ -29,12 +33,27 @@ static struct tmpfs_object *tmpfs_create_obj(char *name, enum fs_node_flags flag
 	obj->name = kmalloc(strlen(name) + 1);
 	assert(obj->name != NULL);
 	strncpy(obj->name, name, 255);
-	obj->childs = list_init();
-	assert(obj->childs != NULL);
+	if (obj->flags & FS_NODE_DIRECTORY) {
+		// directory, init files list
+		obj->childs = list_init();
+		assert(obj->childs != NULL);
+	} else {
+		// file, init block list
+		obj->childs = NULL;
+	}
 	return obj;
 }
 
+static void tmpfs_destroy_object(struct tmpfs_object *obj) {
+	assert(obj->__refcount == 0);
+	kfree(obj->name);
+	assert(obj->childs->length == 0);
+	kfree(obj->childs);
+	kfree(obj);
+}
+
 static fs_node_t *fs_node_from_tmpfs(struct tmpfs_object *tmpfs_obj) {
+	assert(tmpfs_obj != NULL);
 	fs_node_t *f = fs_alloc_node();
 	assert(f != NULL);
 	strncpy(f->name, tmpfs_obj->name, 255);
@@ -58,16 +77,17 @@ static fs_node_t *fs_node_from_tmpfs(struct tmpfs_object *tmpfs_obj) {
 			assert(0);
 			break;
 	}
+	tmpfs_obj->__refcount++;
 
 	return f;
 }
 
-static uint32_t tmpfs_read(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buf) {
+static uint32_t tmpfs_read(fs_node_t *node, uint32_t offset, uint32_t size, void *buf) {
 	(void)node; (void)offset; (void)size; (void)buf;
 	return -1;
 }
 
-static uint32_t tmpfs_write(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buf) {
+static uint32_t tmpfs_write(fs_node_t *node, uint32_t offset, uint32_t size, void *buf) {
 	(void)node; (void)offset; (void)size; (void)buf;
 	return -1;
 }
@@ -78,18 +98,21 @@ static void tmpfs_open(fs_node_t *node, unsigned int flags) {
 }
 
 static void tmpfs_close(fs_node_t *node) {
-	(void)node;
-/*
-	struct tmpfs_object *obj = (struct tmpfs_object *)node->object;
-	kfree(obj->childs);
-	kfree(obj->name);
-	kfree(obj);
-*/
+	struct tmpfs_object *obj = node->object;
+	assert(obj != NULL);
+
+	obj->__refcount--;
+	if (obj->__refcount == 0) {
+		tmpfs_destroy_object(obj);
+	}
+
+	node->object = NULL;
 	return;
 }
 
 static struct dirent *tmpfs_readdir(fs_node_t *node, uint32_t i) {
 	assert(node != NULL);
+	assert(node->object != NULL);
 	struct tmpfs_object *obj = (struct tmpfs_object *)node->object;
 	if (i == 0) {
 		struct dirent *v = kcalloc(1, sizeof(struct dirent));
@@ -106,10 +129,8 @@ static struct dirent *tmpfs_readdir(fs_node_t *node, uint32_t i) {
 		return v;
 	}
 	int j = i - 2;
-	if (node->object == NULL) {
-		return NULL;
-	}
 	list_t *l = obj->childs;
+	assert(l != NULL);
 	for (node_t *v = l->head; v != NULL; v = v->next) {
 		if (j == 0) {
 			fs_node_t *f = (fs_node_t *)v->value;
@@ -126,37 +147,51 @@ static struct dirent *tmpfs_readdir(fs_node_t *node, uint32_t i) {
 }
 
 static fs_node_t *tmpfs_finddir(fs_node_t *node, char *name) {
-//	printf("tmpfs_finddir(0x%x, '%s')\n", (uintptr_t)node, name);
-	if (node->object == NULL) {
-		return NULL;
-	}
+	assert(node->object != NULL);
 
 	struct tmpfs_object *obj = (struct tmpfs_object *)node->object;
+	assert(obj != NULL);
 	list_t *l = obj->childs;
-	size_t strlen_name = strlen(name);
+	assert(l != NULL);
+	size_t name_strlen = strlen(name);
 	for (node_t *v = l->head; v != NULL; v = v->next) {
-		if (!memcmp(name, ((struct tmpfs_object *)v->next)->name, strlen_name + 1)) {
-			return fs_node_from_tmpfs((struct tmpfs_object *)v->next);
+		struct tmpfs_object *v_obj = v->value;
+		assert(v_obj != NULL);
+		if (!memcmp(name, v_obj->name, name_strlen)) {
+			return fs_node_from_tmpfs(v_obj);
 		}
 	}
 	return NULL;
 }
 
-static void tmpfs_unlink (fs_node_t *node, char *name) {
-	if ((name == NULL) || (node->object == NULL)) {
-		return;
+static int tmpfs_unlink (fs_node_t *node, char *name) {
+	struct tmpfs_object *obj = node->object;
+	assert(obj != NULL);
+
+	if (name == NULL) {
+		return -1;
 	}
 
+	list_t *l = obj->childs;
+	assert(l != NULL);
 	size_t name_strlen = strlen(name);
-	for (node_t *v = ((list_t *)node->object)->head; v != NULL; v = v->next) {
-		fs_node_t *f = (fs_node_t *)v->value;
-		if (!memcmp(name, f->name, name_strlen)) {
-//			kfree(f); // FIXME: garbage collect this shit
-			list_delete((list_t *)node->object, v);
-			return;
+	for (node_t *v = l->head; v != NULL; v = v->next) {
+		struct tmpfs_object *v_obj = v->value;
+		assert(v_obj != NULL);
+		if (!memcmp(name, v_obj->name, name_strlen)) {
+			v_obj->__refcount--;
+			if (v_obj->__refcount == 0) {
+				tmpfs_destroy_object(v_obj);
+			}
+			// FIXME: use another list_* call
+			list_delete(l, v);
+			kfree(v);
+			return 0;
 		}
 	}
-	return;
+
+	// no node found
+	return -1;
 }
 
 static void tmpfs_mkdir(fs_node_t *node, char *name, uint16_t permissions) {
@@ -174,12 +209,13 @@ static void tmpfs_mkdir(fs_node_t *node, char *name, uint16_t permissions) {
 	for (node_t *v = childs->head; v != NULL; v = v->next) {
 		struct tmpfs_object *obj2 = (struct tmpfs_object *)v->value;
 		if (!memcmp(name, obj2->name, name_strlen + 1)) {
-			printf("already exists\n");
+			// already exists
 			return;
 		}
 	}
 
 	struct tmpfs_object *nobj = tmpfs_create_obj(name, FS_NODE_DIRECTORY);
+	nobj->__refcount++;
 	list_insert(childs, nobj);
 
 	return;
@@ -200,12 +236,13 @@ static void tmpfs_create (fs_node_t *node, char *name, uint16_t permissions) {
 	for (node_t *v = childs->head; v != NULL; v = v->next) {
 		struct tmpfs_object *obj2 = (struct tmpfs_object *)v->value;
 		if (!memcmp(name, obj2->name, name_strlen + 1)) {
-			printf("already exists\n");
+			// already exists
 			return;
 		}
 	}
 
 	struct tmpfs_object *nobj = tmpfs_create_obj(name, FS_NODE_FILE);
+	nobj->__refcount++;
 	list_insert(childs, nobj);
 
 	return;
@@ -213,6 +250,7 @@ static void tmpfs_create (fs_node_t *node, char *name, uint16_t permissions) {
 
 fs_node_t *mount_tmpfs() {
 	struct tmpfs_object *tmpfs_root = tmpfs_create_obj("tmpfs", FS_NODE_DIRECTORY);
+	tmpfs_root->__refcount = -1;
 	fs_node_t *root_node = fs_node_from_tmpfs(tmpfs_root);
 	fs_open(root_node, 0);
 	return root_node;

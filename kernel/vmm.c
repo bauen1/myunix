@@ -244,6 +244,8 @@ static void page_fault(registers_t *regs) {
 	printf("eip: 0x%x\n", (uint32_t)(regs->eip));
 	printf("address: 0x%x\n", (uint32_t)(address));
 
+	dump_regs(regs);
+
 	if (regs->err_code & 0x4) {
 		printf("usermode\n");
 		printf("current_process: 0x%x\n", (uintptr_t)current_process);

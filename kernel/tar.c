@@ -1,4 +1,4 @@
-// FIXME: memory leaks
+// FIXME: possible memory leaks
 #include <assert.h>
 
 #include <console.h>
@@ -37,35 +37,68 @@ struct tar_obj {
 	uint32_t length;
 };
 
-static uint32_t tar_read(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buffer);
+static uint32_t tar_read(fs_node_t *node, uint32_t offset, uint32_t size, void *buffer);
 static void tar_open(fs_node_t *node, unsigned int flags);
 static void tar_close(fs_node_t *node);
 static struct dirent *tar_readdir(struct fs_node *node, uint32_t i);
 static fs_node_t *tar_finddir(struct fs_node *node, char *name);
 
-static struct tar_obj *tar_create_obj(fs_node_t *device, uintptr_t offset) {
+struct tar_obj *tar_create_obj_from_header(fs_node_t *device, struct tar_header *header, uintptr_t offset) {
 	struct tar_obj *obj = kcalloc(1, sizeof(struct tar_obj));
-	printf("kcalloc tar_obj: 0x%x\n", (uintptr_t)obj);
 	assert(obj != NULL);
 	obj->device = device;
 	obj->offset = offset;
-	obj->flags = FS_NODE_DIRECTORY;
 
-	uint8_t buf[512];
-	fs_read(device, offset, 512, buf);
-	obj->length = oct2bin(buf + 124, 11);
-	obj->name = kmalloc(strlen((char *)buf) + 1);
-	assert(obj->name);
-	strncpy(obj->name, (char *)buf, 100);
+	obj->length = oct2bin(header->fsize, 12);
+	obj->name = kmalloc(101);
+	assert(obj->name != NULL);
+	strncpy(obj->name, header->name, 100);
+	obj->name[strlen(header->name)] = 0;
+
+	switch((char)header->type) {
+		case 0:
+		case '0':
+			obj->flags = FS_NODE_FILE;
+			break;
+		case '2':
+			obj->flags = FS_NODE_SYMLINK;
+			break;
+		case '5':
+			obj->flags = FS_NODE_DIRECTORY;
+			break;
+		default:
+			printf("Warning: unsupported type ('%c') !\n", header->type);
+			obj->flags = 0;
+			break;
+	}
+
+	if (obj->flags & FS_NODE_DIRECTORY) {
+		if (obj->name[strlen(obj->name) - 1] == '/') {
+			obj->name[strlen(obj->name) - 1] = 0;
+		}
+	}
 
 	return obj;
 }
 
 static fs_node_t *fs_node_from_tar(struct tar_obj *tar_obj) {
-	fs_node_t *f = kcalloc(1, sizeof(fs_node_t));
-	printf("kcalloc fnode 0x%x\n", (uintptr_t)f);
+	fs_node_t *f = fs_alloc_node();
 	assert(f != NULL);
-	strncpy(f->name, tar_obj->name, 255);
+
+	// removes the leading path from the name
+	// probably really inefficient but hey, it works /shrug
+	char *s = tar_obj->name;
+	char *d;
+	do {
+		d = f->name;
+		while ((*s != '/') && (*s != 0)) {
+			*d = *s;
+			s++;
+			d++;
+		}
+		s++;
+	} while (*d != 0);
+
 	f->flags = tar_obj->flags;
 	f->object = tar_obj;
 	f->open = tar_open;
@@ -77,23 +110,33 @@ static fs_node_t *fs_node_from_tar(struct tar_obj *tar_obj) {
 	return f;
 }
 
-static uintptr_t tar_lookup(fs_node_t *device, char *fname) {
-	printf("tar_lookup('%s')\n", fname);
-	uint8_t buf[512];
+static uintptr_t tar_lookup(fs_node_t *device, char *fname, struct tar_header *header) {
 	uintptr_t ptr = 0;
 	size_t s = 0;
 	size_t slen_fname = strlen(fname);
 	do {
-		s = fs_read(device, ptr, 512, buf);
-		if (!memcmp((void *)buf, fname, slen_fname + 1)) {
-			return ptr;
+		s = fs_read(device, ptr, sizeof(struct tar_header), (uint8_t *)header);
+		if (s != sizeof(struct tar_header)) {
+			printf("tar: %s short read\n", __func__);
+			return -1;
 		}
-		ptr += (((oct2bin(buf + 124, 11) + 511) / 512) + 1) * 512;
+		if (!memcmp(header->name, fname, slen_fname)) {
+			if (*(header->name + slen_fname + 1) == 0) {
+				return ptr;
+			} else if ((*(header->name + slen_fname + 1) == '/') && (*(header->name + slen_fname + 2) == 0)) {
+				return ptr;
+			}
+		}
+		uintptr_t jump = oct2bin(header->fsize, 12);
+		if ((jump % 512) != 0) {
+			jump += 512 - (jump % 512);
+		}
+		ptr += 512 + jump;
 	} while (s == 512);
 	return -1;
 }
 
-static uint32_t tar_read(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buffer) {
+static uint32_t tar_read(fs_node_t *node, uint32_t offset, uint32_t size, void *buffer) {
 	if (offset > node->length) {
 		return 0;
 	}
@@ -108,22 +151,19 @@ static uint32_t tar_read(fs_node_t *node, uint32_t offset, uint32_t size, uint8_
 }
 
 static void tar_open(fs_node_t *node, unsigned int flags) {
-	(void)node;
-	(void)flags;
-	printf("tar open\n");
+	(void)node; (void)flags;
 	return;
 }
 
 static void tar_close(fs_node_t *node) {
 	struct tar_obj *tar_obj = (struct tar_obj *)node->object;
 	kfree(tar_obj->name);
+	tar_obj->name = NULL;
 	kfree(tar_obj);
 }
 
-// FIXME: implement correctly
 static struct dirent *tar_readdir(struct fs_node *node, uint32_t i) {
-//	printf("tar_readdir(node: 0x%x, i: %u)\n", (uintptr_t)node, i);
-	uint8_t buf[512];
+	struct tar_header header;
 	if (i == 0) {
 		struct dirent *v = kcalloc(1, sizeof(struct dirent));
 		assert(v != NULL);
@@ -144,21 +184,61 @@ static struct dirent *tar_readdir(struct fs_node *node, uint32_t i) {
 	size_t slen_fname = strlen(node->name);
 	uint32_t j = 0;
 	do {
-		s = fs_read(((struct tar_obj *)node->object)->device, ptr, 512, buf);
-		if (buf[0] == 0) {
+		fs_node_t *device = ((struct tar_obj *)node->object)->device;
+		s = fs_read(device, ptr, sizeof(struct tar_header), (uint8_t *)&header);
+		if (s != sizeof(struct tar_header)) {
+			printf("tar: %s short read\n", __func__);
 			break;
 		}
-		if (!memcmp((void *)buf, node->name, slen_fname)) {
-			j++;
-			if ((i-1) == j) {
-				struct dirent *v = kcalloc(1, sizeof(struct dirent));
-				assert(v != NULL);
-				v->ino = i;
-				memcpy(v->name, buf, 100);
-				return v;
+
+		if (header.name[0] == 0) {
+			break;
+		}
+
+		if ((header.name[0] == '.') && (header.name[1] == '/') && (header.name[2] == 0)) {
+			// ignore './' root directory entry
+		} else if (!memcmp(header.name, node->name, slen_fname)) {
+			// this complicated mess is needed to handle subdirectories correctly
+			char subname[100];
+			memset(subname, 0, 100);
+			if (header.name[slen_fname] == '/') {
+				strncpy(subname, (const char *)&header.name[slen_fname + 1], 100);
+			} else {
+				strncpy(subname, (const char *)&header.name[slen_fname], 100);
+			}
+			// ignore the directory entry for the node
+			if (subname[0] != 0) {
+				char *s = &subname[0];
+				while (1) {
+					if (*s == '/') {
+						if (*(s+1) == 0) {
+							*s = 0;
+							j++;
+							break;
+						} else { // subdir
+							break;
+						}
+					}
+					if (*s == 0) {
+						j++;
+						break;
+					}
+					s++;
+				}
+				if ((i-1) == j) {
+					struct dirent *v = kcalloc(1, sizeof(struct dirent));
+					assert(v != NULL);
+					v->ino = i;
+					strncpy(v->name, subname, 100);
+					return v;
+				}
 			}
 		}
-		ptr += (((oct2bin(buf + 124, 11) + 511) / 512) + 1) * 512; //FIXME: overflows
+		uintptr_t jump = oct2bin(header.fsize, 12);
+		if ((jump % 512) != 0) {
+			jump += 512 - (jump % 512);
+		}
+		ptr += sizeof(struct tar_header) + jump;
 	} while (s == 512);
 
 	return NULL;
@@ -166,11 +246,27 @@ static struct dirent *tar_readdir(struct fs_node *node, uint32_t i) {
 
 static fs_node_t *tar_finddir(struct fs_node *node, char *name) {
 	struct tar_obj *obj = (struct tar_obj *)node->object;
-	uintptr_t off = tar_lookup(((struct tar_obj *)node->object)->device, name);
+	struct tar_header header;
+
+	// rebuild the full path
+	size_t len = strlen(obj->name) + strlen(name) + 1 + 1;
+	char *path = kmalloc(len);
+	strncpy(path, obj->name, len);
+	char *path1 = path + strlen(obj->name);
+	if (strlen(obj->name) != 0) {
+		*path1++ = '/';
+	}
+	strncpy(path1, name, strlen(name) + 1);
+	path1 += strlen(name);
+	*path1 = 0;
+
+	uintptr_t off = tar_lookup(((struct tar_obj *)node->object)->device, path, &header);
+
 	if (off == (unsigned)-1) {
 		return NULL;
 	} else {
-		return fs_node_from_tar(tar_create_obj(obj->device, off));
+		struct tar_obj *obj2 = tar_create_obj_from_header(obj->device, &header, off);
+		return fs_node_from_tar(obj2);
 	}
 }
 

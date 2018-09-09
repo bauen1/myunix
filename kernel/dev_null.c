@@ -6,25 +6,18 @@
 #include <heap.h>
 #include <string.h>
 
-static uint32_t null_read(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buffer) {
-	(void)node;
-	(void)offset;
-	(void)size;
-	(void)buffer;
+static uint32_t null_read(fs_node_t *node, uint32_t offset, uint32_t size, void *buffer) {
+	(void)node; (void)offset; (void)size; (void)buffer;
 	return 0;
 }
 
-static uint32_t null_write(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buffer) {
-	(void)node;
-	(void)offset;
-	(void)size;
-	(void)buffer;
-	return 0;
+static uint32_t null_write(fs_node_t *node, uint32_t offset, uint32_t size, void *buffer) {
+	(void)node; (void)offset; (void)buffer;
+	return size;
 }
 
-static uint32_t zero_read(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buffer) {
-	(void)node;
-	(void)offset;
+static uint32_t zero_read(fs_node_t *node, uint32_t offset, uint32_t size, void *buffer) {
+	(void)node; (void)offset;
 	memset(buffer, 0, size);
 	return size;
 }

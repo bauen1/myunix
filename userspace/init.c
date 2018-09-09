@@ -9,7 +9,8 @@ int main(int argc, char *argv[]) {
 	setvbuf(stdin, NULL, _IONBF, 0);
 	setvbuf(stdout, NULL, _IONBF, 0);
 	printf("hello from /init!\n");
-	printf("argc: %i\n", argc);
+	printf("argv: %p\n", argv);
+	printf("argc: %i (0x%08x)\n", argc, argc);
 	for (int i = 0; i < argc; i++) {
 		printf("argv[%i]: '%s'\n", i, argv[i]);
 	}

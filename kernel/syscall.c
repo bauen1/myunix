@@ -15,7 +15,7 @@
 // TODO: CRITICAL FIXME: may return 0 incase of failure on first page early which is success
 static intptr_t map_userspace_to_kernel(page_directory_t *pdir, uintptr_t ptr, uintptr_t kptr, size_t n) {
 	if ((pdir == NULL) || ((ptr & 0xFFF) != 0) || ((kptr & 0xFFF) != 0) || (n == 0)) {
-		printf("map_userspace_to_kernel(0x%x, 0x%x, 0x%x, 0x%x)\n", (uintptr_t)pdir, ptr, kptr, n);
+		printf("%s(pdir: %p, ptr: %p, kptr: %p, n: 0x%x)\n", __func__, pdir, ptr, kptr, (uintptr_t)n);
 		assert(0);
 	}
 
@@ -80,11 +80,8 @@ static void unmap_from_kernel(uintptr_t kptr, size_t n) {
 // only copies if all data was successfully mapped
 static intptr_t copy_from_userspace(page_directory_t *pdir, uintptr_t ptr, size_t n, void *buffer) {
 	size_t size_in_blocks = (BLOCK_SIZE - 1 + n + (ptr & 0xfff)) / BLOCK_SIZE;
-	if (size_in_blocks == 0) {
-		printf("size_in_blocks: %u\n", (uintptr_t)size_in_blocks);
-		printf("n: %u\n", (uintptr_t)n);
-		printf("ptr & 0xFFF: 0x%x\n", ptr & 0xFFF);
-	}
+	assert(size_in_blocks != 0); // somethings wrong
+
 	uintptr_t kptr = find_vspace(kernel_directory, size_in_blocks);
 	if (kptr == 0) {
 		return -1;
@@ -103,14 +100,12 @@ static intptr_t copy_from_userspace(page_directory_t *pdir, uintptr_t ptr, size_
 	return n;
 }
 
-__attribute__((unused))
-static intptr_t copy_to_userspace(page_directory_t *pdir, uintptr_t ptr, size_t n, void *buffer) {
+__attribute__((used))
+intptr_t copy_to_userspace(page_directory_t *pdir, uintptr_t ptr, size_t n, void *buffer) {
+	printf("copy_to_userspace(pdir: 0x%x, ptr: 0x%x, n: 0x%x, buffer: 0x%x);\n", (uintptr_t)pdir, ptr, (uintptr_t)n, (uintptr_t)buffer);
 	size_t size_in_blocks = (BLOCK_SIZE - 1 + n + (ptr & 0xfff)) / BLOCK_SIZE;
-	if (size_in_blocks == 0) {
-		printf("size_in_blocks: %u\n", (uintptr_t)size_in_blocks);
-		printf("n: %u\n", (uintptr_t)n);
-		printf("ptr & 0xFFF: 0x%x\n", ptr & 0xFFF);
-	}
+	assert(size_in_blocks != 0);
+
 	uintptr_t kptr = find_vspace(kernel_directory, size_in_blocks);
 	if (kptr == 0) {
 		printf("kptr == 0\n");
@@ -186,7 +181,7 @@ static uint32_t syscall_mkdir(registers_t *regs) {
 static uint32_t syscall_rmdir(registers_t *regs) {
 	(void)regs;
 	// regs->ebx path
-	// just call syscall_unlink ?
+	// TODO: just call syscall_unlink (maybe adding a flag)
 	return -1;
 }
 
@@ -200,7 +195,7 @@ static uint32_t syscall_create(registers_t *regs) {
 	}
 
 	// FIXME: creating files not in the root would be cool
-	fs_create(fs_root, buffer, regs->ecx);
+	fs_create(fs_root_mount->node, buffer, regs->ecx);
 	return 0;
 }
 
@@ -213,7 +208,7 @@ static uint32_t syscall_unlink(registers_t *regs) {
 	}
 
 	// FIXME: unlinking not in the root would be cool
-	fs_unlink(fs_root, buffer);
+	fs_unlink(fs_root_mount->node, buffer);
 	return 0;
 }
 

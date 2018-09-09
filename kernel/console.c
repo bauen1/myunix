@@ -20,20 +20,25 @@
 #define restore_int }\
 	if (_eflags & (1<<9)) { __asm__ __volatile__("sti"); };
 
-static uint32_t tty_read(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buf) {
-	(void)node;
-	(void)offset;
+static uint32_t tty_read(fs_node_t *node, uint32_t offset, uint32_t size, void *buf) {
+	assert(node == &tty_node);
+	if (offset != 0) {
+		return -1;
+	}
 	for (uintptr_t i = 0; i < size; i++) {
-		buf[i] = getc();
+		((char *)buf)[i] = getc();
 	}
 	return size;
 }
 
-static uint32_t tty_write(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buf) {
-	(void)node;
-	(void)offset;
+static uint32_t tty_write(fs_node_t *node, uint32_t offset, uint32_t size, void *buf) {
+	assert(node == &tty_node);
+	if (offset != 0) {
+		return -1;
+	}
+
 	for (uintptr_t i = 0; i < size; i++) {
-		putc(buf[i]);
+		putc(((char *)buf)[i]);
 	}
 	return size;
 }
@@ -44,6 +49,7 @@ fs_node_t tty_node = {
 	.length = 0,
 	.read = tty_read,
 	.write = tty_write,
+	.__refcount = -1, // ensure it is never closed
 };
 
 void console_init() {

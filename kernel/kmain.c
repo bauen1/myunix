@@ -514,7 +514,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 		printf("ls test\n");
 		int i = 0;
 		do {
-			struct dirent *v = fs_readdir(fs_root, i);
+			struct dirent *v = fs_readdir(fs_root_mount->node, i);
 			if (v == NULL) {
 				break;
 			}

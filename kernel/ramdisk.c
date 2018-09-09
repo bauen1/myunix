@@ -5,7 +5,7 @@
 #include <heap.h>
 #include <string.h>
 
-static uint32_t ramdisk_read(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buffer) {
+static uint32_t ramdisk_read(fs_node_t *node, uint32_t offset, uint32_t size, void *buffer) {
 	if (offset > node->length) {
 		return 0;
 	}
@@ -22,7 +22,7 @@ static uint32_t ramdisk_read(fs_node_t *node, uint32_t offset, uint32_t size, ui
 	return size;
 }
 
-static uint32_t ramdisk_write(fs_node_t *node, uint32_t offset, uint32_t size, uint8_t *buffer) {
+static uint32_t ramdisk_write(fs_node_t *node, uint32_t offset, uint32_t size, void *buffer) {
 	if (offset > node->length) {
 		return 0;
 	}
