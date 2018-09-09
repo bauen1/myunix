@@ -174,7 +174,7 @@ static uint32_t syscall_mkdir(registers_t *regs) {
 	}
 
 	// FIXME: creating directories not in the root would be cool
-	fs_mkdir(fs_root, buffer, regs->ecx);
+	fs_mkdir(fs_root_mount->node, buffer, regs->ecx);
 	return 0;
 }
 
