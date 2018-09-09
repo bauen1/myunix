@@ -51,6 +51,22 @@ static inline void framebuffer_copy_to_front() {
 	}
 }
 
+static inline void framebuffer_copy_region_if_needed(const uintptr_t x, const uintptr_t y, const uintptr_t w, const uintptr_t h) {
+	if (backbuffer0 == NULL) {return;}
+	if (backbuffer1 == NULL) {return;}
+	for (uintptr_t dy = 0; dy < h; dy++) {
+		for (uintptr_t dx = 0; dx < w; dx++) {
+			uintptr_t offset = (y + dy) * pitch + (x + dx) * (bpp / 8);
+			if (memcmp(
+				(void *)((uintptr_t)backbuffer0 + offset),
+				(void *)((uintptr_t)backbuffer1 + offset), bpp / 8)) {
+				memcpy((void *)((uintptr_t )vmem + offset), (void *)((uintptr_t)backbuffer0 + offset), bpp / 8);
+				memcpy((void *)((uintptr_t )backbuffer1 + offset), (void *)((uintptr_t)backbuffer0 + offset), bpp / 8);
+			}
+		}
+	}
+}
+
 // assumes 24bpp
 static inline void framebuffer_setpixel(const uintptr_t x, const uintptr_t y, uint32_t v) {
 	assert(x < width);
@@ -88,6 +104,7 @@ static inline void put_c_at(const char c, const unsigned int x, const unsigned i
 			}
 		}
 	}
+	framebuffer_copy_region_if_needed(x, y, 8, 8);
 }
 
 static void framebuffer_scroll() {
