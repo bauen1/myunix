@@ -10,7 +10,7 @@ load_page_directory:
 global enable_paging:function (enable_paging.end - enable_paging)
 enable_paging:
 	mov eax, cr0
-	or eax, 0x80000001
+	or eax, 0x80010001
 	mov cr0, eax
 	ret
 .end:
