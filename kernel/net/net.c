@@ -9,7 +9,6 @@
 #include <net/checksum.h>
 #include <net/net.h>
 #include <net/e1000.h>
-//#include <net/sky2.h>
 #include <net/tcp.h>
 #include <net/udp.h>
 #include <process.h>

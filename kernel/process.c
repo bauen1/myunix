@@ -1,3 +1,5 @@
+// TODO: split into task / process implementation so we can reuse more code
+
 // TODO: better file descriptor implementation
 /*
 Implement process cleanup, by having kidle reap / free removed processes
@@ -18,12 +20,12 @@ Implement process cleanup, by having kidle reap / free removed processes
 #include <string.h>
 #include <task.h>
 #include <vmm.h>
+#include <syscall.h>
 
 // kernel stack size in pages (including guard page)
 #define KSTACK_SIZE 4
 
 static void __attribute__((noreturn)) __restore_process();
-
 void __attribute__((noreturn)) _ktask_exit(uint32_t status);
 
 process_t *current_process;
@@ -32,7 +34,6 @@ list_t *process_list;
 
 extern void *isrs_start;
 extern void *isrs_end;
-
 extern void *__start_user_shared;
 extern void *__stop_user_shared;
 
@@ -57,10 +58,10 @@ static void process_init_kernel_kstack(process_t *process) {
 	for (size_t i = 0; i < process->kstack_size; i++) { // skip guard
 		uintptr_t v_kaddr = v_kstack + i * BLOCK_SIZE;
 		uintptr_t block = pmm_alloc_blocks_safe(1);
-		assert((get_page(get_table(v_kaddr, kernel_directory), v_kaddr) & PAGE_TABLE_PRESENT) == 0);
+		assert((get_page(get_table(v_kaddr, kernel_directory), v_kaddr) & PAGE_PRESENT) == 0);
 		map_page(get_table(v_kaddr, kernel_directory), v_kaddr, block,
-			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
-		__asm__ __volatile__ ("invlpg (%0)" : : "b" (v_kaddr) : "memory");
+			PAGE_PRESENT | PAGE_READWRITE);
+		invalidate_page(v_kaddr);
 	}
 
 	uintptr_t kstack_length = process->kstack_size * BLOCK_SIZE;
@@ -83,7 +84,7 @@ static void process_deinit_kernel_kstack(process_t *process) {
 }
 
 void create_ktask(ktask_func func, char *name, void *extra) {
-	printf("create_ktask(func: 0x%x, name: '%s');\n", (uintptr_t)func, name);
+	printf("%s(func: 0x%x, name: '%s');\n", __func__, (uintptr_t)func, name);
 
 	process_t *process = kcalloc(1, sizeof(process_t));
 	assert(process != NULL);
@@ -117,14 +118,13 @@ void create_ktask(ktask_func func, char *name, void *extra) {
 // should only be called with interrupts off
 void __attribute__((noreturn)) _ktask_exit(uint32_t status) {
 	__asm__ __volatile__ ("cli");
-	printf("ktask_exit(name: '%s', status: %u);\n", current_process->name, status);
+	printf("%s(name: '%s', status: %u);\n", __func__, current_process->name, status);
 	process_t *p = current_process;
 	process_remove(p);
 	printf(" kstack: 0x%x kstack_size: %u\n", p->kstack, (uintptr_t)p->kstack_size);
 	// FIXME: free kstack
 	// FIXME: call process_destroy
 	kfree(p);
-	printf(" switch direct!\n");
 	__switch_direct();
 }
 
@@ -166,10 +166,10 @@ static void process_unmap_shared_region(process_t *process, uintptr_t start, uin
 static void process_map_shared(process_t *process) {
 	// isr trampolines
 	process_map_shared_region(process, (uintptr_t)&isrs_start,
-		(uintptr_t)&isrs_end, PAGE_TABLE_PRESENT);
+		(uintptr_t)&isrs_end, PAGE_PRESENT);
 	// other stuff we really need ( gdt, idt, tss)
 	process_map_shared_region(process, (uintptr_t)&__start_user_shared,
-		(uintptr_t)&__stop_user_shared, PAGE_TABLE_PRESENT);
+		(uintptr_t)&__stop_user_shared, PAGE_PRESENT | PAGE_READWRITE);
 }
 
 static void process_unmap_shared(process_t *process) {
@@ -201,12 +201,12 @@ static void process_init_kstack(process_t *process) {
 	for (size_t i = 0; i < process->kstack_size; i++) { // skip guard
 		uintptr_t v_kaddr = v_kstack + i * BLOCK_SIZE;
 		uintptr_t block = pmm_alloc_blocks_safe(1);
-		assert((get_page(get_table(v_kaddr, kernel_directory), v_kaddr) & PAGE_TABLE_PRESENT) == 0);
+		assert((get_page(get_table(v_kaddr, kernel_directory), v_kaddr) & PAGE_PRESENT) == 0);
 		map_page(get_table(v_kaddr, kernel_directory), v_kaddr, block,
-			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
+			PAGE_PRESENT | PAGE_READWRITE);
 		map_page(get_table_alloc(v_kaddr, process->pdir), v_kaddr, block,
-			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
-		__asm__ __volatile__ ("invlpg (%0)" : : "b" (v_kaddr) : "memory");
+			PAGE_PRESENT | PAGE_READWRITE);
+		invalidate_page(v_kaddr);
 	}
 
 	uintptr_t kstack_length = process->kstack_size * BLOCK_SIZE;
@@ -272,31 +272,35 @@ static void process_deinit_kstack(process_t *process) {
 	return;
 }
 
-process_t *process_exec(fs_node_t *f) {
+process_t *process_exec(fs_node_t *f, int argc, char **argv) {
 	uintptr_t virt_text_start = 0x1000000;
 	uintptr_t virt_heap_start = 0x2000000; // max 16mb text
+	uintptr_t virt_stack_start = 0x8000000;
+	uintptr_t virt_misc_start = 0x10000000;
 	printf("process_exec(0x%x (f->name: '%s'));\n", (uintptr_t)f, f->name);
 	assert(f != NULL);
 	assert(f->length != 0);
 	process_t *process = kcalloc(1, sizeof(process_t));
 	assert(process != NULL);
-	printf(" process: 0x%x\n", (uintptr_t)process);
 	process->is_kernel_task = false;
 	process->fd_table = kcalloc(1, sizeof(fd_table_t));
 	assert(process->fd_table != NULL);
-	process->fd_table->entries[0] = &tty_node;
-	process->fd_table->entries[1] = &tty_node;
-	process->fd_table->entries[2] = &tty_node;
+	process->fd_table->capacity = 16;
+	process->fd_table->length = 3;
+	process->fd_table->entries = kcalloc(process->fd_table->capacity, sizeof(fd_entry_t *));
 
-	uintptr_t real_pdir = pmm_alloc_blocks_safe(1);
-	process->pdir = (page_directory_t *)find_vspace(kernel_directory, 1);
-	assert(process->pdir != 0);
-	printf("process->pdir: 0x%x\n", (uintptr_t)process->pdir);
-	map_page(get_table_alloc((uintptr_t)process->pdir, kernel_directory), (uintptr_t)process->pdir,
-		real_pdir,
-		PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
-	memset((void *)process->pdir, 0, BLOCK_SIZE);
+	process->fd_table->entries[0] = kcalloc(1, sizeof(fd_entry_t));
+	assert(process->fd_table->entries[0] != NULL);
+	process->fd_table->entries[0]->node = &tty_node;
+	process->fd_table->entries[1] = kcalloc(1, sizeof(fd_entry_t));
+	assert(process->fd_table->entries[1] != NULL);
+	process->fd_table->entries[1]->node = &tty_node;
+	process->fd_table->entries[2] = kcalloc(1, sizeof(fd_entry_t));
+	assert(process->fd_table->entries[2] != NULL);
+	process->fd_table->entries[2]->node = &tty_node;
 
+	process->pdir = alloc_pdir();
+	assert(process->pdir != NULL);
 	process_map_shared(process);
 	process_init_kstack(process);
 
@@ -304,130 +308,96 @@ process_t *process_exec(fs_node_t *f) {
 	// FIXME: size hardcoded
 	uintptr_t k_tmp = find_vspace(kernel_directory, 1);
 	assert(k_tmp != 0);
+
 	for (unsigned int i = 0; i < 256; i++) {
 		// allocate non-continous space
 		uintptr_t virtaddr = virt_heap_start + i*BLOCK_SIZE;
 		uintptr_t block = (uintptr_t)pmm_alloc_blocks_safe(1);
-//		printf(" 0x%8x => 0x%8x PRESENT|WRITE|USER\n", virtaddr, block);
 		map_page(get_table(k_tmp, kernel_directory), k_tmp, block,
-			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
-		__asm__ __volatile__ ("invlpg (%0)" : : "b" (k_tmp) : "memory");
+			PAGE_PRESENT | PAGE_READWRITE);
+		invalidate_page(k_tmp);
+
 		memset((void *)k_tmp, 0, BLOCK_SIZE);
-		map_page(get_table(k_tmp, kernel_directory), k_tmp, 0, 0);
+//		printf(" 0x%8x => 0x%8x PRESENT|WRITE|USER\n", virtaddr, block);
 		map_page(get_table_alloc(virtaddr, process->pdir), virtaddr,
 			block,
-			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE | PAGE_TABLE_USER);
+			PAGE_PRESENT | PAGE_READWRITE | PAGE_USER);
 	}
 
 	// map the .text section
+	// TODO: check for f->length overflow
 	for (uintptr_t i = 0; i < f->length; i+=BLOCK_SIZE) {
 		uintptr_t block = pmm_alloc_blocks_safe(1);
-		uintptr_t u_vaddr = virt_text_start + i;
+		uintptr_t virtaddr = virt_text_start + i;
 		map_page(get_table(k_tmp, kernel_directory),
 			k_tmp,
-			block, PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
-		__asm__ __volatile__ ("invlpg (%0)" : : "b" (k_tmp) : "memory");
-		uint32_t j = fs_read(f, i, BLOCK_SIZE, (uint8_t *)k_tmp);
-		assert(j != (unsigned)-1);
-//		printf("user: 0x%x => 0x%x (puw) 0x%x\n", u_vaddr, block, j);
-		map_page(get_table_alloc(u_vaddr, process->pdir),
-			u_vaddr,
-			block,
-			PAGE_TABLE_PRESENT | PAGE_TABLE_USER | PAGE_TABLE_READWRITE);
-	}
-	map_page(get_table(k_tmp, kernel_directory), k_tmp, 0, 0);
+			block, PAGE_PRESENT | PAGE_READWRITE);
+		invalidate_page(k_tmp);
 
-	registers_t *regs = (registers_t *)(process->kstack_top - sizeof(registers_t));
-	regs->old_directory = (uint32_t)real_pdir;
-	regs->gs = 0x23;
-	regs->fs = 0x23;
-	regs->es = 0x23;
-	regs->ds = 0x23;
-	regs->edi = 0;
-	regs->esi = 0;
-	regs->ebp = 0;
-	regs->esp = 0;
-	regs->ebx = 0;
-	regs->ecx = 0;
-	regs->eax = 0;
-	regs->isr_num = 0;
-	regs->err_code = 0;
-	regs->eip = virt_text_start;
-	regs->cs = 0x1B;
-	regs->eflags = 0x200; // enable interrupts
-	regs->esp = virt_heap_start + BLOCK_SIZE;
-	regs->ss = regs->ds;
-
-	process->regs = regs;
-
-	process->esp = (uint32_t)regs;
-	process->ebp = process->esp;
-	process->eip = (uintptr_t)return_to_regs;
-	return process;
-}
-
-process_t *process_init(uintptr_t start, uintptr_t end) {
-	printf("process_init(0x%x, 0x%x)\n", start, end);
-	assert(start % 0x100 == 0);
-
-	uintptr_t virt_text_start = 0x1000000;
-	uintptr_t virt_heap_start = 0x2000000; // max 16mb text
-
-	process_t *process = kcalloc(1, sizeof(process_t));
-	assert(process != NULL);
-	printf(" process: 0x%x\n", (uintptr_t)process);
-	process->is_kernel_task = false;
-	process->fd_table = kcalloc(1, sizeof(fd_table_t));
-	assert(process->fd_table != NULL);
-	process->fd_table->entries[0] = &tty_node;
-	process->fd_table->entries[1] = &tty_node;
-	process->fd_table->entries[2] = &tty_node;
-
-	// page directory
-	uintptr_t real_pdir = pmm_alloc_blocks_safe(1);
-	process->pdir = (page_directory_t *)find_vspace(kernel_directory, 1);
-	assert(process->pdir != 0);
-	printf(" process->pdir: 0x%x\n", (uintptr_t)process->pdir);
-	map_page(get_table_alloc((uintptr_t)process->pdir, kernel_directory), (uintptr_t)process->pdir,
-		real_pdir,
-		PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
-	memset((void *)process->pdir, 0, BLOCK_SIZE);
-
-	process_map_shared(process);
-	process_init_kstack(process);
-
-	// allocate some userspace heap (16kb)
-	// FIXME: size hardcoded
-	uintptr_t k_tmp = find_vspace(kernel_directory, 1);
-	assert(k_tmp != 0);
-	for (unsigned int i = 0; i < 256; i++) {
-		// allocate non-continous space
-		uintptr_t virtaddr = virt_heap_start + i*BLOCK_SIZE;
-		uintptr_t block = (uintptr_t)pmm_alloc_blocks_safe(1);
-		map_page(get_table(k_tmp, kernel_directory), k_tmp, block,
-			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
-		memset((void *)k_tmp, 0, BLOCK_SIZE);
-		map_page(get_table(k_tmp, kernel_directory), k_tmp, 0, 0);
-		map_page(get_table_alloc(virtaddr, process->pdir), virtaddr,
-			block,
-			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE | PAGE_TABLE_USER);
-	}
-
-	// map the .text section
-	printf(" .text: 0x%x - 0x%x => 0x%x - 0x%x\n",
-		virt_text_start, virt_text_start + (end - start),
-		start, end);
-	for (uintptr_t i = 0; i < (end - start); i += BLOCK_SIZE) {
-		uintptr_t physaddr = start + i;
-		uintptr_t virtaddr = virt_text_start + i;
+		uint32_t j = fs_read(f, i, BLOCK_SIZE, (void *)k_tmp);
+		assert(j != (uint32_t)-1);
+//		printf(" 0x%x => 0x%x PRESENT|WRITE|USER\n", virtaddr, block);
 		map_page(get_table_alloc(virtaddr, process->pdir),
 			virtaddr,
-			physaddr,
-			PAGE_TABLE_PRESENT | PAGE_TABLE_USER | PAGE_TABLE_READWRITE);
+			block,
+			PAGE_PRESENT | PAGE_USER | PAGE_READWRITE);
 	}
 
+	// allocate stack
+	for (unsigned int i = 0; i < 256; i++) {
+		// allocate non-continous space
+		uintptr_t virtaddr = virt_stack_start + i*BLOCK_SIZE;
+		uintptr_t block = (uintptr_t)pmm_alloc_blocks_safe(1);
+		map_page(get_table(k_tmp, kernel_directory), k_tmp, block,
+			PAGE_PRESENT | PAGE_READWRITE);
+		invalidate_page(k_tmp);
+
+		memset((void *)k_tmp, 0, BLOCK_SIZE);
+//		printf(" 0x%8x => 0x%8x PRESENT|WRITE|USER\n", virtaddr, block);
+		map_page(get_table_alloc(virtaddr, process->pdir), virtaddr,
+			block,
+			PAGE_PRESENT | PAGE_READWRITE | PAGE_USER);
+	}
+
+	// allocate misc region (cmdline, *argv, enviorment)
+	for (unsigned int i = 0; i < 1; i++) {
+		// allocate non-continous space
+		uintptr_t virtaddr = virt_misc_start + i*BLOCK_SIZE;
+		uintptr_t block = (uintptr_t)pmm_alloc_blocks_safe(1);
+		map_page(get_table(k_tmp, kernel_directory), k_tmp, block,
+			PAGE_PRESENT | PAGE_READWRITE);
+
+		invalidate_page(k_tmp);
+
+		memset((void *)k_tmp, 0, BLOCK_SIZE);
+//		printf(" 0x%8x => 0x%8x PRESENT|WRITE|USER\n", virtaddr, block);
+		map_page(get_table_alloc(virtaddr, process->pdir), virtaddr,
+			block,
+			PAGE_PRESENT | PAGE_READWRITE | PAGE_USER);
+	}
+
+	map_page(get_table(k_tmp, kernel_directory), k_tmp, 0, 0);
+
+	/*
+	 * TODO: implement properly
+	 * XXX: ensure the user stack is 16byte aligned
+	 * XXX: stack grows down
+	 */
+	uintptr_t buf[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+	size_t init_frame_size = sizeof(buf);
+	uintptr_t user_stack = virt_heap_start + (256-1)*BLOCK_SIZE;
+	user_stack -= init_frame_size;
+	buf[0] = argc; // argc
+	buf[1] = virt_misc_start; // argv[0];
+	buf[2] = 0; // argv[1]
+	buf[3] = 0; // env[0]
+	buf[4] = 0; // env[1]
+
+	copy_to_userspace(process->pdir, user_stack, init_frame_size, buf);
+	copy_to_userspace(process->pdir, buf[1], strlen(argv[0]) + 1, argv[0]);
+
 	registers_t *regs = (registers_t *)(process->kstack_top - sizeof(registers_t));
-	regs->old_directory = (uint32_t)real_pdir;
+	regs->old_directory = (uintptr_t)process->pdir->physical_address;
 	regs->gs = 0x23;
 	regs->fs = 0x23;
 	regs->es = 0x23;
@@ -444,7 +414,7 @@ process_t *process_init(uintptr_t start, uintptr_t end) {
 	regs->eip = virt_text_start;
 	regs->cs = 0x1B;
 	regs->eflags = 0x200; // enable interrupts
-	regs->esp = virt_heap_start + BLOCK_SIZE;
+	regs->esp = user_stack;
 	regs->ss = regs->ds;
 
 	process->regs = regs;
@@ -476,9 +446,13 @@ void process_destroy(process_t *process) {
 		process_deinit_kstack(process);
 		process_unmap_shared(process);
 	}
+	printf("TODO: implement %s\n", __func__);
+	assert(0);
+/*
 	// TODO: close the file descriptors
 	kfree(process->fd_table);
 	kfree(process->name);
+*/
 }
 
 process_t *next_process() {
@@ -487,9 +461,15 @@ process_t *next_process() {
 	if (n == NULL) {
 		n = process_list->head;
 	}
-	current_process_node = n;
-	current_process = current_process_node->value;
-	return current_process;
+	assert(n != NULL);
+	if (process_list->length > 2) {
+		current_process_node = n;
+		current_process = current_process_node->value;
+		return current_process;
+	} else {
+		printf("NO PROCESSES LEFT\n");
+		halt();
+	}
 }
 
 extern uintptr_t read_eip();
@@ -551,7 +531,7 @@ static void __attribute__((noreturn)) __restore_process() {
 #endif
 }
 
-/* only call with interrupts off */
+/* XXX: only call with interrupts off */
 void process_remove(process_t *p) {
 	assert(process_list != NULL);
 	assert(p != NULL);
@@ -583,18 +563,6 @@ void __attribute__((noreturn)) process_enable(void) {
 	current_process_node = process_list->head;
 	current_process = current_process_node->value;
 	assert(current_process != NULL);
-/*
-	printf("current_process: 0x%x\n", (uintptr_t)current_process);
-	printf("current_process->kstack: 0x%x\n", current_process->kstack);
-	printf("current_process->kstack_size: 0x%x\n", current_process->kstack_size);
-	printf("current_process->regs: 0x%x\n", (uintptr_t)current_process->regs);
-	printf("current_process->esp: 0x%x\n", current_process->esp);
-	printf("current_process->ebp: 0x%x\n", current_process->ebp);
-	printf("current_process->eip: 0x%x\n", current_process->eip);
-	printf("current_process->pdir: 0x%x\n", (uintptr_t)current_process->pdir);
-	printf("current_process->name: '%s'\n", current_process->name);
-	printf("current_process->pid: 0x%x\n", current_process->pid);
-	printf("current_process->fd_table: 0x%x\n", (uintptr_t)current_process->fd_table);
-*/
+
 	__restore_process();
 }

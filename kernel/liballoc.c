@@ -113,7 +113,7 @@ static int liballoc_unlock() {
 
 static int liballoc_free(void *v, size_t pages);
 static void *liballoc_alloc(size_t pages) {
-	printf("liballoc_alloc(%u)\n", pages);
+	printf("liballoc_alloc(%u)\n", (uintptr_t)pages);
 	uintptr_t v_start = find_vspace(kernel_directory, pages);
 	for (size_t i = 0; i < pages; i++) {
 		uintptr_t real_block = pmm_alloc_blocks(1);
@@ -127,7 +127,7 @@ static void *liballoc_alloc(size_t pages) {
 		}
 		map_page(get_table_alloc(v_start + i * BLOCK_SIZE, kernel_directory),
 			v_start + i * BLOCK_SIZE, real_block,
-			PAGE_TABLE_PRESENT | PAGE_TABLE_READWRITE);
+			PAGE_PRESENT | PAGE_READWRITE);
 	}
 	return (void *)v_start;
 }

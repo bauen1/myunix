@@ -23,18 +23,19 @@ static bool is_mapped(uintptr_t v_addr) {
 		return true;
 	}
 
-	uintptr_t v = kernel_directory->tables[v_addr >> 22];
-	if (!(v & PAGE_DIRECTORY_PRESENT)) {
+	uintptr_t v = kernel_directory->physical_tables[v_addr >> 22];
+	if (!(v & PAGE_TABLE_PRESENT)) {
 		printf("PAGE TABLE NOT PRESENT!\n");
 		return false;
 	}
 
 	page_table_t *table = get_table(v_addr, kernel_directory);
 	page_t page = get_page(table, v_addr);
-	if (!(page & PAGE_TABLE_PRESENT)) {
+	if (!(page & PAGE_PRESENT)) {
 		printf("PAGE NOT MAPPED!\n");
 		return false;
 	}
+
 	return true;
 }
 

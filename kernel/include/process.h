@@ -13,7 +13,14 @@
 typedef unsigned int pid_t;
 
 typedef struct {
-	fs_node_t *entries[16];
+	fs_node_t *node;
+	uint32_t seek;
+} fd_entry_t;
+
+typedef struct {
+	fd_entry_t **entries;
+	size_t length;
+	size_t capacity;
 } fd_table_t;
 
 typedef struct process {
@@ -35,8 +42,7 @@ extern process_t *current_process;
 typedef int (ktask_func)(void *extra, char *name);
 void create_ktask(ktask_func func, char *name, void *extra);
 
-process_t *process_exec(fs_node_t *f);
-process_t *process_init(uintptr_t start, uintptr_t end);
+process_t *process_exec(fs_node_t *f, int argc, char **argv);
 void process_destroy(process_t *process);
 
 void process_add(process_t *p);

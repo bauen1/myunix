@@ -63,7 +63,7 @@ static void ehci_controller_init(uint32_t device, uint16_t vendorid, uint16_t de
 		for (uintptr_t i = 0; i < iobase_size; i+=PAGE_SIZE) {
 			uintptr_t v_addr = hc->iobase + i;
 			page_t old_page = get_page(get_table(v_addr, kernel_directory), v_addr);
-			assert((old_page & PAGE_TABLE_PRESENT) == 0);
+			assert((old_page & PAGE_PRESENT) == 0);
 			map_direct_kernel(v_addr);
 		}
 	}

@@ -21,10 +21,9 @@
 	if (_eflags & (1<<9)) { __asm__ __volatile__("sti"); };
 
 static uint32_t tty_read(fs_node_t *node, uint32_t offset, uint32_t size, void *buf) {
+	(void)offset;
 	assert(node == &tty_node);
-	if (offset != 0) {
-		return -1;
-	}
+
 	for (uintptr_t i = 0; i < size; i++) {
 		((char *)buf)[i] = getc();
 	}
@@ -32,10 +31,8 @@ static uint32_t tty_read(fs_node_t *node, uint32_t offset, uint32_t size, void *
 }
 
 static uint32_t tty_write(fs_node_t *node, uint32_t offset, uint32_t size, void *buf) {
+	(void)offset;
 	assert(node == &tty_node);
-	if (offset != 0) {
-		return -1;
-	}
 
 	for (uintptr_t i = 0; i < size; i++) {
 		putc(((char *)buf)[i]);
@@ -126,7 +123,7 @@ void vprintf(const char *fmt, va_list args) {
 					putc('%');
 					break;
 				case 'c':
-					tmp = va_arg(args, int);
+					tmp = (int)va_arg(args, int);
 					putc(tmp);
 					break;
 				case 's':
