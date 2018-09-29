@@ -50,4 +50,8 @@ void process_remove(process_t *p);
 void __attribute__((noreturn)) process_exit(unsigned int status);
 void __attribute__((noreturn)) process_enable(void);
 
+/* private helpers, don't use them */
+void process_init_kernel_kstack(process_t *process);
+void process_init_kstack(process_t *process);
+
 #endif

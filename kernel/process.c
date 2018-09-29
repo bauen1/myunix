@@ -39,7 +39,7 @@ extern void *__stop_user_shared;
 
 // allocate and map a kernel stack into kernel space
 // we could just call process_init_kstack it shouldn't make a difference (it would be a bit slower)
-static void process_init_kernel_kstack(process_t *process) {
+void process_init_kernel_kstack(process_t *process) {
 	assert(process != NULL);
 
 	// kstack
@@ -180,7 +180,7 @@ static void process_unmap_shared(process_t *process) {
 }
 
 // allocate and map a kernel stack into kernel space and userspace
-static void process_init_kstack(process_t *process) {
+void process_init_kstack(process_t *process) {
 	assert(process != NULL);
 
 	// kstack

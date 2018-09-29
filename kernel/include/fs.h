@@ -64,13 +64,22 @@ void fs_free_node(fs_node_t **node);
 /* mount graph nodes */
 struct fs_mount;
 typedef struct fs_mount {
-	char *path; // subpath, (maybe NULL for root), eg. "dev"
-	fs_node_t *node; // filesystem root node
-	struct fs_mount **mounts; // sub-mounts
+	/*
+	 * path: path element of mount, eg. "dev"
+	 */
+	char *path;
+	/*
+	 * node: filesystem node associated, NULL if no mount, but submounts exist
+	 */
+	fs_node_t *node;
+	/*
+	 * mounts: TODO: use hashed list
+	 * list of sub mounts
+	 */
+	struct fs_mount **mounts;
 } fs_mount_t;
 
 extern fs_mount_t *fs_root_mount;
-
 
 /**
 TODO: document quirks

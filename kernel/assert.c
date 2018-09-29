@@ -39,6 +39,10 @@ static bool is_mapped(uintptr_t v_addr) {
 	return true;
 }
 
+/*
+TODO: parse eflags register
+TODO: detect interrupt from userspace frame
+*/
 void print_stack_trace(unsigned int max_frames) {
 	uintptr_t ebp_r = 0;
 	__asm__ __volatile__ (

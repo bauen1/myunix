@@ -184,6 +184,9 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 		if (mem_avail != mem_avail_old) {
 			printf("mem_avail_old: 0x%x; mem_avail: 0x%x\n", mem_avail_old, mem_avail);
 		}
+	} else if (mbi->flags & MULTIBOOT_INFO_MEMORY) {
+		printf("Memory map not available, falling back to mem_upper\n");
+		mem_avail = 1024 * (1024 + mbi->mem_upper);
 	}
 
 	// overflow or no value

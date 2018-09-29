@@ -15,7 +15,7 @@ void multiboot_dump(struct multiboot_info *mbi) {
 	printf("mbi->mmap_addr: %p\n", (uintptr_t)mbi->mmap_addr);
 	// TODO: implement the rest, parse memory map, etc ...
 
-/*
+
 	if (mbi->flags & MULTIBOOT_INFO_BOOT_LOADER_NAME) {
 		printf("mbi->boot_loader_name: '%s'\n", (char *)mbi->boot_loader_name);
 	}
@@ -39,9 +39,6 @@ void multiboot_dump(struct multiboot_info *mbi) {
 	if (mbi->flags & MULTIBOOT_INFO_MEMORY) {
 		printf("mem_lower: %ukb\n", mbi->mem_lower);
 		printf("mem_upper: %ukb\n", mbi->mem_upper);
-		mem_avail = 1024 * (1024 + mbi->mem_upper);
 	}
 
-
-*/
 }
