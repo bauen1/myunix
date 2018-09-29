@@ -51,7 +51,7 @@ static inline void framebuffer_copy_to_front() {
 	}
 }
 
-static inline void framebuffer_copy_region_if_needed(const uintptr_t x, const uintptr_t y, const uintptr_t w, const uintptr_t h) {
+static inline void framebuffer_copy_region_if_needed(uintptr_t x, uintptr_t y, uintptr_t w, uintptr_t h) {
 	if (backbuffer0 == NULL) {return;}
 	if (backbuffer1 == NULL) {return;}
 	for (uintptr_t dy = 0; dy < h; dy++) {
@@ -68,7 +68,7 @@ static inline void framebuffer_copy_region_if_needed(const uintptr_t x, const ui
 }
 
 // assumes 24bpp
-static inline void framebuffer_setpixel(const uintptr_t x, const uintptr_t y, uint32_t v) {
+static inline void framebuffer_setpixel(uintptr_t x, uintptr_t y, uint32_t v) {
 	assert(x < width);
 	assert(y < height);
 	if (backbuffer0 == NULL) {
@@ -93,7 +93,7 @@ static void framebuffer_clear(uint32_t v) {
 	framebuffer_copy_to_front();
 }
 
-static inline void put_c_at(const char c, const unsigned int x, const unsigned int y) {
+static inline void put_c_at(char c, unsigned int x, unsigned int y) {
 	for (int i = 0; i < 8; i++) {
 		for (int j = 0; j < 8; j++) {
 			if (((unsigned char)c < 128) && font8x8_basic[(unsigned char)c][i] & (1 << j)) {
@@ -125,7 +125,7 @@ static void framebuffer_scroll() {
 	framebuffer_copy_to_front();
 }
 
-void framebuffer_putc(const char c) {
+void framebuffer_putc(char c) {
 	if (vmem == NULL) {
 		return;
 	}
@@ -160,6 +160,7 @@ void framebuffer_putc(const char c) {
 void framebuffer_init(uintptr_t fb_addr, uint32_t fb_pitch, uint32_t fb_width,
 	uint32_t fb_height, uint8_t fb_bpp, uint8_t fb_red_fp, uint8_t fb_red_ms,
 	uint8_t fb_green_fp, uint8_t fb_green_ms, uint8_t fb_blue_fp, uint8_t fb_blue_ms) {
+
 	vmem = (void *)fb_addr;
 	pitch = fb_pitch;
 	width = fb_width;

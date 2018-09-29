@@ -11,8 +11,10 @@
 #include <vmm.h>
 #include <heap.h>
 
-// 0 on success, size mapped on failure
-// TODO: CRITICAL FIXME: may return 0 incase of failure on first page early which is success
+/*
+returns 0 on success
+returns -1 on failure
+*/
 static intptr_t map_userspace_to_kernel(page_directory_t *pdir, uintptr_t ptr, uintptr_t kptr, size_t n) {
 	if ((pdir == NULL) || ((ptr & 0xFFF) != 0) || ((kptr & 0xFFF) != 0) || (n == 0)) {
 		printf("%s(pdir: %p, ptr: %p, kptr: %p, n: 0x%x)\n", __func__, pdir, ptr, kptr, (uintptr_t)n);
@@ -29,22 +31,21 @@ static intptr_t map_userspace_to_kernel(page_directory_t *pdir, uintptr_t ptr, u
 		page_table_t *table = get_table(u_virtaddr, pdir);
 
 		if (table == NULL) {
-			printf(" table == NULL; returning early: %u\n", i);
+			printf("%s: return early! table = NULL i=%u\n", __func__, i);
 			goto failure;
 		}
 
 		page_t page = get_page(table, u_virtaddr);
 		if (! (page & PAGE_PRESENT)) {
-			// FIXME: this happens way too often (logic wrong ?)
-			printf(" not present; returning early: %u\n", i);
+			printf("%s: return early! page not present i=%u\n", __func__, i);
 			goto failure;
 		}
 		if (! (page & PAGE_READWRITE)) {
-			printf(" not read-write; returning early: %u\n", i);
+			printf("%s: return early! page not read-write i=%u\n", __func__, i);
 			goto failure;
 		}
 		if (! (page & PAGE_USER)) {
-			printf(" not user; returning early: %u\n", i);
+			printf("%s: return early! page not user i=%u\n", __func__, i);
 			goto failure;
 		}
 		map_page(get_table(k_virtaddr, kernel_directory), k_virtaddr, page, PAGE_PRESENT | PAGE_READWRITE);
@@ -67,16 +68,14 @@ failure:
 	return -1;
 }
 
-// 0 on success
 static void unmap_from_kernel(uintptr_t kptr, size_t n) {
-//	printf("unmap_from_kernel(0x%x, 0x%x)\n", kptr, n);
 	for (uintptr_t i = 0; i < n; i++) {
 		uintptr_t virtaddr = i * BLOCK_SIZE + kptr;
-//		printf(" page[0x%x] = 0\n", virtaddr);
 		map_page(get_table(virtaddr, kernel_directory), virtaddr, 0, 0);
 	}
 }
 
+// TODO: implement helpers to copy char**
 // only copies if all data was successfully mapped
 intptr_t copy_from_userspace(page_directory_t *pdir, uintptr_t ptr, size_t n, void *buffer) {
 	size_t size_in_blocks = (BLOCK_SIZE - 1 + n + (ptr & 0xfff)) / BLOCK_SIZE;
@@ -100,18 +99,16 @@ intptr_t copy_from_userspace(page_directory_t *pdir, uintptr_t ptr, size_t n, vo
 	return n;
 }
 
-intptr_t copy_to_userspace(page_directory_t *pdir, uintptr_t ptr, size_t n, void *buffer) {
-	printf("%s(pdir: 0x%x, ptr: 0x%x, n: 0x%x, buffer: 0x%x);\n", __func__, (uintptr_t)pdir, ptr, (uintptr_t)n, (uintptr_t)buffer);
+intptr_t copy_to_userspace(page_directory_t *pdir, uintptr_t ptr, size_t n, const void *buffer) {
 	size_t size_in_blocks = (BLOCK_SIZE - 1 + n + (ptr & 0xfff)) / BLOCK_SIZE;
 	assert(size_in_blocks != 0);
 
 	uintptr_t kptr = find_vspace(kernel_directory, size_in_blocks);
 	if (kptr == 0) {
-		printf("kptr == 0\n");
+		printf("%s: kptr = NULL !\n", __func__);
 		return -1;
 	}
 	intptr_t v = map_userspace_to_kernel(pdir, ptr & ~0xFFF, kptr, size_in_blocks);
-	printf("v: %u\n", v);
 	if (v != 0) {
 		unmap_from_kernel(kptr, v);
 		return -1;
@@ -119,7 +116,6 @@ intptr_t copy_to_userspace(page_directory_t *pdir, uintptr_t ptr, size_t n, void
 
 	uintptr_t kptr2 = kptr + (ptr & 0xFFF);
 
-	printf("memcpy(dest: 0x%x, src: 0x%x, len: 0x%x);\n", kptr2, (uintptr_t)buffer, (uintptr_t)n);
 	memcpy((void *)kptr2, buffer, n);
 
 	unmap_from_kernel(kptr, v);

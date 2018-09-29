@@ -152,7 +152,7 @@ void fs_mount_root(fs_node_t *node) {
 static char *split_path(char *real_path) {
 //	printf("%s(real_path: '%s')\n", __func__, real_path);
 	assert(*real_path != '/');
-	size_t path_len = strlen(real_path);
+	const size_t path_len = strlen(real_path);
 	char *path = kcalloc(1, path_len + 1);
 	assert(path != NULL);
 	memcpy(path, real_path, path_len + 1);

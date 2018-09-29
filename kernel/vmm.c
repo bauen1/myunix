@@ -251,7 +251,7 @@ page_directory_t *free_pdir(page_directory_t *pdir) {
 
 	if (pdir->__refcount == 0) {
 //		free_pages(pdir);
-		printf("TODO: implement %s\n", __func__);
+		printf("%s: TODO: implement\n", __func__);
 	}
 	return NULL;
 }

@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-void framebuffer_putc(const char c);
+void framebuffer_putc(char c);
 
 void framebuffer_init(uintptr_t fb_addr, uint32_t fb_pitch, uint32_t fb_width,
 	uint32_t fb_height, uint8_t fb_bpp, uint8_t fb_red_fp, uint8_t fb_red_ms,
