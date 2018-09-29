@@ -116,7 +116,7 @@ kernel.sym: kernel.elf
 
 # objcopy
 kernel.bin: kernel.elf
-	@echo OBJCOPY --strip-debug $< -o $@
+	@echo OBJCOPY --strip-debug $^ -o $@
 	@$(OBJCOPY) --strip-debug $^ $@
 # link again using tcc
 #kernel.bin: kernel.elf
