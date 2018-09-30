@@ -157,7 +157,7 @@ cppcheck-tcc:
 
 .PHONY: codespell
 codespell:
-	codespell -w -c --interactive=3 --skip=*.o --skip=*.d .
+	codespell -w -c --interactive=3 --skip="*.o,*.d,*.bin,*.ld,*.elf,*.iso,./iso/*" .
 
 .PHONY: complexity
 complexity:
