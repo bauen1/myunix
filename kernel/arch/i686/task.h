@@ -1,5 +1,5 @@
-#ifndef TASK_H
-#define TASK_H 1
+#ifndef ARCH_TASK_H
+#define ARCH_TASK_H 1
 
 /* switch directly to next task */
 extern void switch_task(void);

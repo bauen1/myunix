@@ -1,5 +1,5 @@
-#ifndef BOOT_H
-#define BOOT_H 1
+#ifndef ARCH_BOOT_H
+#define ARCH_BOOT_H 1
 
 extern void *_start; /* start of kernel / .text */
 #define __text_start _start

@@ -1,5 +1,5 @@
-#ifndef ISRS_H
-#define ISRS_H 1
+#ifndef ARCH_ISRS_H
+#define ARCH_ISRS_H 1
 
 // exceptions
 extern void _isr0();

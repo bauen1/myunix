@@ -1,5 +1,5 @@
-#ifndef CPU_H
-#define CPU_H 1
+#ifndef ARCH_CPU_H
+#define ARCH_CPU_H 1
 
 #include <stdint.h>
 

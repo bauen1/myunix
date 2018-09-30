@@ -1,5 +1,5 @@
-#ifndef MEMCPY_H
-#define MEMCPY_h
+#ifndef ARCH_MEMCPY_H
+#define ARCH_MEMCPY_H 1
 
 #include <stddef.h>
 

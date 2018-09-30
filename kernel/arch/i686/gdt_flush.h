@@ -1,5 +1,5 @@
-#ifndef GDT_FLUSH_H
-#define GDT_FLUSH_H 1
+#ifndef ARCH_GDT_FLUSH_H
+#define ARCH_GDT_FLUSH_H 1
 
 #include <stdint.h>
 

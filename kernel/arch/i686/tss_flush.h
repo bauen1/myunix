@@ -1,5 +1,5 @@
-#ifndef TSS_FLUSH_H
-#define TSS_FLUSH_H 1
+#ifndef ARCH_TSS_FLUSH_H
+#define ARCH_TSS_FLUSH_H 1
 
 extern void tss_flush();
 
