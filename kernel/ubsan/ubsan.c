@@ -97,7 +97,7 @@ static void ubsan_panic(const struct ubsan_source_location *src, const char *vio
 #define IS_ALIGNED(value, alignment) !(value & (alignment - 1))
 
 static const char *type_check_types[] = {
-	"load of", "store to", "refrence binding to", "member access within",
+	"load of", "store to", "reference binding to", "member access within",
 	"member call on", "constructor call on", "downcast of", "downcast of",
 	"upcast of", "cast to virtual base of", "_Nonnull binding to"
 };

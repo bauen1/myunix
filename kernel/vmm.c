@@ -441,7 +441,7 @@ void vmm_init() {
 
 	map_direct_kernel(kernel_directory->physical_address);
 
-	// catch NULL pointer derefrences
+	// catch NULL pointer dereferences
 	map_page(get_table(0, kernel_directory), 0, 0, 0);
 }
 

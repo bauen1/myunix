@@ -180,12 +180,11 @@ static struct dirent *tar_readdir(struct fs_node *node, uint32_t i) {
 	}
 
 	uintptr_t ptr = 0;
-	size_t s = 0;
 	size_t slen_fname = strlen(node->name);
 	uint32_t j = 0;
-	do {
+	while (1) {
 		fs_node_t *device = ((struct tar_obj *)node->object)->device;
-		s = fs_read(device, ptr, sizeof(struct tar_header), (uint8_t *)&header);
+		size_t s = fs_read(device, ptr, sizeof(struct tar_header), (uint8_t *)&header);
 		if (s != sizeof(struct tar_header)) {
 			printf("tar: %s short read\n", __func__);
 			break;
@@ -210,19 +209,17 @@ static struct dirent *tar_readdir(struct fs_node *node, uint32_t i) {
 			if (subname[0] != 0) {
 				char *s = &subname[0];
 				while (1) {
-					if (*s == '/') {
-						if (*(s+1) == 0) {
-							*s = 0;
-							j++;
-							break;
-						} else { // subdir
-							break;
-						}
-					}
 					if (*s == 0) {
 						j++;
 						break;
+					} else if ((*s == '/') && (*(s+1) == 0)) {
+						*s = 0;
+						break;
+					} else if (*s == '/') {
+						// XXX: subdir, ignore
+						break;
 					}
+
 					s++;
 				}
 				if ((i-1) == j) {
@@ -239,7 +236,7 @@ static struct dirent *tar_readdir(struct fs_node *node, uint32_t i) {
 			jump += 512 - (jump % 512);
 		}
 		ptr += sizeof(struct tar_header) + jump;
-	} while (s == 512);
+	}
 
 	return NULL;
 }

@@ -46,7 +46,7 @@ typedef struct page_directory {
 	page_table_t *tables[1024];
 	// real address of physical_tables
 	uintptr_t physical_address;
-	/* refrence count, only used for userspace directories */
+	/* reference count, only used for userspace directories */
 	int32_t __refcount;
 } page_directory_t;
 

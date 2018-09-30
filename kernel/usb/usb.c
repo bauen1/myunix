@@ -92,7 +92,6 @@ static bool usb_dev_req(usb_device_t *dev, uint8_t type, uint8_t request, uint16
 bool usb_dev_init(usb_device_t *dev) {
 	dev->max_packet_size = 8;
 
-
 	usb_desc_device_t dev_desc;
 	memset(&dev_desc, 0, sizeof(usb_desc_device_t));
 

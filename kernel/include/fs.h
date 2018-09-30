@@ -24,7 +24,7 @@ struct dirent {
 struct fs_node;
 typedef uint32_t (*read_type_t) (struct fs_node *node, uint32_t offset, uint32_t size, void *buffer);
 typedef uint32_t (*write_type_t) (struct fs_node *node, uint32_t offset, uint32_t size, void *buffer);
-// XXX: open is called everytime something calls fs_open(node)
+// XXX: open is called every time something calls fs_open(node)
 typedef void (*open_type_t) (struct fs_node *node, unsigned int flags);
 // XXX: close is only called on the last call to fs_close(node), just before the node is freed
 typedef void (*close_type_t) (struct fs_node *node);

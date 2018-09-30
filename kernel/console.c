@@ -150,9 +150,9 @@ void vprintf(const char *fmt, va_list args) {
 					puts(buf);
 					break;
 				case 0:
-					assert(0 && "this should not happen");
 				default:
-					putc(*fmt);
+					assert(0 && "not implemented format character or end of string");
+					break;
 			}
 		} else {
 			putc(*fmt);
