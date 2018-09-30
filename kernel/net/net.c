@@ -4,6 +4,7 @@
 
 #include <console.h>
 #include <heap.h>
+#include <kernel_task.h>
 #include <list.h>
 #include <module.h>
 #include <net/checksum.h>
@@ -11,7 +12,6 @@
 #include <net/e1000.h>
 #include <net/tcp.h>
 #include <net/udp.h>
-#include <process.h>
 #include <string.h>
 
 #ifdef DEBUG
@@ -45,7 +45,7 @@
 // TODO: move the tcp, arp, dns and icmp code to seprate files
 
 
-static int ktask_net(void *extra, char *name);
+static int ktask_net(const char *name, void *extra);
 
 list_t *netif_list;
 
@@ -95,7 +95,7 @@ void net_register_netif(send_packet_t send, receive_packet_t receive, uint8_t *m
 	list_insert(netif_list, netif);
 
 	// TODO: add the mac address to the kernel task
-	create_ktask(ktask_net, "[net]", netif);
+	ktask_spawn(ktask_net, "[net]", netif);
 }
 
 bool net_send_ethernet(netif_t *netif, uint8_t *src, uint8_t *dest, enum ethernet_type ethernet_type, uint8_t *data, size_t data_size) {
@@ -417,7 +417,7 @@ static void handle_arp(netif_t *netif, ethernet_packet_t *ethernet_packet, size_
 	}
 }
 
-static int ktask_net(void *extra, char *name) {
+static int ktask_net(const char *name, void *extra) {
 	(void)name;
 
 	netif_t *netif = (netif_t *)extra;

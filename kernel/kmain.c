@@ -17,6 +17,7 @@
 #include <idt.h>
 #include <isr.h>
 #include <irq.h>
+#include <kernel_task.h>
 #include <keyboard.h>
 #include <module.h>
 #include <multiboot.h>
@@ -36,7 +37,7 @@
 extern void *__start_user_shared;
 extern void *__stop_user_shared;
 
-int kidle(void *extra, char *name) {
+int kidle(const char *name, void *extra) {
 	(void)extra;
 	(void)name;
 	// TODO: free kernel stack of kmain
@@ -440,7 +441,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	printf("free %u kb\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
 
 	/* start processes */
-	create_ktask(kidle, "kidle", NULL);
+	ktask_spawn(kidle, "kidle", NULL);
 
 	printf("free %u kb\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
 
@@ -527,7 +528,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 			printf("could not find init!\n");
 			assert(0);
 		}
-		char *argv[2] = { "init", NULL };
+		const char *argv[2] = { "init", NULL };
 		process_t *p = process_exec(f, 1, argv);
 		fs_close(f);
 		p->pid = 1;
@@ -536,10 +537,11 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 		strncpy(p->name, "init", 5);
 		process_add(p);
 	}
+	printf("%s: done\n", __func__);
 
 	printf("%u kb free\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
 	// TODO: free anything left lying around that won't be needed (eg. multiboot info)
-	process_enable();
+	tasking_enable();
 
 	puts("looping forever...\n");
 	for (;;) {

@@ -16,6 +16,67 @@
 
 page_directory_t *kernel_directory;
 
+page_directory_t *page_directory_reference(page_directory_t *pdir) {
+	assert(pdir != NULL);
+	if (pdir->__refcount != -1) {
+		pdir->__refcount++;
+	}
+	return pdir;
+}
+
+page_directory_t *page_directory_new() {
+	page_directory_t *pdir = kcalloc(1, sizeof(page_directory_t));
+	assert(pdir != NULL);
+	pdir->physical_address = pmm_alloc_blocks_safe(1);
+	pdir->physical_tables = (uintptr_t *)find_vspace(kernel_directory, 1);
+	map_page(get_table_alloc((uintptr_t)pdir->physical_tables, kernel_directory), (uintptr_t)pdir->physical_tables,
+		pdir->physical_address,
+		PAGE_PRESENT | PAGE_READWRITE);
+	memset((void *)pdir->physical_tables, 0, BLOCK_SIZE);
+	return page_directory_reference(pdir);
+}
+
+void page_directory_free(page_directory_t *pdir) {
+	assert(pdir != NULL);
+	if (pdir->__refcount == -1) {
+		// technically we're not supposed to do anything, but this is most likely a bug
+		assert(0 && "tried to free immortal page_directory (most likely kernel directory)");
+		return;
+	}
+
+	pdir->__refcount--;
+	if (pdir->__refcount == 0) {
+		// XXX: walk the page directory and ensure there are no mappings left, freeing page tables in the process
+		// TODO: maybe this could be split into page_table_new() / page_table_free()
+		for (uintptr_t i = 0; i < 1024; i++) {
+			uintptr_t phys_table = pdir->physical_tables[i];
+			if (phys_table & PAGE_PRESENT) {
+				page_table_t *table = pdir->tables[i];
+				assert(table != NULL);
+				for (uintptr_t j = 0; j < 1024; j++) {
+					page_t page = table->pages[j];
+					assert(page == 0);
+				}
+
+				uintptr_t phys = phys_table & ~0x3FF;
+				uintptr_t virtaddr = (uintptr_t)table;
+				map_page(get_table(virtaddr, kernel_directory), virtaddr, 0, 0);
+				invalidate_page(virtaddr);
+				pmm_free_blocks(phys, 1);
+				pdir->physical_tables[i] = 0;
+				pdir->tables[i] = NULL;
+			} else {
+				assert(pdir->tables[i] == NULL);
+			}
+		}
+		pmm_free_blocks(pdir->physical_address, 1);
+		uintptr_t virtaddr = (uintptr_t)pdir->physical_tables;
+		map_page(get_table(virtaddr, kernel_directory), virtaddr, 0, 0);
+		invalidate_page(virtaddr);
+		kfree(pdir);
+	}
+}
+
 void invalidate_page(uintptr_t virtaddr) {
 	assert((virtaddr & 0x3FF) == 0);
 	__asm__ __volatile__("invlpg (%0)" : : "b" (virtaddr) : "memory");
@@ -230,33 +291,6 @@ uintptr_t find_vspace(page_directory_t *dir, size_t n) {
 	return -1;
 }
 
-page_directory_t *alloc_pdir() {
-	page_directory_t *pdir = kcalloc(1, sizeof(page_directory_t));
-	assert(pdir != NULL);
-	pdir->__refcount = 1;
-	pdir->physical_address = pmm_alloc_blocks_safe(1);
-	pdir->physical_tables = (uintptr_t *)find_vspace(kernel_directory, 1);
-	map_page(get_table_alloc((uintptr_t)pdir->physical_tables, kernel_directory), (uintptr_t)pdir->physical_tables,
-		pdir->physical_address,
-		PAGE_PRESENT | PAGE_READWRITE);
-	memset((void *)pdir->physical_tables, 0, BLOCK_SIZE);
-	return pdir;
-}
-
-page_directory_t *free_pdir(page_directory_t *pdir) {
-	assert(pdir != NULL);
-	assert(pdir->__refcount != -1);
-
-	pdir->__refcount--;
-
-	if (pdir->__refcount == 0) {
-//		free_pages(pdir);
-		printf("%s: TODO: implement\n", __func__);
-	}
-	return NULL;
-}
-
-
 static void dump_table(page_table_t *table, uintptr_t table_addr, char *prefix) {
 	assert(table != NULL);
 	assert(prefix != NULL);
@@ -349,7 +383,7 @@ static void page_fault(registers_t *regs) {
 	page_directory_t *pdir;
 	if (regs->err_code & 0x4) {
 		assert(current_process != NULL);
-		pdir = current_process->pdir;
+		pdir = current_process->task.pdir;
 	} else {
 		pdir = kernel_directory;
 	}
@@ -387,16 +421,16 @@ static void page_fault(registers_t *regs) {
 		printf("current_process: 0x%x\n", (uintptr_t)current_process);
 		printf("current_process->kstack: 0x%x\n", current_process->kstack);
 		printf("current_process->kstack_size: 0x%x\n", (uintptr_t)current_process->kstack_size);
-		printf("current_process->regs: 0x%x\n", (uintptr_t)current_process->regs);
-		printf("current_process->esp: 0x%x\n", current_process->esp);
-		printf("current_process->ebp: 0x%x\n", current_process->ebp);
-		printf("current_process->eip: 0x%x\n", current_process->eip);
-		printf("current_process->pdir: 0x%x\n", (uintptr_t)current_process->pdir);
+		printf("current_process->task.registers: 0x%x\n", (uintptr_t)current_process->task.registers);
+		printf("current_process->task.esp: 0x%x\n", current_process->task.esp);
+		printf("current_process->task.ebp: 0x%x\n", current_process->task.ebp);
+		printf("current_process->task.eip: 0x%x\n", current_process->task.eip);
+		printf("current_process->task.pdir: 0x%x\n", (uintptr_t)current_process->task.pdir);
 		printf("current_process->name: '%s'\n", current_process->name);
 		printf("current_process->pid: 0x%x\n", current_process->pid);
 		printf("current_process->fd_table: 0x%x\n", (uintptr_t)current_process->fd_table);
 		printf("\n");
-		dump_directory(current_process->pdir);
+		dump_directory(current_process->task.pdir);
 	} else {
 		printf("KERNEL MODE PAGE FAULT\n");
 		print_stack_trace(200);

@@ -52,6 +52,10 @@ typedef struct page_directory {
 
 extern page_directory_t *kernel_directory;
 
+page_directory_t *page_directory_reference(page_directory_t *pdir);
+page_directory_t *page_directory_new();
+void page_directory_free(page_directory_t *pdir);
+
 void invalidate_page(uintptr_t virtaddr);
 page_table_t *get_table(uintptr_t virtaddr, page_directory_t *directory);
 page_table_t *get_table_alloc(uintptr_t virtaddr, page_directory_t *directory);
@@ -66,9 +70,6 @@ void map_direct_kernel(uintptr_t v);
 uintptr_t find_vspace(page_directory_t *dir, size_t n); // size in blocks
 uintptr_t vmm_find_dma_region(size_t size);
 void *dma_malloc(size_t m);
-
-page_directory_t *alloc_pdir();
-page_directory_t *free_pdir(page_directory_t *pdir);
 
 void vmm_init();
 void vmm_enable();

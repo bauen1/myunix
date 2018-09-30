@@ -16,4 +16,12 @@ extern const uintptr_t __stack_chk_guard;
 
 extern void *stack;
 
+/* special sections */
+extern void *isrs_start;
+extern void *isrs_end;
+extern void *__start_user_shared;
+extern void *__stop_user_shared;
+extern void *__start_mod_info;
+extern void *__stop_mod_info;
+
 #endif

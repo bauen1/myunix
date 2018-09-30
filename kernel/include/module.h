@@ -1,6 +1,8 @@
 #ifndef MODULE_H
 #define MODULE_H 1
 
+#include <boot.h>
+
 typedef struct {
 	volatile char *name;
 	void (* init)(void);
@@ -11,9 +13,6 @@ typedef struct {
 		.name = #n, \
 		.init = &i \
 	}
-
-extern  void *__start_mod_info;
-extern void *__stop_mod_info;
 
 void modules_init();
 

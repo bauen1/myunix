@@ -1,14 +1,9 @@
-// TODO: split into task / process implementation so we can reuse more code
-
-// TODO: better file descriptor implementation
-/*
-Implement process cleanup, by having kidle reap / free removed processes
-*/
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
 
+#include <boot.h>
 #include <console.h>
 #include <fs.h>
 #include <gdt.h>
@@ -22,161 +17,162 @@ Implement process cleanup, by having kidle reap / free removed processes
 #include <vmm.h>
 #include <syscall.h>
 
-// kernel stack size in pages (including guard page)
-#define KSTACK_SIZE 4
+fd_entry_t *fd_reference(fd_entry_t *fd) {
+	assert(fd != NULL);
+	if (fd->__refcount != -1) {
+		fd->__refcount++;
+	}
+	return fd;
+}
 
-static void __attribute__((noreturn)) __restore_process();
-void __attribute__((noreturn)) _ktask_exit(uint32_t status);
+fd_entry_t *fd_new(void) {
+	fd_entry_t *fd = kcalloc(1, sizeof(fd_entry_t));
+	if (fd == NULL) {
+		return NULL;
+	}
+	fd->seek = 0;
+	return fd_reference(fd);
+}
 
-process_t *current_process;
-node_t *current_process_node;
-list_t *process_list;
-
-extern void *isrs_start;
-extern void *isrs_end;
-extern void *__start_user_shared;
-extern void *__stop_user_shared;
-
-// allocate and map a kernel stack into kernel space
-// we could just call process_init_kstack it shouldn't make a difference (it would be a bit slower)
-void process_init_kernel_kstack(process_t *process) {
-	assert(process != NULL);
-
-	// kstack
-	process->kstack_size = KSTACK_SIZE;
-	uintptr_t v_kstack = find_vspace(kernel_directory, process->kstack_size + 4);
-	assert(v_kstack != 0);
-
-	printf("kstack (including guard: 0x%8x - 0x%8x\n", v_kstack, v_kstack + (process->kstack_size + 4) * BLOCK_SIZE);
-	// kstack guard
-	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
-	v_kstack += BLOCK_SIZE;
-	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
-	v_kstack += BLOCK_SIZE;
-
-	process->kstack = v_kstack;
-	for (size_t i = 0; i < process->kstack_size; i++) { // skip guard
-		uintptr_t v_kaddr = v_kstack + i * BLOCK_SIZE;
-		uintptr_t block = pmm_alloc_blocks_safe(1);
-		assert((get_page(get_table(v_kaddr, kernel_directory), v_kaddr) & PAGE_PRESENT) == 0);
-		map_page(get_table(v_kaddr, kernel_directory), v_kaddr, block,
-			PAGE_PRESENT | PAGE_READWRITE);
-		invalidate_page(v_kaddr);
+void fd_free(fd_entry_t *fd) {
+	assert(fd != NULL);
+	if (fd->__refcount == -1) {
+		return;
 	}
 
-	uintptr_t kstack_length = process->kstack_size * BLOCK_SIZE;
-	process->kstack_top = process->kstack + kstack_length;
-
-	v_kstack += kstack_length;
-	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
-	v_kstack += BLOCK_SIZE;
-	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
-
-	memset((void *)process->kstack, 0, kstack_length);
-//	printf("kstack: 0x%8x - 0x%8x\n", process->kstack, process->kstack_top);
-}
-
-// de-initialize (free) kernel stack of a kernel task
-static void process_deinit_kernel_kstack(process_t *process) {
-	assert(process != NULL);
-
-	printf("%s: TODO: implement!\n", __func__);
-}
-
-void create_ktask(ktask_func func, char *name, void *extra) {
-	printf("%s(func: 0x%x, name: '%s');\n", __func__, (uintptr_t)func, name);
-
-	process_t *process = kcalloc(1, sizeof(process_t));
-	assert(process != NULL);
-	process->is_kernel_task = true;
-	process->pdir = kernel_directory;
-	process->fd_table = NULL;
-
-	process_init_kernel_kstack(process);
-
-	process->name = kmalloc(strlen(name) + 1);
-	assert(process->name != NULL);
-	strncpy(process->name, name, 255);
-
-	// TODO: enable interrupts in kernel task's for preemption (we need to fix a lot of things before that)
-	process->regs = NULL;
-	uintptr_t esp = process->kstack_top;
-	esp -= sizeof(uintptr_t);
-	*((uintptr_t *)esp) = (uintptr_t)name;
-	esp -= sizeof(uintptr_t);
-	*((uintptr_t *)esp) = (uintptr_t)extra;
-	esp -= sizeof(uintptr_t);
-	*((uintptr_t *)esp) = (uintptr_t)func;
-
-	process->esp = (uint32_t)esp;
-	process->eip = (uintptr_t)&__call_ktask;
-	process->ebp = 0;
-
-	process_add(process);
-}
-
-// should only be called with interrupts off
-void __attribute__((noreturn)) _ktask_exit(uint32_t status) {
-	__asm__ __volatile__ ("cli");
-	printf("%s(name: '%s', status: %u);\n", __func__, current_process->name, status);
-	process_t *p = current_process;
-	process_remove(p);
-	printf(" kstack: 0x%x kstack_size: %u\n", p->kstack, (uintptr_t)p->kstack_size);
-	// FIXME: free kstack
-	// FIXME: call process_destroy
-	kfree(p);
-	__switch_direct();
-}
-
-static void process_map_shared_region(process_t *process, uintptr_t start, uintptr_t end, unsigned int permissions) {
-//	printf("process_map_shared_region(process: 0x%x, start: 0x%x, end: 0x%x, permissions: %u)\n", (uintptr_t)process, start, end, permissions);
-	if ((start & 0xFFF) != 0) {
-		printf(" WARN: start 0x%8x not aligned!\n", start);
-	}
-	if ((end & 0xFFF) != 0) {
-		printf(" WARN: end 0x%8x not aligned!\n", end);
-	}
-
-	for (uintptr_t i = 0; i < (end - start); i += BLOCK_SIZE) {
-		uintptr_t addr = start + i;
-		map_page(get_table_alloc(addr, process->pdir), addr, addr, permissions);
+	fd->__refcount--;
+	if (fd->__refcount == 0) {
+		if (fd->node != NULL) {
+			fs_close(fd->node);
+		}
+		kfree(fd);
 	}
 }
 
-static void process_unmap_shared_region(process_t *process, uintptr_t start, uintptr_t end) {
+/* helper */
+static void fd_table_realloc(fd_table_t *table) {
+	assert(table != NULL);
+	table->entries = krealloc(table->entries, table->capacity * sizeof(fd_entry_t *));
+	assert(table->entries != NULL);
+}
+
+fd_table_t *fd_table_reference(fd_table_t *fd_table) {
+	assert(fd_table != NULL);
+	if (fd_table->__refcount != -1) {
+		fd_table->__refcount++;
+	}
+	return fd_table;
+}
+
+fd_table_t *fd_table_new() {
+	fd_table_t *fd_table = kcalloc(1, sizeof(fd_table_t));
+	assert(fd_table != NULL);
+	fd_table->capacity = 16;
+	fd_table->length = 0;
+	fd_table_realloc(fd_table);
+	return fd_table_reference(fd_table);
+}
+
+void fd_table_free(fd_table_t *fd_table) {
+	assert(fd_table != NULL);
+	assert(fd_table->__refcount != -1);
+
+	if (fd_table->__refcount == -1) {
+		return;
+	}
+
+	fd_table->__refcount--;
+	if (fd_table->__refcount == 0) {
+		for (unsigned int i = 0; i < fd_table->length; i++) {
+			if (fd_table->entries[i] != NULL) {
+				fd_free(fd_table->entries[i]);
+			}
+		}
+		kfree(fd_table);
+	}
+}
+
+/* helpers */
+int fd_table_set(fd_table_t *fd_table, unsigned int i, fd_entry_t *entry) {
+	assert(fd_table != NULL);
+	assert(entry != NULL);
+
+	if (i < fd_table->capacity) {
+		if (fd_table->entries[i] != NULL) {
+			fd_free(fd_table->entries[i]);
+		}
+	} else {
+		fd_table->capacity = i;
+		fd_table_realloc(fd_table);
+	}
+	fd_table->entries[i] = entry;
+	if (fd_table->length < i) {
+		fd_table->length = i;
+	}
+	return i;
+}
+
+int fd_table_append(fd_table_t *fd_table, fd_entry_t *entry) {
+	assert(fd_table != NULL);
+	assert(entry != NULL);
+
+	for (unsigned int i = 0; i < fd_table->length; i++) {
+		if (fd_table->entries[i] == NULL) {
+			fd_table->entries[i] = entry;
+			return i;
+		}
+	}
+
+	// no gaps found, is the table full ?
+	if (fd_table->length == fd_table->capacity) {
+		fd_table->capacity = fd_table->capacity + 8;
+		fd_table_realloc(fd_table);
+	}
+	// if not the fd_table->length is free
+
+	fd_table->entries[fd_table->length] = entry;
+	fd_table->length++;
+	return fd_table->length - 1;
+}
+
+fd_entry_t *fd_table_get(fd_table_t *fd_table, unsigned int i) {
+	assert(fd_table != NULL);
+
+	if (i > fd_table->length) {
+		return NULL;
+	}
+	return fd_table->entries[i];
+}
+
+/* helpers */
+static void process_map_shared_region(page_directory_t *pdir, uintptr_t start, uintptr_t end, unsigned int permissions) {
+	assert(pdir != NULL);
 	assert((start & 0xFFF) == 0);
 
-	if ((start & 0xFFF) != 0) {
-		printf(" WARN: start 0x%8x not aligned!\n", start);
-	}
 	if ((end & 0xFFF) != 0) {
 		printf(" WARN: end 0x%8x not aligned!\n", end);
 	}
 
 	for (uintptr_t i = 0; i < (end - start); i += BLOCK_SIZE) {
 		uintptr_t addr = start + i;
-		uintptr_t p = get_page(get_table_alloc(addr, process->pdir), addr);
-		assert(addr == (p & ~0xFFF));
-		map_page(get_table_alloc(addr, process->pdir), addr, 0, 0);
+		map_page(get_table_alloc(addr, pdir), addr, addr, permissions);
 	}
 }
 
-// TODO: ensure no additional information gets leaked (align and FILL a block) (maybe by stuffing everything in a special segment)
-// FIXME: shouldn't the isrs also be in the user_shared section ?
-static void process_map_shared(process_t *process) {
-	// isr trampolines
-	process_map_shared_region(process, (uintptr_t)&isrs_start,
-		(uintptr_t)&isrs_end, PAGE_PRESENT);
-	// other stuff we really need ( gdt, idt, tss)
-	process_map_shared_region(process, (uintptr_t)&__start_user_shared,
-		(uintptr_t)&__stop_user_shared, PAGE_PRESENT | PAGE_READWRITE);
-}
+static void process_unmap_shared_region(page_directory_t *pdir, uintptr_t start, uintptr_t end) {
+	assert(pdir != NULL);
+	assert((start & 0xFFF) == 0);
 
-static void process_unmap_shared(process_t *process) {
-	assert(process != NULL);
+	if ((end & 0xFFF) != 0) {
+		printf(" WARN: end 0x%8x not aligned!\n", end);
+	}
 
-	process_unmap_shared_region(process, (uintptr_t)&isrs_start, (uintptr_t)&isrs_end);
-	process_unmap_shared_region(process, (uintptr_t)&__start_user_shared, (uintptr_t)&__stop_user_shared);
+	for (uintptr_t i = 0; i < (end - start); i += BLOCK_SIZE) {
+		uintptr_t addr = start + i;
+		uintptr_t p = get_page(get_table_alloc(addr, pdir), addr);
+		assert(addr == (p & ~0xFFF));
+		map_page(get_table_alloc(addr, pdir), addr, 0, 0);
+	}
 }
 
 // allocate and map a kernel stack into kernel space and userspace
@@ -187,14 +183,13 @@ void process_init_kstack(process_t *process) {
 	process->kstack_size = KSTACK_SIZE;
 	uintptr_t v_kstack = find_vspace(kernel_directory, process->kstack_size + 4);
 	assert(v_kstack != 0);
-	printf("kstack (including guard: 0x%8x - 0x%8x\n", v_kstack, v_kstack + (process->kstack_size + 4) * BLOCK_SIZE);
 
 	// kstack guard
 	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
-	map_page(get_table_alloc(v_kstack, process->pdir), v_kstack, PAGE_VALUE_GUARD, 0);
+	map_page(get_table_alloc(v_kstack, process->task.pdir), v_kstack, PAGE_VALUE_GUARD, 0);
 	v_kstack += BLOCK_SIZE;
 	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
-	map_page(get_table_alloc(v_kstack, process->pdir), v_kstack, PAGE_VALUE_GUARD, 0);
+	map_page(get_table_alloc(v_kstack, process->task.pdir), v_kstack, PAGE_VALUE_GUARD, 0);
 	v_kstack += BLOCK_SIZE;
 
 	process->kstack = v_kstack;
@@ -204,7 +199,7 @@ void process_init_kstack(process_t *process) {
 		assert((get_page(get_table(v_kaddr, kernel_directory), v_kaddr) & PAGE_PRESENT) == 0);
 		map_page(get_table(v_kaddr, kernel_directory), v_kaddr, block,
 			PAGE_PRESENT | PAGE_READWRITE);
-		map_page(get_table_alloc(v_kaddr, process->pdir), v_kaddr, block,
+		map_page(get_table_alloc(v_kaddr, process->task.pdir), v_kaddr, block,
 			PAGE_PRESENT | PAGE_READWRITE);
 		invalidate_page(v_kaddr);
 	}
@@ -214,98 +209,137 @@ void process_init_kstack(process_t *process) {
 
 	v_kstack += kstack_length;
 	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
-	map_page(get_table_alloc(v_kstack, process->pdir), v_kstack, PAGE_VALUE_GUARD, 0);
+	map_page(get_table_alloc(v_kstack, process->task.pdir), v_kstack, PAGE_VALUE_GUARD, 0);
 	v_kstack += BLOCK_SIZE;
 	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
-	map_page(get_table_alloc(v_kstack, process->pdir), v_kstack, PAGE_VALUE_GUARD, 0);
+	map_page(get_table_alloc(v_kstack, process->task.pdir), v_kstack, PAGE_VALUE_GUARD, 0);
 
 	memset((void *)process->kstack, 0, kstack_length);
-//	printf("kstack: 0x%8x - 0x%8x\n", process->kstack, process->kstack_top);
 }
 
-// TODO: this does NOT unmap the kernel stack from kernel space
+/*
+TODO: implement correctly
+FIXME: this does NOT unmap the kernel stack from kernel space
+We could add the kstack to a list of items kidle should free when it's next round (interrupts need to be disabled until the next context switch if the kstack is currently in use)
+*/
 static void process_deinit_kstack(process_t *process) {
 	assert(process != NULL);
-
-	printf("%s: TODO: implement\n", __func__);
-	// kstack
 
 	uintptr_t v_kstack = process->kstack - BLOCK_SIZE * 2;
 
 	assert(get_page(get_table_alloc(v_kstack, kernel_directory), v_kstack) == PAGE_VALUE_GUARD);
-	assert(get_page(get_table_alloc(v_kstack, process->pdir), v_kstack) == PAGE_VALUE_GUARD);
+	assert(get_page(get_table_alloc(v_kstack, process->task.pdir), v_kstack) == PAGE_VALUE_GUARD);
 //	map_page(get_table(v_kstack, kernel_directory), v_kstack, 0, 0);
-	map_page(get_table_alloc(v_kstack, process->pdir), v_kstack, 0, 0);
+	map_page(get_table_alloc(v_kstack, process->task.pdir), v_kstack, 0, 0);
 	v_kstack += BLOCK_SIZE;
 	assert(get_page(get_table_alloc(v_kstack, kernel_directory), v_kstack) == PAGE_VALUE_GUARD);
-	assert(get_page(get_table_alloc(v_kstack, process->pdir), v_kstack) == PAGE_VALUE_GUARD);
+	assert(get_page(get_table_alloc(v_kstack, process->task.pdir), v_kstack) == PAGE_VALUE_GUARD);
 //	map_page(get_table(v_kstack, kernel_directory), v_kstack, 0, 0);
-	map_page(get_table_alloc(v_kstack, process->pdir), v_kstack, 0, 0);
+	map_page(get_table_alloc(v_kstack, process->task.pdir), v_kstack, 0, 0);
 	v_kstack += BLOCK_SIZE;
 
 	for (size_t i = 0; i < process->kstack_size; i++) {
 		uintptr_t v_kaddr = v_kstack + i * BLOCK_SIZE;
 		uintptr_t block = get_page(get_table(v_kaddr, kernel_directory), v_kaddr);
-		uintptr_t block_u = get_page(get_table_alloc(v_kaddr, process->pdir), v_kaddr);
-		printf("kdir: 0x%8x pdir: 0x%8x\n", block, block_u);
-		// FIXME: doesn't cover all cases
-		assert(
-			(block & ~0xFFF) == (block & ~0xFFF)
-		);
+		uintptr_t block_u = get_page(get_table_alloc(v_kaddr, process->task.pdir), v_kaddr);
+		assert((block & ~0xFFF) == (block_u & ~0xFFF));
 //		map_page(get_table(v_kaddr, kernel_directory), v_kaddr, 0, 0);
-		map_page(get_table_alloc(v_kaddr, process->pdir), v_kaddr, 0, 0);
+		map_page(get_table_alloc(v_kaddr, process->task.pdir), v_kaddr, 0, 0);
 //		pmm_free_blocks(block, 1);
 	}
 
 	v_kstack += process->kstack_size * BLOCK_SIZE;
 
 	assert(get_page(get_table_alloc(v_kstack, kernel_directory), v_kstack) == PAGE_VALUE_GUARD);
-	assert(get_page(get_table_alloc(v_kstack, process->pdir), v_kstack) == PAGE_VALUE_GUARD);
+	assert(get_page(get_table_alloc(v_kstack, process->task.pdir), v_kstack) == PAGE_VALUE_GUARD);
 //	map_page(get_table(v_kstack, kernel_directory), v_kstack, 0, 0);
-	map_page(get_table_alloc(v_kstack, process->pdir), v_kstack, 0, 0);
+	map_page(get_table_alloc(v_kstack, process->task.pdir), v_kstack, 0, 0);
 	v_kstack += BLOCK_SIZE;
 	assert(get_page(get_table_alloc(v_kstack, kernel_directory), v_kstack) == PAGE_VALUE_GUARD);
-	assert(get_page(get_table_alloc(v_kstack, process->pdir), v_kstack) == PAGE_VALUE_GUARD);
+	assert(get_page(get_table_alloc(v_kstack, process->task.pdir), v_kstack) == PAGE_VALUE_GUARD);
 //	map_page(get_table(v_kstack, kernel_directory), v_kstack, 0, 0);
-	map_page(get_table_alloc(v_kstack, process->pdir), v_kstack, 0, 0);
+	map_page(get_table_alloc(v_kstack, process->task.pdir), v_kstack, 0, 0);
 
 	return;
 }
 
-process_t *process_exec(fs_node_t *f, int argc, char **argv) {
-	uintptr_t virt_text_start = 0x1000000;
-	uintptr_t virt_heap_start = 0x2000000; // max 16mb text
-	uintptr_t virt_stack_start = 0x8000000;
-	uintptr_t virt_misc_start = 0x10000000;
-	printf("process_exec(0x%x (f->name: '%s'));\n", (uintptr_t)f, f->name);
+// TODO: ensure no additional information gets leaked (align and FILL a block) (maybe by stuffing everything in a special segment)
+// FIXME: shouldn't the isrs also be in the user_shared section ?
+static page_directory_t *process_page_directory_new() {
+	page_directory_t *page_directory = page_directory_new();
+	assert(page_directory != NULL);
+
+	// ISR stubs
+	process_map_shared_region(page_directory, (uintptr_t)&isrs_start,
+		(uintptr_t)&isrs_end, PAGE_PRESENT);
+	// other stuff (gdt, idt, tss)
+	// TODO: make a user_shared_readonly and user_shared_readwrite section
+	process_map_shared_region(page_directory, (uintptr_t)&__start_user_shared,
+		(uintptr_t)&__stop_user_shared, PAGE_PRESENT | PAGE_READWRITE);
+
+	return page_directory;
+}
+
+static void process_page_directory_free(page_directory_t *pdir) {
+	if (pdir->__refcount != 1) {
+		// XXX: page_directory_free only decrements __refcount
+		return page_directory_free(pdir);
+	}
+
+	// XXX: this is the last reference, clean up
+	process_unmap_shared_region(pdir, (uintptr_t)&isrs_start, (uintptr_t)&isrs_end);
+	process_unmap_shared_region(pdir, (uintptr_t)&__start_user_shared, (uintptr_t)&__stop_user_shared);
+
+	// XXX: free allocated blocks
+	for (uintptr_t i = 0; i < 1024; i++) {
+		uintptr_t phys_table = pdir->physical_tables[i];
+		if (phys_table & PAGE_PRESENT) {
+			page_table_t *table = pdir->tables[i];
+			assert(table != NULL);
+			for (uintptr_t j = 0; j < 1024; j++) {
+				page_t page = table->pages[j];
+				uintptr_t virtaddr = (i << 22) | (j << 12);
+				if (page == 0) {
+					continue;
+				} else if (page & (PAGE_PRESENT | PAGE_USER)) {
+					// XXX: free page, depends on this being allocated to only this page directory
+					uintptr_t phys = page & ~0xFFF;
+					pmm_free_blocks(phys, 1);
+					table->pages[j] = 0;
+				} else {
+					/* XXX: this is bad, all kernel pages should have been unmapped already, we don't know how to handle it */
+					printf("%8x => 0x%8x this should not be here!\n", virtaddr, page);
+					assert(0);
+				}
+			}
+		} else {
+			assert(pdir->tables[i] == NULL);
+		}
+	}
+}
+
+void process_exec2(process_t *process, fs_node_t *f, int argc, const char **argv) {
+	const uintptr_t virt_text_start = 0x1000000;
+	const uintptr_t virt_heap_start = 0x2000000; // max 16mb text
+	const uintptr_t virt_stack_start = 0x8000000;
+	const uintptr_t virt_misc_start = 0x10000000;
+
+	assert(process != NULL);
 	assert(f != NULL);
 	assert(f->length != 0);
-	process_t *process = kcalloc(1, sizeof(process_t));
-	assert(process != NULL);
-	process->is_kernel_task = false;
-	process->fd_table = kcalloc(1, sizeof(fd_table_t));
-	assert(process->fd_table != NULL);
-	process->fd_table->capacity = 16;
-	process->fd_table->length = 3;
-	process->fd_table->entries = kcalloc(process->fd_table->capacity, sizeof(fd_entry_t *));
 
-	process->fd_table->entries[0] = kcalloc(1, sizeof(fd_entry_t));
-	assert(process->fd_table->entries[0] != NULL);
-	process->fd_table->entries[0]->node = &tty_node;
-	process->fd_table->entries[1] = kcalloc(1, sizeof(fd_entry_t));
-	assert(process->fd_table->entries[1] != NULL);
-	process->fd_table->entries[1]->node = &tty_node;
-	process->fd_table->entries[2] = kcalloc(1, sizeof(fd_entry_t));
-	assert(process->fd_table->entries[2] != NULL);
-	process->fd_table->entries[2]->node = &tty_node;
+	if (process->task.pdir != NULL) {
+		printf("%s: freeing old pdir\n", __func__);
+		process_page_directory_free(process->task.pdir);
+	}
 
-	process->pdir = alloc_pdir();
-	assert(process->pdir != NULL);
-	process_map_shared(process);
+	process->task.type = TASK_TYPE_USER_PROCESS;
+	process->task.pdir = process_page_directory_new();
+	assert(process->task.pdir != NULL);
 	process_init_kstack(process);
 
 	// allocate some userspace heap (16kb)
-	// FIXME: size hardcoded
+	// FIXME: size hardcoded (and to be honest it's mostly useless)
 	uintptr_t k_tmp = find_vspace(kernel_directory, 1);
 	assert(k_tmp != 0);
 
@@ -318,8 +352,7 @@ process_t *process_exec(fs_node_t *f, int argc, char **argv) {
 		invalidate_page(k_tmp);
 
 		memset((void *)k_tmp, 0, BLOCK_SIZE);
-//		printf(" 0x%8x => 0x%8x PRESENT|WRITE|USER\n", virtaddr, block);
-		map_page(get_table_alloc(virtaddr, process->pdir), virtaddr,
+		map_page(get_table_alloc(virtaddr, process->task.pdir), virtaddr,
 			block,
 			PAGE_PRESENT | PAGE_READWRITE | PAGE_USER);
 	}
@@ -336,8 +369,7 @@ process_t *process_exec(fs_node_t *f, int argc, char **argv) {
 
 		uint32_t j = fs_read(f, i, BLOCK_SIZE, (void *)k_tmp);
 		assert(j != (uint32_t)-1);
-//		printf(" 0x%x => 0x%x PRESENT|WRITE|USER\n", virtaddr, block);
-		map_page(get_table_alloc(virtaddr, process->pdir),
+		map_page(get_table_alloc(virtaddr, process->task.pdir),
 			virtaddr,
 			block,
 			PAGE_PRESENT | PAGE_USER | PAGE_READWRITE);
@@ -353,13 +385,12 @@ process_t *process_exec(fs_node_t *f, int argc, char **argv) {
 		invalidate_page(k_tmp);
 
 		memset((void *)k_tmp, 0, BLOCK_SIZE);
-//		printf(" 0x%8x => 0x%8x PRESENT|WRITE|USER\n", virtaddr, block);
-		map_page(get_table_alloc(virtaddr, process->pdir), virtaddr,
+		map_page(get_table_alloc(virtaddr, process->task.pdir), virtaddr,
 			block,
 			PAGE_PRESENT | PAGE_READWRITE | PAGE_USER);
 	}
 
-	// allocate misc region (cmdline, *argv, enviorment)
+	// allocate misc region (cmdline, *argv, environment)
 	for (unsigned int i = 0; i < 1; i++) {
 		// allocate non-continous space
 		uintptr_t virtaddr = virt_misc_start + i*BLOCK_SIZE;
@@ -370,8 +401,7 @@ process_t *process_exec(fs_node_t *f, int argc, char **argv) {
 		invalidate_page(k_tmp);
 
 		memset((void *)k_tmp, 0, BLOCK_SIZE);
-//		printf(" 0x%8x => 0x%8x PRESENT|WRITE|USER\n", virtaddr, block);
-		map_page(get_table_alloc(virtaddr, process->pdir), virtaddr,
+		map_page(get_table_alloc(virtaddr, process->task.pdir), virtaddr,
 			block,
 			PAGE_PRESENT | PAGE_READWRITE | PAGE_USER);
 	}
@@ -381,7 +411,6 @@ process_t *process_exec(fs_node_t *f, int argc, char **argv) {
 	/*
 	 * TODO: implement properly
 	 * XXX: ensure the user stack is 16byte aligned
-	 * XXX: stack grows down
 	 */
 	uintptr_t buf[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 	size_t init_frame_size = sizeof(buf);
@@ -393,11 +422,15 @@ process_t *process_exec(fs_node_t *f, int argc, char **argv) {
 	buf[3] = 0; // env[0]
 	buf[4] = 0; // env[1]
 
-	copy_to_userspace(process->pdir, user_stack, init_frame_size, buf);
-	copy_to_userspace(process->pdir, buf[1], strlen(argv[0]) + 1, argv[0]);
+	copy_to_userspace(process->task.pdir, user_stack, init_frame_size, buf);
+	if (argv != NULL) {
+		copy_to_userspace(process->task.pdir, buf[1], strlen(argv[0]) + 1, argv[0]);
+	} else {
+		printf("%s: WARN: argv = NULL!\n", __func__);
+	}
 
 	registers_t *regs = (registers_t *)(process->kstack_top - sizeof(registers_t));
-	regs->old_directory = (uintptr_t)process->pdir->physical_address;
+	regs->old_directory = (uintptr_t)process->task.pdir->physical_address;
 	regs->gs = 0x23;
 	regs->fs = 0x23;
 	regs->es = 0x23;
@@ -417,152 +450,69 @@ process_t *process_exec(fs_node_t *f, int argc, char **argv) {
 	regs->esp = user_stack;
 	regs->ss = regs->ds;
 
-	process->regs = regs;
+	process->task.registers = regs;
 
-	process->esp = (uint32_t)regs;
-	process->ebp = process->esp;
-	process->eip = (uintptr_t)return_to_regs;
+	process->task.esp = (uint32_t)regs;
+	process->task.ebp = process->task.esp;
+	process->task.eip = (uintptr_t)return_to_regs;
+}
+
+process_t *process_exec(fs_node_t *f, int argc, const char **argv) {
+	assert(f != NULL);
+	assert(f->length != 0);
+	printf("%s(f: %p (f->name: '%s'), argc: %i, argv: %p)\n", __func__, f, f->name, argc, argv);
+
+	process_t *process = kcalloc(1, sizeof(process_t));
+	assert(process != NULL);
+	process->task.type = TASK_TYPE_USER_PROCESS;
+	process->task.obj = process;
+
+	process->fd_table = fd_table_new();
+	assert(process->fd_table != NULL);
+	fd_entry_t *tty_fd = fd_new();
+	assert(tty_fd != NULL);
+	tty_fd->node = &tty_node;
+	tty_fd->seek = 0;
+	fd_table_set(process->fd_table, 0, tty_fd);
+	fd_table_set(process->fd_table, 1, fd_reference(tty_fd));
+	fd_table_set(process->fd_table, 2, fd_reference(tty_fd));
+
+	process_exec2(process, f, argc, argv);
 	return process;
 }
 
-void __attribute__((noreturn)) process_exit(unsigned int status) {
-	printf("process_exit (pid: %u) status: %u\n", current_process->pid, status);
-	process_t *p = current_process;
-	process_remove(p);
-	process_destroy(p);
-	__switch_direct();
-}
-
-// if the caller is using the kstack, he better not try to allocate memory before the next task switch
-void process_destroy(process_t *process) {
-	if (process->is_kernel_task) {
-		// kernel task
-		process_deinit_kernel_kstack(process);
-
-		// FIXME: implement instead of panic
-		assert(0);
-	} else {
-		// user process
-		process_deinit_kstack(process);
-		process_unmap_shared(process);
-	}
-	printf("TODO: implement %s\n", __func__);
-	assert(0);
 /*
-	// TODO: close the file descriptors
-	kfree(process->fd_table);
-	kfree(process->name);
+TODO: move syscall_fork, syscall_clone and syscall_exec here
 */
+
+void process_destroy(process_t *process) {
+	printf("%s(process: %p (name: '%s'))\n", __func__, process, process->name);
+
+	process_deinit_kstack(process);
+	fd_table_free(process->fd_table);
+	process_page_directory_free(process->task.pdir);
+	kfree(process->name);
+	kfree(process);
 }
 
-process_t *next_process() {
-	assert(process_list != NULL);
-	node_t *n = current_process_node->next;
-	if (n == NULL) {
-		n = process_list->head;
-	}
-	assert(n != NULL);
-	if (process_list->length > 2) {
-		current_process_node = n;
-		current_process = current_process_node->value;
-		return current_process;
-	} else {
-		printf("NO PROCESSES LEFT\n");
+void __attribute__((noreturn)) process_exit(unsigned int status) {
+	if (current_process->pid == 1) {
+		printf("%s: PANIC: init attempting to exit!\n", __func__);
 		halt();
 	}
-}
-
-extern uintptr_t read_eip();
-
-// switch to some new task and return when we get scheduled again
-// TODO: rewrite this completely in asm
-void __attribute__((used)) _switch_task() {
-	if (current_process == NULL) {
-		return;
-	}
-
-	/* ensure interrupts are off, it's the caller's responsibility to re-enable them if needed */
-	__asm__ __volatile__("cli");
-
-	uint32_t esp, ebp, eip;
-	__asm__ __volatile__("mov %%esp, %0" : "=r" (esp));
-	__asm__ __volatile__("mov %%ebp, %0" : "=r" (ebp));
-	eip = read_eip();
-	if (eip == 0) {
-		return;
-	}
-	current_process->esp = esp;
-	current_process->ebp = ebp;
-	current_process->eip = eip;
+	printf("process_exit (pid: %u name: '%s') status: %u\n", current_process->pid, current_process->name, status);
+	process_t *p = current_process;
+	printf("%s: removing process %p (name: '%s') from queue\n", __func__, p, p->name);
+	task_remove(&p->task);
+	process_destroy(p);
+	printf("%s: __switch_direct\n", __func__);
 
 	__switch_direct();
 }
 
-// DESTRUCTIVE: don't save anything and NEVER return
-void __attribute__((noreturn)) __switch_direct(void) {
-	current_process = next_process();
-	__restore_process();
-}
+void process_add(process_t *process) {
+	assert(process != NULL);
+	assert(process == process->task.obj);
 
-static void __attribute__((noreturn)) __restore_process() {
-//	tss_set_kstack(current_process->kstack);
-	if (current_process->is_kernel_task) {
-		tss_set_kstack(0);
-	} else {
-		tss_set_kstack(current_process->kstack_top);
-	}
-
-	uint32_t esp = current_process->esp;
-	uint32_t ebp = current_process->ebp;
-	uint32_t eip = current_process->eip;
-
-	__asm__ __volatile__ (
-		"mov %0, %%ebx\n"
-		"mov %1, %%esp\n"
-		"mov %2, %%ebp\n"
-		// "mov %3, %%cr3\n"
-		"mov $0, %%eax\n"
-		"jmp *%%ebx"
-		:
-		: "r" (eip), "r" (esp), "r" (ebp) /*, "r"(current_dir)*/
-		: "ebx", "esp", "eax");
-#ifndef __TINYC__
-	__builtin_unreachable();
-#endif
-}
-
-/* XXX: only call with interrupts off */
-void process_remove(process_t *p) {
-	assert(process_list != NULL);
-	assert(p != NULL);
-	if (current_process == p) {
-		current_process_node = process_list->head;
-		assert(current_process_node != NULL);
-		current_process = current_process_node->value;
-		assert(current_process != NULL);
-	}
-	list_remove(process_list, p);
-}
-
-// FIXME: doesn't check if interrupts were already disabled
-void process_add(process_t *p) {
-	__asm__ __volatile__ ("cli");
-	assert(p != NULL);
-	if (process_list == NULL) {
-		process_list = list_init();
-//		printf("process_list: 0x%x\n", (uintptr_t)process_list);
-	}
-	list_insert(process_list, p);
-	__asm__ __volatile__ ("sti");
-	return;
-}
-
-void __attribute__((noreturn)) process_enable(void) {
-	printf("process_enable\n");
-	__asm__ __volatile__ ("cli");
-	current_process_node = process_list->head;
-	current_process = current_process_node->value;
-	assert(current_process != NULL);
-
-	__restore_process();
+	task_add(&process->task);
 }
