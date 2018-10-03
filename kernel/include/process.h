@@ -10,6 +10,8 @@
 #include <fs.h>
 #include <vmm.h>
 
+#define PROCESS_MAX_PID 32768
+
 typedef unsigned int pid_t;
 
 typedef struct {
@@ -55,11 +57,13 @@ fd_entry_t *fd_table_get(fd_table_t *fd_table, unsigned int i);
 void process_exec2(process_t *process, fs_node_t *f, int agrc, const char **argv);
 process_t *process_exec(fs_node_t *f, int argc, const char **argv);
 void process_destroy(process_t *process);
+pid_t get_pid(void);
 
 /* XXX: internal helpers, don't use them unless you know what you're doing  */
 void process_init_kstack(process_t *process);
 void __attribute__((noreturn)) process_exit(unsigned int status);
 
 void process_add(process_t *process);
+void process_init(void);
 
 #endif

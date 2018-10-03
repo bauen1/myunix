@@ -34,16 +34,13 @@
 #include <tty.h>
 #include <vmm.h>
 
-extern void *__start_user_shared;
-extern void *__stop_user_shared;
-
 int kidle(const char *name, void *extra) {
 	(void)extra;
 	(void)name;
 	// TODO: free kernel stack of kmain
 	__asm__ __volatile__("sti");
 	while (1) {
-		__asm__ __volatile__ ("hlt");
+		switch_task();
 	}
 }
 
@@ -443,8 +440,6 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	/* start processes */
 	ktask_spawn(kidle, "kidle", NULL);
 
-	printf("free %u kb\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
-
 	/* scan for device and initialise them */
 	pci_print_all();
 
@@ -541,12 +536,5 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 
 	printf("%u kb free\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
 	// TODO: free anything left lying around that won't be needed (eg. multiboot info)
-	tasking_enable();
-
-	puts("looping forever...\n");
-	for (;;) {
-		putc(getc());
-	}
-
-	halt();
+	return tasking_enable();
 }

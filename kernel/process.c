@@ -4,6 +4,7 @@
 #include <stddef.h>
 
 #include <boot.h>
+#include <bitmap.h>
 #include <console.h>
 #include <fs.h>
 #include <gdt.h>
@@ -16,6 +17,20 @@
 #include <task.h>
 #include <vmm.h>
 #include <syscall.h>
+
+bitmap_t *pid_bitmap;
+
+static pid_t last_pid = 1;
+pid_t get_pid(void) {
+	if (last_pid > PROCESS_MAX_PID) {
+		assert(0);
+	}
+	last_pid++;
+	pid_t pid = last_pid;
+	assert(bitmap_test(pid_bitmap, pid) == false);
+	bitmap_set(pid_bitmap, pid);
+	return pid;
+}
 
 fd_entry_t *fd_reference(fd_entry_t *fd) {
 	assert(fd != NULL);
@@ -52,7 +67,14 @@ void fd_free(fd_entry_t *fd) {
 /* helper */
 static void fd_table_realloc(fd_table_t *table) {
 	assert(table != NULL);
-	table->entries = krealloc(table->entries, table->capacity * sizeof(fd_entry_t *));
+	if (table->entries == NULL) {
+		table->entries = kcalloc(table->capacity, sizeof(fd_entry_t *));
+	} else {
+		fd_entry_t **new_entries = kcalloc(table->capacity, sizeof(fd_entry_t *));
+		memcpy(new_entries, table->entries, table->length * sizeof(fd_entry_t *));
+		kfree(table->entries);
+		table->entries = new_entries;
+	}
 	assert(table->entries != NULL);
 }
 
@@ -128,7 +150,7 @@ int fd_table_append(fd_table_t *fd_table, fd_entry_t *entry) {
 		fd_table->capacity = fd_table->capacity + 8;
 		fd_table_realloc(fd_table);
 	}
-	// if not the fd_table->length is free
+	// if not then entries[fd_table->length] is free
 
 	fd_table->entries[fd_table->length] = entry;
 	fd_table->length++;
@@ -290,7 +312,7 @@ static void process_page_directory_free(page_directory_t *pdir) {
 	process_unmap_shared_region(pdir, (uintptr_t)&isrs_start, (uintptr_t)&isrs_end);
 	process_unmap_shared_region(pdir, (uintptr_t)&__start_user_shared, (uintptr_t)&__stop_user_shared);
 
-	// XXX: free allocated blocks
+	// XXX: and free all allocated blocks
 	for (uintptr_t i = 0; i < 1024; i++) {
 		uintptr_t phys_table = pdir->physical_tables[i];
 		if (phys_table & PAGE_PRESENT) {
@@ -488,6 +510,7 @@ TODO: move syscall_fork, syscall_clone and syscall_exec here
 void process_destroy(process_t *process) {
 	printf("%s(process: %p (name: '%s'))\n", __func__, process, process->name);
 
+	bitmap_unset(pid_bitmap, process->pid);
 	process_deinit_kstack(process);
 	fd_table_free(process->fd_table);
 	process_page_directory_free(process->task.pdir);
@@ -515,4 +538,11 @@ void process_add(process_t *process) {
 	assert(process == process->task.obj);
 
 	task_add(&process->task);
+}
+
+void process_init(void) {
+	pid_bitmap = bitmap_new(PROCESS_MAX_PID);
+	assert(pid_bitmap != NULL);
+	bitmap_set(pid_bitmap, 0); // "kidle"
+	bitmap_set(pid_bitmap, 1); // init
 }

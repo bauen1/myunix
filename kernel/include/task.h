@@ -7,7 +7,7 @@
 #include <cpu.h>
 #include <vmm.h>
 
-// kernel stack size in pages (including guard pages)
+// kernel stack size in pages
 #define KSTACK_SIZE 4
 
 enum task_type {
