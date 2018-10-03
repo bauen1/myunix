@@ -102,6 +102,6 @@ void fs_mkdir(fs_node_t *node, char *name, uint16_t permission);
 
 void fs_mount_root(fs_node_t *node);
 
-fs_node_t *kopen(char *path, unsigned int flags);
+fs_node_t *kopen(const char *path, unsigned int flags);
 
 #endif

@@ -49,10 +49,8 @@ void fs_open(fs_node_t *node, unsigned int flags) {
 
 void fs_close(fs_node_t *node) {
 	assert(node != NULL); // crash on double-free
-	assert(node != fs_root_mount->node);
 
 	if (node->__refcount == -1) {
-		// special case ( TODO: check for FS_NODE_MOUNTPOINT instead
 		return;
 	}
 
@@ -141,54 +139,83 @@ void fs_mkdir(fs_node_t *node, char *name, uint16_t permission) {
 void fs_mount_root(fs_node_t *node) {
 	// TODO: implement root remount
 	assert(fs_root_mount == NULL);
+	assert(node != NULL);
+	node->__refcount = -1; // make node immortal
 	fs_root_mount = kcalloc(1, sizeof(fs_mount_t));
 	fs_root_mount->path = "/";
 	fs_root_mount->node = node;
 	fs_root_mount->mounts = NULL;
 }
 
-/* tokenize the path */
-/* XXX: only works if first character is not / */
-static char *split_path(char *real_path) {
-//	printf("%s(real_path: '%s')\n", __func__, real_path);
-	assert(*real_path != '/');
-	const size_t path_len = strlen(real_path);
-	char *path = kcalloc(1, path_len + 1);
-	assert(path != NULL);
-	memcpy(path, real_path, path_len + 1);
-	char *s = path;
-	while (s < path + path_len) {
-		if (*s == '/') {
-			*s = 0;
-		}
-		s++;
-	}
-	s[path_len] = 0;
-	s[path_len + 1] = 0;
-
-	return path;
+// FIXME: allocate mount->path
+void fs_mount(fs_node_t *node, const char *subpath) {
+	assert(node != NULL);
+	assert(subpath != NULL);
+	fs_mount_t *mount = kcalloc(1, sizeof(fs_mount_t));
+	const size_t subpath_strlen = strlen(subpath);
+	mount->path = kmalloc((subpath_strlen + 1) * sizeof(char));
+	assert(mount->path != NULL);
+	strncpy(mount->path, subpath, subpath_strlen + 1);
+	mount->node = node;
+	mount->mounts = NULL;
+/*	fs_mount_t *mount = kcalloc(1, sizeof(fs_mount_t));
+	mount->path = subpath;
+	mount->node = node;
+	mount->mounts = NULL;
+	// TODO: implement mounting inside something thats not the root mount
+*/
 }
 
-// FIXME: breaks on //, '' and many more
-// TODO: implement correctly
+void fs_unmount(const char *path) {
+	(void)path;
+}
+
+/* tokenize the path */
+static char *split_path(const char *path) {
+	assert(path != NULL);
+	printf("%s(path: '%s')\n", __func__, path);
+
+	const size_t path_len = strlen(path);
+	char *p = kmalloc(sizeof(char) * (path_len + 1));
+	assert(p != NULL);
+
+	for (size_t i = 0; i < path_len; i++) {
+		if (path[i] == '/') {
+			if (i == 0) {
+				// ignore the first /
+				continue;
+			} else {
+				assert(p[i - 1] != 0);
+				p[i] = 0;
+			}
+		} else {
+			p[i] = path[i];
+		}
+	}
+	p[path_len] = 0;
+	p[path_len + 1] = 0;
+
+	return p;
+}
+
+// TODO: implement canonicalize_path correctly
 static char *canonicalize_path(const char *cwd, const char *relative_path) {
 	(void)cwd;
-//	printf("%s(relative_path: '%s')\n", __func__, relative_path);
-	char *path;
-	size_t path_len;
+	printf("%s(relative_path: '%s')\n", __func__, relative_path);
+
+	const size_t relp_len = strlen(relative_path) + 1;
+	const size_t path_len = relp_len + 1; // + 1 so it can be passed to split_path
+	char *path = kmalloc(sizeof(char) * path_len);
+	assert(path != NULL);
 	if (*relative_path == '/') {
-		path_len = strlen(relative_path);
-		path = kmalloc(sizeof(char) * (path_len + 1));
-		assert(path != NULL);
-		memcpy(path, relative_path + 1, path_len);
+		memcpy(path, (relative_path + 1), relp_len);
+		if (*path == 0) {
+			*path = '/';
+		}
 	} else {
-		path_len = strlen(relative_path) + 1;
-		path = kmalloc(sizeof(char) * (path_len + 1)); // +2 so it can be passed to split_path
-		assert(path != NULL);
-		memcpy(path, relative_path, path_len);
+		memcpy(path, relative_path, relp_len);
 	}
-	path[path_len + 1] = 0;
-	path[path_len + 2] = 0;
+	path[strlen(path) + 2] = 0;
 	return path;
 }
 
@@ -267,15 +294,36 @@ static fs_node_t *findfile_recursive(const char *real_path, char *path, size_t p
 	return node;
 }
 
+/*
+proc findfile(path)
+  segments = split_path(path)
+  mount = fs_root_mount
+  node = fs_root_mount->node
+  return findfile_recursive(path, segments, mount, node)
+*/
 static fs_node_t *findfile(const char *relative_path) {
 	char *real_path = canonicalize_path("", relative_path);
 	char *path = split_path(real_path);
-	return findfile_recursive(real_path, path, strlen(real_path), fs_root_mount, fs_root_mount->node, 0);
+	fs_node_t *f = findfile_recursive(real_path, path, strlen(real_path), fs_root_mount, fs_root_mount->node, 0);
+	kfree(real_path);
+	kfree(path);
+	return f;
 }
 
-fs_node_t *kopen(char *path, unsigned int flags) {
+fs_node_t *kopen(const char *path, unsigned int flags) {
 //	printf("%s(path: '%s', flags:%u)\n", __func__, path, flags);
-	fs_node_t *node = findfile(path);
+	fs_node_t *node;
+
+	if (!memcmp(path, "/", 2)) {
+		if (fs_root_mount != NULL) {
+			node = fs_root_mount->node;
+		} else {
+			node = NULL;
+		}
+	} else {
+		node = findfile(path);
+	}
+
 	if (node == NULL) {
 		return NULL;
 	}
