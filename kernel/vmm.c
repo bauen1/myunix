@@ -109,6 +109,7 @@ page_table_t *get_table_alloc(uintptr_t virtaddr, page_directory_t *directory) {
 			PAGE_PRESENT | PAGE_READWRITE);
 		invalidate_page(virtaddr);
 		table = directory->tables[index];
+		memset(table, 0, sizeof(page_table_t));
 	}
 	return table;
 }
