@@ -13,7 +13,7 @@ bitmap_t *bitmap_new(size_t size) {
 		return NULL;
 	}
 
-	assert((size % 8) == 0)
+	assert((size % 8) == 0);
 	bitmap->size = size;
 	bitmap->map = kcalloc(1, sizeof(char) * (bitmap->size) / 8);
 	if (bitmap->map != NULL) {
