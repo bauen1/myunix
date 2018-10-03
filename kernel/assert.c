@@ -8,13 +8,14 @@
 
 void __attribute__((noreturn)) __assert_failed(const char *exp, const char *file, int line) {
 	printf("%s:%i assertion failed: '%s'\n", file, line, exp);
-	print_stack_trace(-1);
+	print_stack_trace();
 	halt();
 }
 
 void __attribute__((noreturn)) __attribute__((used)) __stack_chk_fail() {
+	// XXX: consider everything on the stack to be attacker controlled
 	printf("__stack_chk_fail!\n");
-	print_stack_trace(-1); // should be safe since we only read
+	print_stack_trace(); // should be safe since we only read
 	halt();
 }
 
@@ -43,15 +44,8 @@ static bool is_mapped(uintptr_t v_addr) {
 TODO: parse eflags register
 TODO: detect interrupt from userspace frame
 */
-void print_stack_trace(unsigned int max_frames) {
-	uintptr_t ebp_r = 0;
-	__asm__ __volatile__ (
-		"mov %%ebp, %0"
-		: "=r" (ebp_r)
-		);
-	uintptr_t * ebp = (uintptr_t *)ebp_r;
-
-	printf("stack trace:\n");
+void print_stack(unsigned int max_frames, uintptr_t ebp_r) {
+	const uintptr_t *ebp = (uintptr_t *)ebp_r;
 	for (unsigned int frame = 0; frame < max_frames; frame++) {
 		if (!is_mapped((uintptr_t)(&ebp[0]))) {
 			return;
@@ -70,4 +64,11 @@ void print_stack_trace(unsigned int max_frames) {
 		}
 		printf(" eip: 0x%x (ebp: 0x%x)\n", eip, ebp[0]);
 	}
+}
+
+void print_stack_trace(void) {
+	uintptr_t ebp_r = 0;
+	__asm__ __volatile__ ("mov %%ebp, %0" : "=r" (ebp_r));
+	printf("=== stack trace ===\n");
+	print_stack(-1, ebp_r);
 }

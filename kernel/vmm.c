@@ -302,23 +302,22 @@ static void dump_table(page_table_t *table, uintptr_t table_addr, char *prefix) 
 		if (page != 0) {
 			uintptr_t v_addr = (table_addr) | (page_i << 12);
 
-			printf("%s0x%8x => 0x%8x ", prefix, v_addr, page);
-			if (page & PAGE_USER) {
-				printf("u");
-			} else {
-				printf("k");
-			}
-			if (page & PAGE_READWRITE) {
-				printf("w");
-			} else {
-				printf("r");
-			}
 			if (page & PAGE_PRESENT) {
-				printf("p");
+				printf("%s0x%8x => 0x%8x ", prefix, v_addr, page);
+				if (page & PAGE_USER) {
+					printf("u");
+				} else {
+					printf("k");
+				}
+				if (page & PAGE_READWRITE) {
+					printf("w");
+				} else {
+					printf("r");
+				}
+				printf("\n");
 			} else {
-				printf("-");
+				printf("%s0x%8x ## 0x%8x\n", prefix, v_addr, page);
 			}
-			printf("\n");
 		}
 	}
 }
@@ -387,6 +386,7 @@ static void page_fault(registers_t *regs) {
 		pdir = current_process->task.pdir;
 	} else {
 		pdir = kernel_directory;
+		print_stack_trace();
 	}
 	assert(pdir != NULL);
 	// TODO: consider table flags
@@ -432,13 +432,12 @@ static void page_fault(registers_t *regs) {
 		printf("current_process->fd_table: 0x%x\n", (uintptr_t)current_process->fd_table);
 		printf("\n");
 		dump_directory(current_process->task.pdir);
+		halt();
 	} else {
 		printf("KERNEL MODE PAGE FAULT\n");
-		print_stack_trace(200);
 		dump_directory(kernel_directory);
 		halt();
 	}
-	halt();
 }
 
 page_directory_t _kernel_dir;

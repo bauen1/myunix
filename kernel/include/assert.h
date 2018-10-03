@@ -1,6 +1,8 @@
 #ifndef ASSERT_H
 #define ASSERT_H 1
 
+#include <stdint.h>
+
 #define static_assert(cond) typedef char __static_assert_##__FILE__##__LINE__[(cond) ? 1:-1]
 
 void __attribute__((noreturn)) __assert_failed(const char *exp, const char *file, int line);
@@ -15,6 +17,7 @@ void __attribute__((noreturn)) __assert_failed(const char *exp, const char *file
 
 void __attribute__((noreturn)) __stack_chk_fail();
 
-void print_stack_trace(unsigned int max_frames);
+void print_stack(unsigned int max_frames, uintptr_t ebp_r);
+void print_stack_trace(void);
 
 #endif
