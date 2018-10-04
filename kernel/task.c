@@ -16,7 +16,7 @@ static uintptr_t delayed_kstack = 0;
 void task_kstack_alloc(task_t *task) {
 	assert(task != NULL);
 
-	uintptr_t kstack = find_vspace(kernel_directory, KSTACK_SIZE + 2);
+	uintptr_t kstack = find_vspace(kernel_directory, KSTACK_SIZE);
 	assert(kstack != 0);
 
 	// guard page
@@ -50,9 +50,6 @@ static void free_kstack(uintptr_t kstack) {
 		uintptr_t vkaddr = kstack - i * BLOCK_SIZE;
 		uintptr_t kpage = get_page(get_table_alloc(vkaddr, kernel_directory), vkaddr);
 		assert(kpage & PAGE_PRESENT);
-
-		memset((void *)vkaddr, 0, BLOCK_SIZE);
-
 		map_page(get_table_alloc(vkaddr, kernel_directory), vkaddr, 0, 0);
 		invalidate_page(vkaddr);
 		pmm_free_blocks(kpage & ~0xFFF, 1);
