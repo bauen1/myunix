@@ -661,16 +661,17 @@ index 00000000..d1b27121
 +#define SIZE_MAX        UINT32_MAX
 diff --git a/arch/i386-myunix/bits/syscall.h.in b/arch/i386-myunix/bits/syscall.h.in
 new file mode 100644
-index 00000000..b4ae5e62
+index 00000000..8c666093
 --- /dev/null
 +++ b/arch/i386-myunix/bits/syscall.h.in
-@@ -0,0 +1,26 @@
+@@ -0,0 +1,27 @@
 +#define __NR_exit 1
 +
 +#define __NR_read 3
 +#define __NR_write 4
 +#define __NR_open 5
 +#define __NR_close 6
++#define __NR_waitpid 7
 +
 +#define __NR_unlink 10
 +#define __NR_execve 11
@@ -935,17 +936,6 @@ index 00000000..f3b61e01
 +.section .fini
 +	add $12,%esp
 +	ret
-diff --git a/crt/rcrt1.c b/crt/rcrt1.c
-index be017153..c9775a0e 100644
---- a/crt/rcrt1.c
-+++ b/crt/rcrt1.c
-@@ -11,5 +11,6 @@ _Noreturn int __libc_start_main(int (*)(), int, char **,
- __attribute__((__visibility__("hidden")))
- _Noreturn void __dls2(unsigned char *base, size_t *sp)
- {
-+
- 	__libc_start_main(main, *sp, (void *)(sp+1), _init, _fini, 0);
- }
 diff --git a/include/stdarg.h b/include/stdarg.h
 deleted file mode 100644
 index 3256f805..00000000
@@ -1349,10 +1339,10 @@ index 4de82fd9..4b58a3d7 100644
  
  void __stack_chk_fail(void)
 diff --git a/src/errno/__errno_location.c b/src/errno/__errno_location.c
-index 7172a1be..fc23c682 100644
+index 7172a1be..2edb3974 100644
 --- a/src/errno/__errno_location.c
 +++ b/src/errno/__errno_location.c
-@@ -1,6 +1,10 @@
+@@ -1,6 +1,9 @@
  #include "pthread_impl.h"
  
 +int __errno;
@@ -1363,7 +1353,6 @@ index 7172a1be..fc23c682 100644
 +//	return &__pthread_self()->errno_val;
 +	return &__errno;
  }
-+
 diff --git a/src/exit/_Exit.c b/src/exit/_Exit.c
 index 7a6115c7..e056792c 100644
 --- a/src/exit/_Exit.c
@@ -1487,163 +1476,6 @@ index 91d8063c..88d12929 100644
  
  LFS64(posix_fallocate);
 +*/
-diff --git a/src/fenv/aarch64/fenv.s b/src/fenv/aarch64/fenv.s
-deleted file mode 100644
-index f0db5d9d..00000000
---- a/src/fenv/aarch64/fenv.s
-+++ /dev/null
-@@ -1,67 +0,0 @@
--.global fegetround
--.type fegetround,%function
--fegetround:
--	mrs x0, fpcr
--	and w0, w0, #0xc00000
--	ret
--
--.global __fesetround
--.type __fesetround,%function
--__fesetround:
--	mrs x1, fpcr
--	bic w1, w1, #0xc00000
--	orr w1, w1, w0
--	msr fpcr, x1
--	mov w0, #0
--	ret
--
--.global fetestexcept
--.type fetestexcept,%function
--fetestexcept:
--	and w0, w0, #0x1f
--	mrs x1, fpsr
--	and w0, w0, w1
--	ret
--
--.global feclearexcept
--.type feclearexcept,%function
--feclearexcept:
--	and w0, w0, #0x1f
--	mrs x1, fpsr
--	bic w1, w1, w0
--	msr fpsr, x1
--	mov w0, #0
--	ret
--
--.global feraiseexcept
--.type feraiseexcept,%function
--feraiseexcept:
--	and w0, w0, #0x1f
--	mrs x1, fpsr
--	orr w1, w1, w0
--	msr fpsr, x1
--	mov w0, #0
--	ret
--
--.global fegetenv
--.type fegetenv,%function
--fegetenv:
--	mrs x1, fpcr
--	mrs x2, fpsr
--	stp w1, w2, [x0]
--	mov w0, #0
--	ret
--
--// TODO preserve some bits
--.global fesetenv
--.type fesetenv,%function
--fesetenv:
--	mov x1, #0
--	mov x2, #0
--	cmn x0, #1
--	b.eq 1f
--	ldp w1, w2, [x0]
--1:	msr fpcr, x1
--	msr fpsr, x2
--	mov w0, #0
--	ret
-diff --git a/src/fenv/arm/fenv-hf.S b/src/fenv/arm/fenv-hf.S
-deleted file mode 100644
-index f55d798a..00000000
---- a/src/fenv/arm/fenv-hf.S
-+++ /dev/null
-@@ -1,69 +0,0 @@
--#if __ARM_PCS_VFP
--
--.syntax unified
--.fpu vfp
--
--.global fegetround
--.type fegetround,%function
--fegetround:
--	fmrx r0, fpscr
--	and r0, r0, #0xc00000
--	bx lr
--
--.global __fesetround
--.type __fesetround,%function
--__fesetround:
--	fmrx r3, fpscr
--	bic r3, r3, #0xc00000
--	orr r3, r3, r0
--	fmxr fpscr, r3
--	mov r0, #0
--	bx lr
--
--.global fetestexcept
--.type fetestexcept,%function
--fetestexcept:
--	and r0, r0, #0x1f
--	fmrx r3, fpscr
--	and r0, r0, r3
--	bx lr
--
--.global feclearexcept
--.type feclearexcept,%function
--feclearexcept:
--	and r0, r0, #0x1f
--	fmrx r3, fpscr
--	bic r3, r3, r0
--	fmxr fpscr, r3
--	mov r0, #0
--	bx lr
--
--.global feraiseexcept
--.type feraiseexcept,%function
--feraiseexcept:
--	and r0, r0, #0x1f
--	fmrx r3, fpscr
--	orr r3, r3, r0
--	fmxr fpscr, r3
--	mov r0, #0
--	bx lr
--
--.global fegetenv
--.type fegetenv,%function
--fegetenv:
--	fmrx r3, fpscr
--	str r3, [r0]
--	mov r0, #0
--	bx lr
--
--.global fesetenv
--.type fesetenv,%function
--fesetenv:
--	cmn r0, #1
--	moveq r3, #0
--	ldrne r3, [r0]
--	fmxr fpscr, r3
--	mov r0, #0
--	bx lr
--
--#endif
-diff --git a/src/fenv/arm/fenv.c b/src/fenv/arm/fenv.c
-deleted file mode 100644
-index ad295f58..00000000
---- a/src/fenv/arm/fenv.c
-+++ /dev/null
-@@ -1,3 +0,0 @@
--#if !__ARM_PCS_VFP
--#include "../fenv.c"
--#endif
 diff --git a/src/fenv/i386-myunix b/src/fenv/i386-myunix
 new file mode 120000
 index 00000000..fd32fa4e
@@ -1665,417 +1497,6 @@ index a189ca2e..7c7904d5 100644
  	pop %edx
  	and $0x3f,%eax
  	or %eax,%edx
-diff --git a/src/fenv/mips/fenv-sf.c b/src/fenv/mips/fenv-sf.c
-deleted file mode 100644
-index 4aa3dbf1..00000000
---- a/src/fenv/mips/fenv-sf.c
-+++ /dev/null
-@@ -1,3 +0,0 @@
--#ifdef __mips_soft_float
--#include "../fenv.c"
--#endif
-diff --git a/src/fenv/mips/fenv.S b/src/fenv/mips/fenv.S
-deleted file mode 100644
-index a5cb1f58..00000000
---- a/src/fenv/mips/fenv.S
-+++ /dev/null
-@@ -1,71 +0,0 @@
--#ifndef __mips_soft_float
--
--.set noreorder
--
--.global feclearexcept
--.type  feclearexcept,@function
--feclearexcept:
--	and     $4, $4, 0x7c
--	cfc1    $5, $31
--	or      $5, $5, $4
--	xor     $5, $5, $4
--	ctc1    $5, $31
--	jr      $ra
--	li      $2, 0
--
--.global feraiseexcept
--.type  feraiseexcept,@function
--feraiseexcept:
--	and     $4, $4, 0x7c
--	cfc1    $5, $31
--	or      $5, $5, $4
--	ctc1    $5, $31
--	jr      $ra
--	li      $2, 0
--
--.global fetestexcept
--.type  fetestexcept,@function
--fetestexcept:
--	and     $4, $4, 0x7c
--	cfc1    $2, $31
--	jr      $ra
--	and     $2, $2, $4
--
--.global fegetround
--.type  fegetround,@function
--fegetround:
--	cfc1    $2, $31
--	jr      $ra
--	andi    $2, $2, 3
--
--.global __fesetround
--.type __fesetround,@function
--__fesetround:
--	cfc1    $5, $31
--	li      $6, -4
--	and     $5, $5, $6
--	or      $5, $5, $4
--	ctc1    $5, $31
--	jr      $ra
--	li      $2, 0
--
--.global fegetenv
--.type  fegetenv,@function
--fegetenv:
--	cfc1    $5, $31
--	sw      $5, 0($4)
--	jr      $ra
--	li      $2, 0
--
--.global fesetenv
--.type  fesetenv,@function
--fesetenv:
--	addiu   $5, $4, 1
--	beq     $5, $0, 1f
--	 nop
--	lw      $5, 0($4)
--1:	ctc1    $5, $31
--	jr      $ra
--	li      $2, 0
--
--#endif
-diff --git a/src/fenv/mips64/fenv-sf.c b/src/fenv/mips64/fenv-sf.c
-deleted file mode 100644
-index 4aa3dbf1..00000000
---- a/src/fenv/mips64/fenv-sf.c
-+++ /dev/null
-@@ -1,3 +0,0 @@
--#ifdef __mips_soft_float
--#include "../fenv.c"
--#endif
-diff --git a/src/fenv/mips64/fenv.S b/src/fenv/mips64/fenv.S
-deleted file mode 100644
-index 3cba3f0f..00000000
---- a/src/fenv/mips64/fenv.S
-+++ /dev/null
-@@ -1,71 +0,0 @@
--#ifndef __mips_soft_float
--
--.set	noreorder
--
--.global	feclearexcept
--.type	feclearexcept,@function
--feclearexcept:
--	and	$4, $4, 0x7c
--	cfc1	$5, $31
--	or	$5, $5, $4
--	xor	$5, $5, $4
--	ctc1	$5, $31
--	jr	$ra
--	li	$2, 0
--
--.global	feraiseexcept
--.type	feraiseexcept,@function
--feraiseexcept:
--	and	$4, $4, 0x7c
--	cfc1	$5, $31
--	or	$5, $5, $4
--	ctc1	$5, $31
--	jr	$ra
--	li	$2, 0
--
--.global	fetestexcept
--.type	fetestexcept,@function
--fetestexcept:
--	and	$4, $4, 0x7c
--	cfc1	$2, $31
--	jr	$ra
--	and	$2, $2, $4
--
--.global	fegetround
--.type	fegetround,@function
--fegetround:
--	cfc1	$2, $31
--	jr	$ra
--	andi	$2, $2, 3
--
--.global	__fesetround
--.type	__fesetround,@function
--__fesetround:
--	cfc1	$5, $31
--	li	$6, -4
--	and	$5, $5, $6
--	or	$5, $5, $4
--	ctc1	$5, $31
--	jr	$ra
--	li	$2, 0
--
--.global	fegetenv
--.type	fegetenv,@function
--fegetenv:
--	cfc1	$5, $31
--	sw	$5, 0($4)
--	jr	$ra
--	li	$2, 0
--
--.global	fesetenv
--.type	fesetenv,@function
--fesetenv:
--	daddiu	$5, $4, 1
--	beq	$5, $0, 1f
--	nop
--	lw	$5, 0($4)
--1:	ctc1	$5, $31
--	jr	$ra
--	li	$2, 0
--
--#endif
-diff --git a/src/fenv/mipsn32/fenv-sf.c b/src/fenv/mipsn32/fenv-sf.c
-deleted file mode 100644
-index 4aa3dbf1..00000000
---- a/src/fenv/mipsn32/fenv-sf.c
-+++ /dev/null
-@@ -1,3 +0,0 @@
--#ifdef __mips_soft_float
--#include "../fenv.c"
--#endif
-diff --git a/src/fenv/mipsn32/fenv.S b/src/fenv/mipsn32/fenv.S
-deleted file mode 100644
-index cce6436b..00000000
---- a/src/fenv/mipsn32/fenv.S
-+++ /dev/null
-@@ -1,70 +0,0 @@
--#ifndef __mips_soft_float
--
--.set	noreorder
--.global	feclearexcept
--.type	feclearexcept,@function
--feclearexcept:
--	and	$4, $4, 0x7c
--	cfc1	$5, $31
--	or	$5, $5, $4
--	xor	$5, $5, $4
--	ctc1	$5, $31
--	jr	$ra
--	li	$2, 0
--
--.global feraiseexcept
--.type  feraiseexcept,@function
--feraiseexcept:
--	and	$4, $4, 0x7c
--	cfc1	$5, $31
--	or	$5, $5, $4
--	ctc1	$5, $31
--	jr	$ra
--	li	$2, 0
--
--.global fetestexcept
--.type  fetestexcept,@function
--fetestexcept:
--	and	$4, $4, 0x7c
--	cfc1	$2, $31
--	jr	$ra
--	and	$2, $2, $4
--
--.global fegetround
--.type  fegetround,@function
--fegetround:
--	cfc1	$2, $31
--	jr	$ra
--	andi	$2, $2, 3
--
--.global __fesetround
--.type __fesetround,@function
--__fesetround:
--	cfc1	$5, $31
--	li	$6, -4
--	and	$5, $5, $6
--	or	$5, $5, $4
--	ctc1	$5, $31
--	jr	$ra
--	li	$2, 0
--
--.global fegetenv
--.type  fegetenv,@function
--fegetenv:
--	cfc1	$5, $31
--	sw	$5, 0($4)
--	jr	$ra
--	li	$2, 0
--
--.global fesetenv
--.type  fesetenv,@function
--fesetenv:
--	addiu   $5, $4, 1
--	beq	$5, $0, 1f
--	nop
--	lw	$5, 0($4)
--1:	ctc1	$5, $31
--	jr	$ra
--	li	$2, 0
--
--#endif
-diff --git a/src/fenv/s390x/fenv.c b/src/fenv/s390x/fenv.c
-deleted file mode 100644
-index 9a3488d7..00000000
---- a/src/fenv/s390x/fenv.c
-+++ /dev/null
-@@ -1,55 +0,0 @@
--#include <fenv.h>
--
--static inline unsigned get_fpc(void)
--{
--	unsigned fpc;
--	__asm__ __volatile__("efpc %0" : "=r"(fpc));
--	return fpc;
--}
--
--static inline void set_fpc(unsigned fpc)
--{
--	__asm__ __volatile__("sfpc %0" :: "r"(fpc));
--}
--
--int feclearexcept(int mask)
--{
--	mask &= FE_ALL_EXCEPT;
--	set_fpc(get_fpc() & ~mask);
--	return 0;
--}
--
--int feraiseexcept(int mask)
--{
--	mask &= FE_ALL_EXCEPT;
--	set_fpc(get_fpc() | mask);
--	return 0;
--}
--
--int fetestexcept(int mask)
--{
--	return get_fpc() & mask & FE_ALL_EXCEPT;
--}
--
--int fegetround(void)
--{
--	return get_fpc() & 3;
--}
--
--int __fesetround(int r)
--{
--	set_fpc(get_fpc() & ~3L | r);
--	return 0;
--}
--
--int fegetenv(fenv_t *envp)
--{
--	*envp = get_fpc();
--	return 0;
--}
--
--int fesetenv(const fenv_t *envp)
--{
--	set_fpc(envp != FE_DFL_ENV ? *envp : 0);
--	return 0;
--}
-diff --git a/src/fenv/sh/fenv-nofpu.c b/src/fenv/sh/fenv-nofpu.c
-deleted file mode 100644
-index b2495a65..00000000
---- a/src/fenv/sh/fenv-nofpu.c
-+++ /dev/null
-@@ -1,3 +0,0 @@
--#if !__SH_FPU_ANY__ && !__SH4__
--#include "../fenv.c"
--#endif
-diff --git a/src/fenv/sh/fenv.S b/src/fenv/sh/fenv.S
-deleted file mode 100644
-index cd47b5bc..00000000
---- a/src/fenv/sh/fenv.S
-+++ /dev/null
-@@ -1,78 +0,0 @@
--#if __SH_FPU_ANY__ || __SH4__
--
--.global fegetround
--.type   fegetround, @function
--fegetround:
--	sts fpscr, r0
--	rts
--	 and #3, r0
--
--.global __fesetround
--.type   __fesetround, @function
--__fesetround:
--	sts fpscr, r0
--	or  r4, r0
--	lds r0, fpscr
--	rts
--	 mov #0, r0
--
--.global fetestexcept
--.type   fetestexcept, @function
--fetestexcept:
--	sts fpscr, r0
--	and r4, r0
--	rts
--	 and #0x7c, r0
--
--.global feclearexcept
--.type   feclearexcept, @function
--feclearexcept:
--	mov r4, r0
--	and #0x7c, r0
--	not r0, r4
--	sts fpscr, r0
--	and r4, r0
--	lds r0, fpscr
--	rts
--	 mov #0, r0
--
--.global feraiseexcept
--.type   feraiseexcept, @function
--feraiseexcept:
--	mov r4, r0
--	and #0x7c, r0
--	sts fpscr, r4
--	or  r4, r0
--	lds r0, fpscr
--	rts
--	 mov #0, r0
--
--.global fegetenv
--.type   fegetenv, @function
--fegetenv:
--	sts fpscr, r0
--	mov.l r0, @r4
--	rts
--	 mov #0, r0
--
--.global fesetenv
--.type   fesetenv, @function
--fesetenv:
--	mov r4, r0
--	cmp/eq #-1, r0
--	bf 1f
--
--	! the default environment is complicated by the fact that we need to
--	! preserve the current precision bit, which we do not know a priori
--	sts fpscr, r0
--	mov #8, r1
--	swap.w r1, r1
--	bra 2f
--	 and r1, r0
--
--1:	mov.l @r4, r0      ! non-default environment
--2:	lds r0, fpscr
--	rts
--	 mov #0, r0
--
--#endif
 diff --git a/src/internal/i386-myunix/syscall.s b/src/internal/i386-myunix/syscall.s
 new file mode 100644
 index 00000000..8b137891
@@ -2097,15 +1518,10 @@ index 0ebf2218..612427cd 100644
  	test %eax,%eax
  	jz 1f
 diff --git a/src/internal/libc.h b/src/internal/libc.h
-index 5e145183..76937142 100644
+index 5e145183..3c13eefb 100644
 --- a/src/internal/libc.h
 +++ b/src/internal/libc.h
-@@ -47,12 +47,18 @@ extern size_t __sysinfo ATTR_LIBC_VISIBILITY;
- extern char *__progname, *__progname_full;
- 
- /* Designed to avoid any overhead in non-threaded processes */
-+
- void __lock(volatile int *) ATTR_LIBC_VISIBILITY;
+@@ -51,8 +51,13 @@ void __lock(volatile int *) ATTR_LIBC_VISIBILITY;
  void __unlock(volatile int *) ATTR_LIBC_VISIBILITY;
  int __lockfile(FILE *) ATTR_LIBC_VISIBILITY;
  void __unlockfile(FILE *) ATTR_LIBC_VISIBILITY;
@@ -2796,18 +2212,10 @@ index 00000000..fd32fa4e
 +i386
 \ No newline at end of file
 diff --git a/src/process/posix_spawn.c b/src/process/posix_spawn.c
-index 93fb1555..71286d94 100644
+index 93fb1555..f73c8586 100644
 --- a/src/process/posix_spawn.c
 +++ b/src/process/posix_spawn.c
-@@ -10,6 +10,7 @@
- #include "fdop.h"
- #include "libc.h"
- 
-+
- struct args {
- 	int p[2];
- 	sigset_t oldmask;
-@@ -69,19 +70,19 @@ static int child(void *args_vp)
+@@ -69,19 +69,19 @@ static int child(void *args_vp)
  	}
  
  	if (attr->__flags & POSIX_SPAWN_SETSID)
@@ -2831,7 +2239,7 @@ index 93fb1555..71286d94 100644
  			goto fail;
  
  	if (fa && fa->__actions) {
-@@ -109,10 +110,10 @@ static int child(void *args_vp)
+@@ -109,10 +109,10 @@ static int child(void *args_vp)
  					if ((ret=__sys_dup2(fd, op->fd))<0)
  						goto fail;
  				} else {
@@ -2844,7 +2252,7 @@ index 93fb1555..71286d94 100644
  						goto fail;
  				}
  				break;
-@@ -133,7 +134,7 @@ static int child(void *args_vp)
+@@ -133,7 +133,7 @@ static int child(void *args_vp)
  	 * to a different fd. We don't use F_DUPFD_CLOEXEC above because
  	 * it would fail on older kernels and atomicity is not needed --
  	 * in this process there are no threads or signal handlers. */
@@ -2853,7 +2261,7 @@ index 93fb1555..71286d94 100644
  
  	pthread_sigmask(SIG_SETMASK, (attr->__flags & POSIX_SPAWN_SETSIGMASK)
  		? &attr->__mask : &args->oldmask, 0);
-@@ -148,7 +149,6 @@ fail:
+@@ -148,7 +148,6 @@ fail:
  	_exit(127);
  }
  
@@ -2861,54 +2269,11 @@ index 93fb1555..71286d94 100644
  int __posix_spawnx(pid_t *restrict res, const char *restrict path,
  	int (*exec)(const char *, char *const *, char *const *),
  	const posix_spawn_file_actions_t *fa,
-@@ -201,3 +201,4 @@ int posix_spawn(pid_t *restrict res, const char *restrict path,
+@@ -201,3 +200,4 @@ int posix_spawn(pid_t *restrict res, const char *restrict path,
  {
  	return __posix_spawnx(res, path, execve, fa, attr, argv, envp);
  }
 +
-diff --git a/src/process/s390x/vfork.s b/src/process/s390x/vfork.s
-deleted file mode 100644
-index 05956e81..00000000
---- a/src/process/s390x/vfork.s
-+++ /dev/null
-@@ -1,8 +0,0 @@
--	.global __vfork
--	.weak vfork
--	.type __vfork,%function
--	.type vfork,%function
--__vfork:
--vfork:
--	svc 190
--	jg  __syscall_ret
-diff --git a/src/process/sh/vfork.s b/src/process/sh/vfork.s
-deleted file mode 100644
-index 48cc9396..00000000
---- a/src/process/sh/vfork.s
-+++ /dev/null
-@@ -1,23 +0,0 @@
--.global __vfork
--.weak vfork
--.type __vfork,@function
--.type vfork,@function
--__vfork:
--vfork:
--	mov #95, r3
--	add r3, r3
--
--	trapa #31
--	or    r0, r0
--	or    r0, r0
--	or    r0, r0
--	or    r0, r0
--	or    r0, r0
--
--	mov r0, r4
--	mov.l 1f, r0
--2:	braf r0
--	 nop
--	.align 2
--	.hidden __syscall_ret
--1:	.long __syscall_ret@PLT-(2b+4-.)
 diff --git a/src/process/vfork.c b/src/process/vfork.c
 index ac954651..e59d28c5 100644
 --- a/src/process/vfork.c
@@ -2962,24 +2327,6 @@ index f75e31ef..12070968 100644
 +*/
 +	return -1;
  }
-diff --git a/src/process/x32/vfork.s b/src/process/x32/vfork.s
-deleted file mode 100644
-index 1039f0f2..00000000
---- a/src/process/x32/vfork.s
-+++ /dev/null
-@@ -1,12 +0,0 @@
--.global __vfork
--.weak vfork
--.type __vfork,@function
--.type vfork,@function
--__vfork:
--vfork:
--	pop %rdx
--	mov $0x4000003a,%eax /* SYS_vfork */
--	syscall
--	push %rdx
--	mov %rax,%rdi
--	jmp __syscall_ret
 diff --git a/src/sched/affinity.c b/src/sched/affinity.c
 deleted file mode 100644
 index 948ece41..00000000
@@ -3559,19 +2906,18 @@ index d94667ae..00000000
 -	return __syscall_ret(ret);
 -}
 diff --git a/src/stat/fstat.c b/src/stat/fstat.c
-index ab4afc0f..976394a1 100644
+index ab4afc0f..a120106c 100644
 --- a/src/stat/fstat.c
 +++ b/src/stat/fstat.c
-@@ -8,6 +8,8 @@ void __procfdname(char *, unsigned);
+@@ -8,6 +8,7 @@ void __procfdname(char *, unsigned);
  
  int fstat(int fd, struct stat *st)
  {
 +/*
-+// TODO: implement
  	int ret = __syscall(SYS_fstat, fd, st);
  	if (ret != -EBADF || __syscall(SYS_fcntl, fd, F_GETFD) < 0)
  		return __syscall_ret(ret);
-@@ -19,6 +21,8 @@ int fstat(int fd, struct stat *st)
+@@ -19,6 +20,8 @@ int fstat(int fd, struct stat *st)
  #else
  	return syscall(SYS_fstatat, AT_FDCWD, buf, st, 0);
  #endif
