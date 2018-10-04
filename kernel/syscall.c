@@ -170,96 +170,19 @@ static uint32_t syscall_execve(registers_t *regs) {
 	return -1;
 }
 
-// 0 = child
-// -1 = error
-// everything else = pid of child
-// TODO: properly implement flags support
-enum syscall_clone_flags {
-	SYSCALL_CLONE_FLAGS_VM      = 0x00000100,
-	SYSCALL_CLONE_FLAGS_FS      = 0x00000200,
-	SYSCALL_CLONE_FLAGS_FILES   = 0x00000400,
-	SYSCALL_CLONE_FLAGS_SIGHAND = 0x00000800,
-	SYSCALL_CLONE_FLAGS_PTRACE  = 0x00002000,
-	SYSCALL_CLONE_FLAGS_VFORK   = 0x00004000,
-	SYSCALL_CLONE_FLAGS_PARENT  = 0x00008000,
-	SYSCALL_CLONE_FLAGS_THREAD  = 0x00010000,
-	SYSCALL_CLONE_FLAGS_NEWNS   = 0x00020000,
-	SYSCALL_CLONE_FLAGS_SYSVSEM = 0x00040000,
-	SYSCALL_CLONE_FLAGS_SETTLS  = 0x00080000,
-	SYSCALL_CLONE_FLAGS_SETTID  = 0x00100000,
-	SYSCALL_CLONE_FLAGS_CLEARTID= 0x00200000,
-	SYSCALL_CLONE_FLAGS_DETACHED= 0x00400000,
-	SYSCALL_CLONE_FLAGS_UNTRACED= 0x00800000,
-	SYSCALL_CLONE_CHILD_SETTID  = 0x01000000,
-	SYSCALL_CLONE_NEWCGROUP     = 0x02000000,
-	SYSCALL_CLONE_NEWUTS        = 0x04000000,
-	SYSCALL_CLONE_NEWIPC        = 0x08000000,
-	SYSCALL_CLONE_NEWUSER       = 0x10000000,
-	SYSCALL_CLONE_NEWPID        = 0x20000000,
-	SYSCALL_CLONE_NEWNET        = 0x40000000,
-	SYSCALL_CLONE_IO            = 0x80000000,
-};
-
 static uint32_t syscall_clone(registers_t *regs) {
 	uintptr_t flags = regs->ebx;
 	uintptr_t child_stack = regs->ecx;
 	uintptr_t child_ptid = regs->edx;
-
 	(void)child_ptid;
-
-	printf("%s(flags = 0x%x, child_stack = %p)\n", __func__, flags, child_stack);
-
-	process_t *child = kcalloc(1, sizeof(process_t));
+	printf("%s(flags: 0x%8x, child_stack: %p)\n", __func__, flags, child_stack);
+	process_t *child = process_clone(current_process, flags, child_stack);
 	if (child == NULL) {
-		printf("%s could not allocate process_t child!\n", __func__);
 		return -1;
-	}
-
-	if (flags & SYSCALL_CLONE_FLAGS_VM) {
-		child->task.pdir = page_directory_reference(current_process->task.pdir);
-		process_init_kstack(child);
 	} else {
-		// TODO: copy page directory
-		printf("%s return early: CLONE_FLAGS_VM not set!\n", __func__);
-		kfree(child);
-		return -1;
+		process_add(child);
+		return child->pid;
 	}
-
-	printf("%s: name: '%s'\n", __func__, current_process->name);
-	const size_t name_strlen = strlen(current_process->name);
-	child->name = kmalloc(name_strlen + 1);
-	strncpy(child->name, current_process->name, name_strlen);
-	printf("%s: child name: '%s'\n", __func__, child->name);
-
-	// TODO: implement correctly
-	child->pid = current_process->pid + 1;
-
-	if (flags & SYSCALL_CLONE_FLAGS_FILES) {
-		child->fd_table = fd_table_reference(current_process->fd_table);
-	} else {
-		// TODO: copy file descriptor table
-		printf("%s return early. CLONE_FLAGS_FILES not set!\n", __func__);
-		kfree(child->name);
-		kfree(child);
-		return -1;
-	}
-
-	child->task.type = current_process->task.type;
-	child->task.registers = (registers_t *)(child->kstack_top - sizeof(registers_t));
-	memcpy(child->task.registers, current_process->task.registers, sizeof(registers_t));
-	registers_t *child_registers = child->task.registers;
-	child_registers->old_directory = (uint32_t)child->task.pdir->physical_address;
-	// XXX: eax = return code
-	child_registers->eax = 0;
-	child_registers->esp = (uint32_t)child_stack;
-	child->task.esp = (uint32_t)child_registers;
-	child->task.ebp = child->task.esp;
-	child->task.eip = (uintptr_t)return_to_regs;
-
-	child->task.obj = child;
-	process_add(child);
-
-	return child->pid;
 }
 
 // TODO: implement syscall_lseek completely
@@ -350,13 +273,11 @@ static uint32_t syscall_unlink(registers_t *regs) {
 	return 0;
 }
 
-/*
-// TODO: implement syscall_wait
-static uint32_t syscall_wait(registers_t *regs) {
+static uint32_t syscall_waitpid(registers_t *regs) {
+	(void)regs;
 	printf("%s()\n", __func__);
 	return -1;
 }
-*/
 
 // TODO: implement syscall_gettimeofday properly
 static uint32_t syscall_gettimeofday(registers_t *regs) {
@@ -686,6 +607,9 @@ static void syscall_handler(registers_t *regs) {
 			break;
 		case 0x06:
 			regs->eax = syscall_close(regs);
+			break;
+		case 0x07:
+			regs->eax = syscall_waitpid(regs);
 			break;
 		case 0x08:
 			regs->eax = syscall_create(regs);

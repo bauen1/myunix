@@ -28,10 +28,6 @@ typedef struct {
 } fd_table_t;
 
 typedef struct process {
-	uintptr_t kstack;
-	size_t kstack_size;
-	uintptr_t kstack_top;
-
 	task_t task;
 	char *name;
 	pid_t pid;
@@ -47,6 +43,7 @@ void fd_free(fd_entry_t *fd);
 
 /* fd_table_t helpers */
 fd_table_t *fd_table_reference(fd_table_t *fd);
+fd_table_t *fd_table_clone(fd_table_t *oldfdt);
 fd_table_t *fd_table_new();
 void fd_table_free(fd_table_t *fd_table);
 int fd_table_set(fd_table_t *fd_table, unsigned int i, fd_entry_t *entry);
@@ -59,9 +56,33 @@ process_t *process_exec(fs_node_t *f, int argc, const char **argv);
 void process_destroy(process_t *process);
 pid_t get_pid(void);
 
-/* XXX: internal helpers, don't use them unless you know what you're doing  */
-void process_init_kstack(process_t *process);
 void __attribute__((noreturn)) process_exit(unsigned int status);
+enum syscall_clone_flags {
+	SYSCALL_CLONE_FLAGS_VM      = 0x00000100,
+	SYSCALL_CLONE_FLAGS_FS      = 0x00000200,
+	SYSCALL_CLONE_FLAGS_FILES   = 0x00000400,
+	SYSCALL_CLONE_FLAGS_SIGHAND = 0x00000800,
+	SYSCALL_CLONE_FLAGS_PTRACE  = 0x00002000,
+	SYSCALL_CLONE_FLAGS_VFORK   = 0x00004000,
+	SYSCALL_CLONE_FLAGS_PARENT  = 0x00008000,
+	SYSCALL_CLONE_FLAGS_THREAD  = 0x00010000,
+	SYSCALL_CLONE_FLAGS_NEWNS   = 0x00020000,
+	SYSCALL_CLONE_FLAGS_SYSVSEM = 0x00040000,
+	SYSCALL_CLONE_FLAGS_SETTLS  = 0x00080000,
+	SYSCALL_CLONE_FLAGS_SETTID  = 0x00100000,
+	SYSCALL_CLONE_FLAGS_CLEARTID= 0x00200000,
+	SYSCALL_CLONE_FLAGS_DETACHED= 0x00400000,
+	SYSCALL_CLONE_FLAGS_UNTRACED= 0x00800000,
+	SYSCALL_CLONE_CHILD_SETTID  = 0x01000000,
+	SYSCALL_CLONE_NEWCGROUP     = 0x02000000,
+	SYSCALL_CLONE_NEWUTS        = 0x04000000,
+	SYSCALL_CLONE_NEWIPC        = 0x08000000,
+	SYSCALL_CLONE_NEWUSER       = 0x10000000,
+	SYSCALL_CLONE_NEWPID        = 0x20000000,
+	SYSCALL_CLONE_NEWNET        = 0x40000000,
+	SYSCALL_CLONE_IO            = 0x80000000,
+};
+process_t *process_clone(process_t *oldproc, enum syscall_clone_flags flags, uintptr_t child_stack);
 
 void process_add(process_t *process);
 void process_init(void);

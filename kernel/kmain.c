@@ -498,6 +498,8 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 		halt();
 	}
 
+	process_init();
+
 	printf("free %u kb\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
 	fs_node_t *tar_root = mount_tar(ramdisk);
 	assert(tar_root != NULL);

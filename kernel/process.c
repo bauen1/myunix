@@ -95,6 +95,20 @@ fd_table_t *fd_table_new() {
 	return fd_table_reference(fd_table);
 }
 
+fd_table_t *fd_table_clone(fd_table_t *oldfdt) {
+	assert(oldfdt != NULL);
+	printf("%s()\n", __func__);
+	fd_table_t *newfdt = fd_table_new();
+	assert(newfdt != NULL);
+	for (unsigned int i = 0; i < oldfdt->length; i++) {
+		fd_entry_t *oldfd = fd_table_get(oldfdt, i);
+		printf("%s: try copy fd %u (%p)\n", __func__, i, oldfd);
+		// FIXME: not 100% posix compliant
+		fd_table_set(newfdt, i, fd_reference(oldfd));
+	}
+	return newfdt;
+}
+
 void fd_table_free(fd_table_t *fd_table) {
 	assert(fd_table != NULL);
 	assert(fd_table->__refcount != -1);
@@ -198,99 +212,40 @@ static void process_unmap_shared_region(page_directory_t *pdir, uintptr_t start,
 }
 
 // allocate and map a kernel stack into kernel space and userspace
-void process_init_kstack(process_t *process) {
+static void process_map_kstack(process_t *process) {
 	assert(process != NULL);
+	assert(process->task.kstack != 0);
 
-	// kstack
-	process->kstack_size = KSTACK_SIZE;
-	uintptr_t v_kstack = find_vspace(kernel_directory, process->kstack_size + 4);
-	assert(v_kstack != 0);
+	// FIXME: we might not need to map more than one page, since we switch to the kernel directory as soon as possible
+	uintptr_t kstack = process->task.kstack;
+	assert(kstack != 0);
 
-	// kstack guard
-	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
-	map_page(get_table_alloc(v_kstack, process->task.pdir), v_kstack, PAGE_VALUE_GUARD, 0);
-	v_kstack += BLOCK_SIZE;
-	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
-	map_page(get_table_alloc(v_kstack, process->task.pdir), v_kstack, PAGE_VALUE_GUARD, 0);
-	v_kstack += BLOCK_SIZE;
-
-	process->kstack = v_kstack;
-	for (size_t i = 0; i < process->kstack_size; i++) { // skip guard
-		uintptr_t v_kaddr = v_kstack + i * BLOCK_SIZE;
-		uintptr_t block = pmm_alloc_blocks_safe(1);
-		assert((get_page(get_table(v_kaddr, kernel_directory), v_kaddr) & PAGE_PRESENT) == 0);
-		map_page(get_table(v_kaddr, kernel_directory), v_kaddr, block,
-			PAGE_PRESENT | PAGE_READWRITE);
-		map_page(get_table_alloc(v_kaddr, process->task.pdir), v_kaddr, block,
-			PAGE_PRESENT | PAGE_READWRITE);
-		invalidate_page(v_kaddr);
+	for (uintptr_t i = 0; i < KSTACK_SIZE; i++) {
+		uintptr_t vkaddr = kstack - i * BLOCK_SIZE;
+		page_t page = get_page(get_table(vkaddr, kernel_directory), vkaddr);
+		assert(! (page & PAGE_USER));
+		assert(get_page(get_table_alloc(vkaddr, process->task.pdir), vkaddr) == 0);
+		set_page(get_table_alloc(vkaddr, process->task.pdir), vkaddr, page);
 	}
-
-	uintptr_t kstack_length = process->kstack_size * BLOCK_SIZE;
-	process->kstack_top = process->kstack + kstack_length;
-
-	v_kstack += kstack_length;
-	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
-	map_page(get_table_alloc(v_kstack, process->task.pdir), v_kstack, PAGE_VALUE_GUARD, 0);
-	v_kstack += BLOCK_SIZE;
-	map_page(get_table(v_kstack, kernel_directory), v_kstack, PAGE_VALUE_GUARD, 0);
-	map_page(get_table_alloc(v_kstack, process->task.pdir), v_kstack, PAGE_VALUE_GUARD, 0);
-
-	memset((void *)process->kstack, 0, kstack_length);
 }
 
-/*
-TODO: implement correctly
-FIXME: this does NOT unmap the kernel stack from kernel space
-We could add the kstack to a list of items kidle should free when it's next round (interrupts need to be disabled until the next context switch if the kstack is currently in use)
-*/
-static void process_deinit_kstack(process_t *process) {
+static void process_unmap_kstack(process_t *process) {
 	assert(process != NULL);
 
-	uintptr_t v_kstack = process->kstack - BLOCK_SIZE * 2;
+	uintptr_t kstack = process->task.kstack;
+	assert(kstack != 0);
 
-	assert(get_page(get_table_alloc(v_kstack, kernel_directory), v_kstack) == PAGE_VALUE_GUARD);
-	assert(get_page(get_table_alloc(v_kstack, process->task.pdir), v_kstack) == PAGE_VALUE_GUARD);
-//	map_page(get_table(v_kstack, kernel_directory), v_kstack, 0, 0);
-	map_page(get_table_alloc(v_kstack, process->task.pdir), v_kstack, 0, 0);
-	v_kstack += BLOCK_SIZE;
-	assert(get_page(get_table_alloc(v_kstack, kernel_directory), v_kstack) == PAGE_VALUE_GUARD);
-	assert(get_page(get_table_alloc(v_kstack, process->task.pdir), v_kstack) == PAGE_VALUE_GUARD);
-//	map_page(get_table(v_kstack, kernel_directory), v_kstack, 0, 0);
-	map_page(get_table_alloc(v_kstack, process->task.pdir), v_kstack, 0, 0);
-	v_kstack += BLOCK_SIZE;
-
-	for (size_t i = 0; i < process->kstack_size; i++) {
-		uintptr_t v_kaddr = v_kstack + i * BLOCK_SIZE;
-		uintptr_t block = get_page(get_table(v_kaddr, kernel_directory), v_kaddr);
-		uintptr_t block_u = get_page(get_table_alloc(v_kaddr, process->task.pdir), v_kaddr);
-		assert((block & ~0xFFF) == (block_u & ~0xFFF));
-//		map_page(get_table(v_kaddr, kernel_directory), v_kaddr, 0, 0);
-		map_page(get_table_alloc(v_kaddr, process->task.pdir), v_kaddr, 0, 0);
-//		pmm_free_blocks(block, 1);
+	for (uintptr_t i = 0; i < KSTACK_SIZE; i++) {
+		uintptr_t vkaddr = kstack - i * BLOCK_SIZE;
+		page_t kpage = get_page(get_table(vkaddr, kernel_directory), vkaddr);
+		page_t upage = get_page(get_table_alloc(vkaddr, process->task.pdir), vkaddr);
+		// FIXME: doesn't cover all cases
+		assert((kpage & ~0xFFF) == (upage & ~0xFFF));
+		map_page(get_table_alloc(vkaddr, process->task.pdir), vkaddr, 0, 0);
 	}
-
-	v_kstack += process->kstack_size * BLOCK_SIZE;
-
-	assert(get_page(get_table_alloc(v_kstack, kernel_directory), v_kstack) == PAGE_VALUE_GUARD);
-	assert(get_page(get_table_alloc(v_kstack, process->task.pdir), v_kstack) == PAGE_VALUE_GUARD);
-//	map_page(get_table(v_kstack, kernel_directory), v_kstack, 0, 0);
-	map_page(get_table_alloc(v_kstack, process->task.pdir), v_kstack, 0, 0);
-	v_kstack += BLOCK_SIZE;
-	assert(get_page(get_table_alloc(v_kstack, kernel_directory), v_kstack) == PAGE_VALUE_GUARD);
-	assert(get_page(get_table_alloc(v_kstack, process->task.pdir), v_kstack) == PAGE_VALUE_GUARD);
-//	map_page(get_table(v_kstack, kernel_directory), v_kstack, 0, 0);
-	map_page(get_table_alloc(v_kstack, process->task.pdir), v_kstack, 0, 0);
-
-	return;
 }
 
-// TODO: ensure no additional information gets leaked (align and FILL a block) (maybe by stuffing everything in a special segment)
-// FIXME: shouldn't the isrs also be in the user_shared section ?
-static page_directory_t *process_page_directory_new() {
-	page_directory_t *page_directory = page_directory_new();
-	assert(page_directory != NULL);
-
+static void process_page_directory_map_shared(page_directory_t *page_directory) {
 	// ISR stubs
 	process_map_shared_region(page_directory, (uintptr_t)&isrs_start,
 		(uintptr_t)&isrs_end, PAGE_PRESENT);
@@ -298,6 +253,15 @@ static page_directory_t *process_page_directory_new() {
 	// TODO: make a user_shared_readonly and user_shared_readwrite section
 	process_map_shared_region(page_directory, (uintptr_t)&__start_user_shared,
 		(uintptr_t)&__stop_user_shared, PAGE_PRESENT | PAGE_READWRITE);
+}
+
+// TODO: ensure no additional information gets leaked (align and FILL a block) (maybe by stuffing everything in a special segment)
+// FIXME: shouldn't the isrs also be in the user_shared section ?
+page_directory_t *process_page_directory_new() {
+	page_directory_t *page_directory = page_directory_new();
+	assert(page_directory != NULL);
+
+	process_page_directory_map_shared(page_directory);
 
 	return page_directory;
 }
@@ -358,7 +322,8 @@ void process_exec2(process_t *process, fs_node_t *f, int argc, const char **argv
 	process->task.type = TASK_TYPE_USER_PROCESS;
 	process->task.pdir = process_page_directory_new();
 	assert(process->task.pdir != NULL);
-	process_init_kstack(process);
+	task_kstack_alloc(&process->task);
+	process_map_kstack(process);
 
 	// allocate some userspace heap (16kb)
 	// FIXME: size hardcoded (and to be honest it's mostly useless)
@@ -451,7 +416,7 @@ void process_exec2(process_t *process, fs_node_t *f, int argc, const char **argv
 		printf("%s: WARN: argv = NULL!\n", __func__);
 	}
 
-	registers_t *regs = (registers_t *)(process->kstack_top - sizeof(registers_t));
+	registers_t *regs = (registers_t *)(process->task.kstack - sizeof(registers_t));
 	regs->old_directory = (uintptr_t)process->task.pdir->physical_address;
 	regs->gs = 0x23;
 	regs->fs = 0x23;
@@ -503,6 +468,139 @@ process_t *process_exec(fs_node_t *f, int argc, const char **argv) {
 	return process;
 }
 
+// FIXME: part of this should be in vmm.c
+static void page_directory_clone_table(page_table_t *newtable, page_table_t *oldtable) {
+	assert(oldtable != NULL);
+	assert(newtable != NULL);
+//	printf("%s(newtable: %p, oldtable: %p)\n", __func__, newtable, oldtable);
+
+	uintptr_t oldkvtmp = find_vspace(kernel_directory, 1);
+	assert(oldkvtmp != 0);
+	uintptr_t newkvtmp = find_vspace(kernel_directory, 1);
+	assert(newkvtmp != 0);
+
+	for (uintptr_t i = 0; i < 1024; i++) {
+		page_t page = oldtable->pages[i];
+		if (page & PAGE_PRESENT) {
+			if (page & PAGE_USER) {
+				if (newtable->pages[i] != 0) {
+					assert(0);
+				}
+				uintptr_t oldphys = page & ~0x3FF;
+				uintptr_t newphys = pmm_alloc_blocks_safe(1);
+//				printf("%s: cloning page %i from %p to: %p\n", __func__, i, oldphys, newphys);
+				map_page(get_table(oldkvtmp, kernel_directory), oldkvtmp,
+					oldphys, PAGE_PRESENT | PAGE_READWRITE);
+				invalidate_page(oldkvtmp);
+				map_page(get_table(newkvtmp, kernel_directory), newkvtmp,
+					newphys, PAGE_PRESENT | PAGE_READWRITE);
+				invalidate_page(newkvtmp);
+				memcpy((void *)newkvtmp, (void *)oldkvtmp, BLOCK_SIZE);
+				// XXX: we might be copying more than we want
+				newtable->pages[i] = newphys | (page & 0x3FF);
+			} else {
+//				assert(0);
+				// XXX: ignore kernel pages
+				continue;
+			}
+		} else if (page == 0) {
+			continue;
+		} else {
+			if (page == PAGE_VALUE_GUARD) {
+				continue;
+			} else if (page == PAGE_VALUE_RESERVED) {
+				/* XXX: cloning this just calls for trouble*/
+				assert(0);
+			} else {
+				assert(0);
+			}
+		}
+	}
+
+	map_page(get_table(oldkvtmp, kernel_directory), oldkvtmp, 0, 0);
+	invalidate_page(oldkvtmp);
+	map_page(get_table(newkvtmp, kernel_directory), newkvtmp, 0, 0);
+	invalidate_page(newkvtmp);
+}
+
+/* XXX: don't try to clone the kernel directory */
+void page_directory_clone(page_directory_t *newpdir, page_directory_t *old) {
+	assert(old != NULL);
+	assert(newpdir != NULL);
+
+	for (uintptr_t i = 0; i < 1024; i++) {
+		page_table_t *table = old->tables[i];
+		uintptr_t table_phys = old->physical_tables[i];
+		if (!(table_phys & PAGE_TABLE_PRESENT)) {
+			if (table_phys == 0) {
+				continue;
+			} else {
+				assert(0);
+			}
+		}
+
+		// FIXME: write a new helper for this
+		page_table_t *newtable = get_table_alloc(i << 22, newpdir);
+		page_directory_clone_table(newtable, table);
+	}
+}
+
+process_t *process_clone(process_t *oldproc, enum syscall_clone_flags flags, uintptr_t child_stack) {
+	process_t *child = kcalloc(1, sizeof(process_t));
+	if (child == NULL) {
+		return NULL;
+	}
+
+	if (flags & SYSCALL_CLONE_FLAGS_FILES) {
+		child->fd_table = fd_table_reference(current_process->fd_table);
+	} else {
+		// FIXME: not 100% correct
+		printf("%s: attempting to fd_table_clone\n", __func__);
+		child->fd_table = fd_table_clone(current_process->fd_table);
+		printf("%s: successfully cloned fd_table\n", __func__);
+		if (child->fd_table == NULL) {
+			kfree(child);
+			return NULL;
+		}
+	}
+
+	if (flags & SYSCALL_CLONE_FLAGS_VM) {
+		child->task.pdir = page_directory_reference(oldproc->task.pdir);
+	} else {
+		child->task.pdir = page_directory_new();
+		page_directory_clone(child->task.pdir, oldproc->task.pdir);
+		process_page_directory_map_shared(child->task.pdir);
+	}
+
+	task_kstack_alloc(&child->task);
+	process_map_kstack(child);
+
+	// FIXME: strdup to the rescue
+	const size_t name_strlen = strlen(current_process->name);
+	child->name = kmalloc(name_strlen + 1);
+	strncpy(child->name, current_process->name, name_strlen);
+	printf("%s: child name: '%s'\n", __func__, child->name);
+
+	child->pid = get_pid();
+	printf("%s: child pid: %u\n", __func__, child->pid);
+
+	child->task.type = current_process->task.type;
+	child->task.registers = (registers_t *)(child->task.kstack - sizeof(registers_t));
+	memcpy(child->task.registers, current_process->task.registers, sizeof(registers_t));
+	registers_t *child_registers = child->task.registers;
+	child_registers->old_directory = (uint32_t)child->task.pdir->physical_address;
+	// XXX: eax = return code
+	child_registers->eax = 0;
+	if (child_stack != 0) {
+		child_registers->esp = (uint32_t)child_stack;
+	}
+	child->task.esp = (uint32_t)child_registers;
+	child->task.ebp = child->task.esp;
+	child->task.eip = (uintptr_t)return_to_regs;
+	child->task.obj = child;
+	return child;
+}
+
 /*
 TODO: move syscall_fork, syscall_clone and syscall_exec here
 */
@@ -511,7 +609,8 @@ void process_destroy(process_t *process) {
 	printf("%s(process: %p (name: '%s'))\n", __func__, process, process->name);
 
 	bitmap_unset(pid_bitmap, process->pid);
-	process_deinit_kstack(process);
+	process_unmap_kstack(process);
+	task_kstack_free(&process->task);
 	fd_table_free(process->fd_table);
 	process_page_directory_free(process->task.pdir);
 	kfree(process->name);
@@ -527,7 +626,16 @@ void __attribute__((noreturn)) process_exit(unsigned int status) {
 	process_t *p = current_process;
 	printf("%s: removing process %p (name: '%s') from queue\n", __func__, p, p->name);
 	task_remove(&p->task);
-	process_destroy(p);
+
+	/* free process */
+	fd_table_free(p->fd_table);
+	bitmap_unset(pid_bitmap, p->pid);
+	process_unmap_kstack(p);
+	task_kstack_delayed_free(&p->task);
+	process_page_directory_free(p->task.pdir);
+	kfree(p->name);
+	kfree(p);
+
 	printf("%s: __switch_direct\n", __func__);
 
 	__switch_direct();

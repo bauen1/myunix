@@ -120,6 +120,12 @@ page_t get_page(page_table_t *table, uintptr_t virtaddr) {
 	return table->pages[i];
 }
 
+void set_page(page_table_t *table, uintptr_t virtaddr, page_t page) {
+	assert(table != NULL);
+	uintptr_t i = virtaddr >> 12 & 0x3FF;
+	table->pages[i] = page;
+}
+
 void map_page(page_table_t *table, uintptr_t virtaddr, uintptr_t physaddr, enum page_flags flags) {
 	assert(table != NULL);
 	assert((virtaddr & 0x3FF) == 0);
@@ -420,12 +426,11 @@ static void page_fault(registers_t *regs) {
 	if (regs->err_code & 0x4) {
 		printf("usermode\n");
 		printf("current_process: 0x%x\n", (uintptr_t)current_process);
-		printf("current_process->kstack: 0x%x\n", current_process->kstack);
-		printf("current_process->kstack_size: 0x%x\n", (uintptr_t)current_process->kstack_size);
 		printf("current_process->task.registers: 0x%x\n", (uintptr_t)current_process->task.registers);
 		printf("current_process->task.esp: 0x%x\n", current_process->task.esp);
 		printf("current_process->task.ebp: 0x%x\n", current_process->task.ebp);
 		printf("current_process->task.eip: 0x%x\n", current_process->task.eip);
+		printf("current_process->task.kstack: 0x%x\n", current_process->task.kstack);
 		printf("current_process->task.pdir: 0x%x\n", (uintptr_t)current_process->task.pdir);
 		printf("current_process->name: '%s'\n", current_process->name);
 		printf("current_process->pid: 0x%x\n", current_process->pid);

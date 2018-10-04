@@ -1,17 +1,92 @@
-#include <task.h>
-#include <list.h>
-#include <gdt.h>
 #include <console.h>
+#include <gdt.h>
+#include <list.h>
+#include <pmm.h>
 #include <process.h>
+#include <string.h>
+#include <task.h>
+#include <vmm.h>
 
 task_t *current_task;
 node_t *current_task_node;
 list_t *task_list;
 process_t *current_process;
+static uintptr_t delayed_kstack = 0;
 
-// TODO: implement helper to take care of updating current_process, etc...
+void task_kstack_alloc(task_t *task) {
+	assert(task != NULL);
 
-// FIXME: check if enough tasks are running
+	uintptr_t kstack = find_vspace(kernel_directory, KSTACK_SIZE + 2);
+	assert(kstack != 0);
+
+	// guard page
+	map_page(get_table(kstack, kernel_directory), kstack, PAGE_VALUE_GUARD, 0);
+	invalidate_page(kstack);
+	kstack += BLOCK_SIZE;
+
+	for (size_t i = 0; i < (KSTACK_SIZE - 2); i++) {
+		uintptr_t vkaddr = kstack + i * BLOCK_SIZE;
+		uintptr_t phys = pmm_alloc_blocks_safe(1);
+		map_page(get_table(vkaddr, kernel_directory), vkaddr, phys,
+			PAGE_PRESENT | PAGE_READWRITE);
+		invalidate_page(vkaddr);
+		memset((void *)vkaddr, 0, BLOCK_SIZE);
+	}
+
+	kstack += (KSTACK_SIZE - 2) * BLOCK_SIZE;
+	task->kstack = kstack;
+
+	map_page(get_table(kstack, kernel_directory), kstack, PAGE_VALUE_GUARD, 0);
+	invalidate_page(kstack);
+}
+
+static void free_kstack(uintptr_t kstack) {
+	assert(get_page(get_table_alloc(kstack, kernel_directory), kstack) == PAGE_VALUE_GUARD);
+	map_page(get_table_alloc(kstack, kernel_directory), kstack, 0, 0);
+	invalidate_page(kstack);
+	kstack -= BLOCK_SIZE;
+
+	for (size_t i = 0; i < (KSTACK_SIZE - 2); i++) {
+		uintptr_t vkaddr = kstack - i * BLOCK_SIZE;
+		uintptr_t kpage = get_page(get_table_alloc(vkaddr, kernel_directory), vkaddr);
+		assert(kpage & PAGE_PRESENT);
+
+		memset((void *)vkaddr, 0, BLOCK_SIZE);
+
+		map_page(get_table_alloc(vkaddr, kernel_directory), vkaddr, 0, 0);
+		invalidate_page(vkaddr);
+		pmm_free_blocks(kpage & ~0xFFF, 1);
+	}
+
+	kstack -= (KSTACK_SIZE - 2) * BLOCK_SIZE;
+
+	assert(get_page(get_table_alloc(kstack, kernel_directory), kstack) == PAGE_VALUE_GUARD);
+	map_page(get_table_alloc(kstack, kernel_directory), kstack, 0, 0);
+	invalidate_page(kstack);
+}
+
+// XXX: just don't call it when we're using the kstack
+void task_kstack_free(task_t *task) {
+	assert(task != NULL);
+	uintptr_t kstack = task->kstack;
+	assert(kstack != 0);
+	free_kstack(kstack);
+
+	task->kstack = 0;
+}
+
+
+/*
+XXX: this works, by setting a special variable, which gets checked after the return to
+another process, which will then call task_internal_deinit_kstack
+*/
+void task_kstack_delayed_free(task_t *task) {
+	assert(delayed_kstack == 0);
+	assert(task->kstack != 0);
+	delayed_kstack = task->kstack;
+	task->kstack = 0;
+}
+
 node_t *next_task_node() {
 	assert(task_list != NULL);
 	node_t *node = NULL;
@@ -45,6 +120,11 @@ void __switch_task() {
 	__asm__ __volatile__("mov %%ebp, %0" : "=r" (ebp));
 	eip = read_eip();
 	if (eip == 0) {
+		// XXX: check if we need to free another kstack
+		if (delayed_kstack != 0) {
+			free_kstack(delayed_kstack);
+			delayed_kstack = 0;
+		}
 		return;
 	}
 	current_task->esp = esp;
@@ -73,16 +153,7 @@ void __attribute__((noreturn)) __switch_direct(void) {
 }
 
 static void __attribute__((noreturn)) __restore_task() {
-	if (current_task->type == TASK_TYPE_KTASK) {
-		tss_set_kstack(0);
-	} else if (current_task->type == TASK_TYPE_USER_PROCESS) {
-		process_t *process = (process_t *)current_task->obj;
-		assert(process != NULL);
-		uintptr_t kstack = process->kstack_top;
-		tss_set_kstack(kstack);
-	} else {
-		assert(0);
-	}
+	tss_set_kstack(current_task->kstack);
 
 	// TODO: rewrite partially in assembly
 	uint32_t esp = current_task->esp;
