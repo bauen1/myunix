@@ -13,8 +13,12 @@ size_t __attribute__((pure)) strlen(const char *str) {
 char *strncpy(char *dest, const char *src, size_t n) {
 	assert(dest != NULL);
 	assert(src != NULL);
-	for (size_t i = 0; (i < n) && (src[i]); i++) {
+	size_t i = 0;
+	for (i = 0; (i < n) && (src[i]); i++) {
 		dest[i] = src[i];
+	}
+	for (; i < n; i++) {
+		dest[i] = 0;
 	}
 	return dest;
 }
