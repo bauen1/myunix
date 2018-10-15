@@ -19,8 +19,9 @@ typedef struct {
 } list_t;
 
 list_t *list_init();
-void list_append(list_t *list, node_t *v);
 void list_free(list_t *list);
+
+void list_append(list_t *list, node_t *v);
 node_t *list_insert(list_t *list, void *v);
 void list_remove(list_t *list, void *v);
 void *list_dequeue(list_t *list);

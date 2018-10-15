@@ -112,8 +112,22 @@ void handle_isr(registers_t *regs) {
 	if (isr_handlers[isr_num]) {
 		isr_handlers[isr_num](regs);
 	} else if (isr_num < 32) {
-		printf("Encountered unhandled exception: '%s' !\n", exception_name[isr_num]);
+		char *mode;
+		switch (regs->cs & 0x3) {
+			case 0x0:
+				mode = "kernel";
+				break;
+			case 0x3:
+				mode = "user";
+				break;
+			default:
+				mode ="(unknown)";
+				break;
+		}
+
+		printf("Encountered unhandled exception: '%s' in %s mode!\n", exception_name[isr_num], mode);
 		dump_regs(regs);
+		print_stack_trace();
 		halt();
 	} else {
 		printf("Encountered unhandled interrupt: 0x%x\n", isr_num);

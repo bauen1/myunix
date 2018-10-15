@@ -68,8 +68,20 @@ static void irq_handler(registers_t *regs) {
 		return;
 	}
 
-	printf("unhandled irq %u!\n", irq);
-	assert(0);
+	printf("\nunhandled irq %u!\n", irq);
+
+	for (unsigned int i = 0; i < 8; i++) {
+		if (entries[i].handler != NULL) {
+			printf("%s: entries[%u].handler: %p\n", __func__, i, entries[i].handler);
+		} else {
+			break;
+		}
+	}
+
+
+	dump_regs(regs);
+	print_stack_trace();
+	halt();
 }
 
 void irq_init(void) {
