@@ -158,7 +158,7 @@ static uint32_t syscall_execve(registers_t *regs) {
 	fs_node_t *f = kopen(path, 0);
 	if (f == NULL) {
 		printf(" '%s' not found\n", path);
-		return -1;
+		return 2;
 	} else {
 		const char *argv[] = { &path[0], NULL };
 //		const char *agrv[] = { "", NULL };
@@ -319,9 +319,9 @@ static uint32_t syscall_open(registers_t *regs) {
 		fd->node = node;
 		fd->seek = 0;
 		return fd_table_append(current_process->fd_table, fd);
+	} else {
+		return -2;
 	}
-
-	return -1;
 }
 
 static uint32_t syscall_dup(registers_t *regs) {
@@ -663,6 +663,8 @@ static void syscall_handler(registers_t *regs) {
 			regs->eax = syscall_munmap(regs);
 			break;
 		default:
+			printf("undefined syscall %u\n", regs->eax);
+			assert(0);
 			regs->eax = (uint32_t)-1;
 			break;
 	}
