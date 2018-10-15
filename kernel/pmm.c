@@ -31,18 +31,18 @@ inline bool pmm_test_block(uintptr_t block) {
 }
 
 /* find the first free block */
+// FIXME: fix corner cases
 static uint32_t pmm_find_first_free() {
 	for (uintptr_t i = 0; i < block_map_size / 32; i++) {
 		if (block_map[i] == 0xFFFFFFFF) {
 			// all blocks used, skip
 			continue;
 		}
+
 		for (unsigned int j = 0; j < 32; j++) {
 			uint32_t bit = ((uint32_t)1 << j);
-			if (block_map[i] & bit) {
-				// skip
-				continue;
-			} else {
+
+			if (!(block_map[i] & bit)) {
 				return i * 32 + j;
 			}
 		}
@@ -52,6 +52,7 @@ static uint32_t pmm_find_first_free() {
 }
 
 // TODO: optimise
+// FIXME: fix corner cases
 inline uint32_t pmm_find_region(size_t size) {
 	assert(size != 0);
 
@@ -64,30 +65,32 @@ inline uint32_t pmm_find_region(size_t size) {
 			// all blocks used, skip
 			continue;
 		}
+
 		for (unsigned int j = 0; j < 32; j++) {
 			uint32_t bit = (1 << j);
 			if (block_map[i] & bit) {
 				// skip
 				continue;
-			} else {
-				uint32_t start = i * 32 + j;
-				size_t len = 1; // start = blocks[0]
-				while (len < size) {
-					if (pmm_test_block(start + len)) {
-						// used
-						break;
-					} else {
-						len++;
-						assert((len + start) < block_map_size);
-					}
-				}
-				if (len == size) {
-					return start;
+			}
+
+			uint32_t start = i * 32 + j;
+			size_t len = 1; // start = blocks[0]
+			while (len < size) {
+				if (pmm_test_block(start + len)) {
+					// used
+					break;
 				} else {
-					i = i + len / 32;
-					j = j + len % 32;
+					len++;
+					assert((len + start) < block_map_size);
 				}
 			}
+			if (len == size) {
+				return start;
+			} else {
+				i = i + len / 32;
+				j = j + len % 32;
+			}
+
 			assert(0);
 		}
 	}
@@ -120,13 +123,9 @@ void pmm_free_blocks(uintptr_t p, size_t size) {
 }
 
 uintptr_t pmm_alloc_blocks_safe(size_t size) {
-#ifdef DEBUG
-	printf("pmm_alloc_blocks_safe(size: %u)\n", size);
-#endif
 	uintptr_t v = pmm_alloc_blocks(size);
 	if (v == 0) {
-		printf("Out Of Memory!\n");
-		printf(" pmm_alloc_blocks_size(size: %u) failed!!\n", (uintptr_t)size);
+		printf("%s(size: %u): OUT OF MEMORY!\n", __func__, (uintptr_t)size);
 		assert(0);
 	}
 
@@ -145,10 +144,10 @@ uint32_t pmm_count_free_blocks() {
 }
 
 void pmm_init(void *mem_map, size_t mem_size) {
+	printf("%s(mem_map: %p; mem_size: 0x%8x)\n", __func__, mem_map, (uintptr_t)mem_size);
 	block_map_size = mem_size / BLOCK_SIZE;
 	block_map = (uint32_t *)mem_map;
 	block_map_last = 0;
-	printf("pmm_init at 0x%x with size 0x%x\n", (uint32_t)block_map, (uint32_t)block_map_size);
 
 	memset(block_map, 0xFF, block_map_size);
 }
