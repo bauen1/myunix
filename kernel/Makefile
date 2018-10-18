@@ -6,6 +6,10 @@ BUILD?=$(shell uname -s | tr '[:upper:]' '[:lower:]')-$(shell uname -m)
 HOST?=$(BUILD)
 TARGET?=$(HOST)
 TARGET_ARCH:=$(lastword $(subst -, ,$(TARGET)))
+ifeq ($(TARGET_ARCH),x86_64)
+    # we don't support x86_64, but i686 can run on x86_64
+    TARGET_ARCH=i686
+endif
 ARCHDIR=arch/$(TARGET_ARCH)
 
 # default flags
