@@ -605,6 +605,8 @@ void __attribute__((no_sanitize_undefined)) kfree(void *ptr)
 
 	l_inuse -= min->size;
 
+	memset(ptr, 0, min->size);
+
 	maj->usage -= (min->size + sizeof( struct liballoc_minor ));
 	min->magic  = LIBALLOC_DEAD;		// No mojo.
 
