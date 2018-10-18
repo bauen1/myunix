@@ -165,7 +165,7 @@ codespell:
 
 .PHONY: complexity
 complexity:
-	complexity -h -c $(SRCS); [ $$? -eq 5 ] || [ $$? -eq 0 ]
+	complexity -h -c $(SRCS)
 
 #
 
