@@ -19,7 +19,7 @@ tar_root/init: userspace/init.o userspace/init.elf
 tar_root/bin/%: userspace/%.o
 	$(LD) $(LDFLAGS) -Wl,-Ttext=0x1000000 -static -Wl,--oformat=binary -o $@ $< $(AFTER_LDFLAGS)
 
-kernel/iso/modules/initrd.tar: tar_root tar_root/init
+kernel/iso/modules/initrd.tar: tar_root tar_root/init tar_root/bin/test
 	cd $< && find . -print0 | cpio --create -0 -v --format=ustar > ../$@
 
 .PHONY: clean
