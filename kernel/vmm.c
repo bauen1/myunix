@@ -36,7 +36,52 @@ page_directory_t *page_directory_new() {
 	return page_directory_reference(pdir);
 }
 
-void page_directory_free(page_directory_t *pdir) {
+static void page_table_free(page_table_t *table, uintptr_t phys_table) {
+	assert(table != NULL);
+	assert(phys_table != 0);
+	assert(phys_table & PAGE_TABLE_PRESENT);
+
+	for (uintptr_t i = 0; i < 1024; i++) {
+		page_t page = table->pages[i];
+		assert(page == 0);
+	}
+
+	uintptr_t phys = phys_table & ~0x3FF;
+	uintptr_t virtaddr = (uintptr_t)table;
+	map_page(get_table(virtaddr, kernel_directory), virtaddr, 0, 0);
+	invalidate_page(virtaddr);
+	pmm_free_blocks(phys, 1);
+}
+
+static void page_directory_free(page_directory_t **pdir) {
+	assert(pdir != NULL);
+	assert(*pdir != NULL);
+	assert((*pdir)->__refcount == 0);
+
+	// XXX: walk the page directory and ensure there are no mappings left, freeing page tables in the process
+	// TODO: maybe this could be split into page_table_new() / page_table_free()
+	for (uintptr_t i = 0; i < 1024; i++) {
+		uintptr_t phys_table = (*pdir)->physical_tables[i];
+
+		if (phys_table & PAGE_PRESENT) {
+			page_table_t *table = (*pdir)->tables[i];
+			assert(table != NULL);
+
+			page_table_free(table, phys_table);
+			(*pdir)->physical_tables[i] = 0;
+			(*pdir)->tables[i] = NULL;
+		}
+		assert((*pdir)->tables[i] == NULL);
+	}
+	pmm_free_blocks((*pdir)->physical_address, 1);
+	uintptr_t virtaddr = (uintptr_t)(*pdir)->physical_tables;
+	map_page(get_table(virtaddr, kernel_directory), virtaddr, 0, 0);
+	invalidate_page(virtaddr);
+	kfree(*pdir);
+	*pdir = NULL;
+}
+
+void page_directory_release(page_directory_t *pdir) {
 	assert(pdir != NULL);
 	if (pdir->__refcount == -1) {
 		// technically we're not supposed to do anything, but this is most likely a bug
@@ -46,34 +91,7 @@ void page_directory_free(page_directory_t *pdir) {
 
 	pdir->__refcount--;
 	if (pdir->__refcount == 0) {
-		// XXX: walk the page directory and ensure there are no mappings left, freeing page tables in the process
-		// TODO: maybe this could be split into page_table_new() / page_table_free()
-		for (uintptr_t i = 0; i < 1024; i++) {
-			uintptr_t phys_table = pdir->physical_tables[i];
-			if (phys_table & PAGE_PRESENT) {
-				page_table_t *table = pdir->tables[i];
-				assert(table != NULL);
-				for (uintptr_t j = 0; j < 1024; j++) {
-					page_t page = table->pages[j];
-					assert(page == 0);
-				}
-
-				uintptr_t phys = phys_table & ~0x3FF;
-				uintptr_t virtaddr = (uintptr_t)table;
-				map_page(get_table(virtaddr, kernel_directory), virtaddr, 0, 0);
-				invalidate_page(virtaddr);
-				pmm_free_blocks(phys, 1);
-				pdir->physical_tables[i] = 0;
-				pdir->tables[i] = NULL;
-			} else {
-				assert(pdir->tables[i] == NULL);
-			}
-		}
-		pmm_free_blocks(pdir->physical_address, 1);
-		uintptr_t virtaddr = (uintptr_t)pdir->physical_tables;
-		map_page(get_table(virtaddr, kernel_directory), virtaddr, 0, 0);
-		invalidate_page(virtaddr);
-		kfree(pdir);
+		page_directory_free(&pdir);
 	}
 }
 
