@@ -55,7 +55,7 @@ extern page_directory_t *kernel_directory;
 /* page_directory_t helpers */
 page_directory_t *page_directory_reference(page_directory_t *pdir);
 page_directory_t *page_directory_new();
-void page_directory_free(page_directory_t *pdir);
+void page_directory_release(page_directory_t *pdir);
 
 void invalidate_page(uintptr_t virtaddr);
 page_table_t *get_table(uintptr_t virtaddr, page_directory_t *directory);

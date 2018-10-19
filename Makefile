@@ -16,7 +16,10 @@ CFLAGS=-g
 tar_root/init: userspace/init.o userspace/init.elf
 	$(LD) $(LDFLAGS) -Wl,-Ttext=0x1000000 -static -Wl,--oformat=binary -o $@ $< $(AFTER_LDFLAGS)
 
-tar_root/bin/%: userspace/%.o
+tar_root/bin:
+	mkdir -p $@
+
+tar_root/bin/%: userspace/%.o | tar_root/bin
 	$(LD) $(LDFLAGS) -Wl,-Ttext=0x1000000 -static -Wl,--oformat=binary -o $@ $< $(AFTER_LDFLAGS)
 
 kernel/iso/modules/initrd.tar: tar_root tar_root/init tar_root/bin/test

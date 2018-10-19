@@ -58,7 +58,7 @@ void fd_free(fd_entry_t *fd) {
 	fd->__refcount--;
 	if (fd->__refcount == 0) {
 		if (fd->node != NULL) {
-			fs_close(fd->node);
+			fs_close(&(fd->node));
 		}
 		kfree(fd);
 	}
@@ -102,9 +102,13 @@ fd_table_t *fd_table_clone(fd_table_t *oldfdt) {
 	assert(newfdt != NULL);
 	for (unsigned int i = 0; i < oldfdt->length; i++) {
 		fd_entry_t *oldfd = fd_table_get(oldfdt, i);
-		printf("%s: try copy fd %u (%p)\n", __func__, i, oldfd);
-		// FIXME: not 100% posix compliant
-		fd_table_set(newfdt, i, fd_reference(oldfd));
+		if (oldfd != NULL) {
+			printf("%s: try copy fd %u (%p)\n", __func__, i, oldfd);
+			// FIXME: not 100% posix compliant
+			fd_table_set(newfdt, i, fd_reference(oldfd));
+		} else {
+			fd_table_set(newfdt, i, NULL);
+		}
 	}
 	return newfdt;
 }
@@ -131,19 +135,27 @@ void fd_table_free(fd_table_t *fd_table) {
 /* helpers */
 int fd_table_set(fd_table_t *fd_table, unsigned int i, fd_entry_t *entry) {
 	assert(fd_table != NULL);
-	assert(entry != NULL);
 
-	if (i < fd_table->capacity) {
-		if (fd_table->entries[i] != NULL) {
-			fd_free(fd_table->entries[i]);
+	if (entry == NULL) {
+		if (i < fd_table->capacity) {
+			if (fd_table->entries[i] != NULL) {
+				fd_free(fd_table->entries[i]);
+				fd_table->entries[i] = NULL;
+			}
 		}
 	} else {
-		fd_table->capacity = i;
-		fd_table_realloc(fd_table);
-	}
-	fd_table->entries[i] = entry;
-	if (fd_table->length < i) {
-		fd_table->length = i;
+		if (i < fd_table->capacity) {
+			if (fd_table->entries[i] != NULL) {
+				fd_free(fd_table->entries[i]);
+			}
+		} else {
+			fd_table->capacity = i;
+			fd_table_realloc(fd_table);
+		}
+		fd_table->entries[i] = entry;
+		if (fd_table->length < i) {
+			fd_table->length = i;
+		}
 	}
 	return i;
 }
@@ -269,7 +281,7 @@ page_directory_t *process_page_directory_new() {
 static void process_page_directory_free(page_directory_t *pdir) {
 	if (pdir->__refcount != 1) {
 		// XXX: page_directory_free only decrements __refcount
-		return page_directory_free(pdir);
+		return page_directory_release(pdir);
 	}
 
 	// XXX: this is the last reference, clean up
@@ -282,6 +294,7 @@ static void process_page_directory_free(page_directory_t *pdir) {
 		if (phys_table & PAGE_PRESENT) {
 			page_table_t *table = pdir->tables[i];
 			assert(table != NULL);
+
 			for (uintptr_t j = 0; j < 1024; j++) {
 				page_t page = table->pages[j];
 				uintptr_t virtaddr = (i << 22) | (j << 12);
@@ -295,6 +308,7 @@ static void process_page_directory_free(page_directory_t *pdir) {
 				} else {
 					/* XXX: this is bad, all kernel pages should have been unmapped already, we don't know how to handle it */
 					printf("%8x => 0x%8x this should not be here!\n", virtaddr, page);
+					dump_directory(pdir);
 					assert(0);
 				}
 			}
@@ -304,7 +318,7 @@ static void process_page_directory_free(page_directory_t *pdir) {
 	}
 }
 
-void process_exec2(process_t *process, fs_node_t *f, int argc, const char **argv) {
+void process_exec2(process_t *process, fs_node_t *f, unsigned int argc, const char **argv) {
 	const uintptr_t virt_text_start = 0x1000000;
 	const uintptr_t virt_heap_start = 0x2000000; // max 16mb text
 	const uintptr_t virt_stack_start = 0x8000000;
@@ -315,6 +329,8 @@ void process_exec2(process_t *process, fs_node_t *f, int argc, const char **argv
 	assert(f->length != 0);
 
 	if (process->task.pdir != NULL) {
+		printf("%s: unmapping old kstack\n", __func__);
+		process_unmap_kstack(process);
 		printf("%s: freeing old pdir\n", __func__);
 		process_page_directory_free(process->task.pdir);
 	}
@@ -322,7 +338,10 @@ void process_exec2(process_t *process, fs_node_t *f, int argc, const char **argv
 	process->task.type = TASK_TYPE_USER_PROCESS;
 	process->task.pdir = process_page_directory_new();
 	assert(process->task.pdir != NULL);
-	task_kstack_alloc(&process->task);
+	if (process->task.kstack == 0) {
+		printf("%s: allocating new kstack\n", __func__);
+		task_kstack_alloc(&process->task);
+	}
 	process_map_kstack(process);
 
 	// allocate some userspace heap (16kb)
@@ -444,10 +463,10 @@ void process_exec2(process_t *process, fs_node_t *f, int argc, const char **argv
 	process->task.eip = (uintptr_t)return_to_regs;
 }
 
-process_t *process_exec(fs_node_t *f, int argc, const char **argv) {
+process_t *process_exec(fs_node_t *f, unsigned int argc, const char **argv) {
 	assert(f != NULL);
 	assert(f->length != 0);
-	printf("%s(f: %p (f->name: '%s'), argc: %i, argv: %p)\n", __func__, f, f->name, argc, argv);
+	printf("%s(f: %p (f->name: '%s'), argc: %u, argv: %p)\n", __func__, f, f->name, argc, argv);
 
 	process_t *process = kcalloc(1, sizeof(process_t));
 	assert(process != NULL);

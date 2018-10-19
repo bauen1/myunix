@@ -51,7 +51,7 @@ static void ramdisk_close(fs_node_t *node) {
 }
 
 fs_node_t *ramdisk_init(uintptr_t ptr, size_t size) {
-	fs_node_t *node = fs_alloc_node();
+	fs_node_t *node = fs_node_new();
 	assert(node != NULL);
 	memcpy((void *)node->name, "ramdisk", 8);
 	node->read = ramdisk_read;

@@ -23,7 +23,7 @@ static uint32_t zero_read(fs_node_t *node, uint32_t offset, uint32_t size, void 
 }
 
 fs_node_t *null_create() {
-	fs_node_t *f = fs_alloc_node();
+	fs_node_t *f = fs_node_new();
 	assert(f != NULL);
 	strncpy(f->name, "null", 255);
 	f->flags = FS_NODE_CHARDEVICE;
@@ -33,7 +33,7 @@ fs_node_t *null_create() {
 }
 
 fs_node_t *zero_create() {
-	fs_node_t *f = fs_alloc_node();
+	fs_node_t *f = fs_node_new();
 	assert(f != NULL);
 	strncpy(f->name, "zero", 255);
 	f->flags = FS_NODE_CHARDEVICE;

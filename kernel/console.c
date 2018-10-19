@@ -46,7 +46,7 @@ fs_node_t tty_node = {
 	.length = 0,
 	.read = tty_read,
 	.write = tty_write,
-	.__refcount = -1, // ensure it is never closed
+	.__refcount = -1, // immortal because it isn't allocated
 };
 
 void console_init() {

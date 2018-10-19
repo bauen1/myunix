@@ -40,8 +40,33 @@ int kidle(const char *name, void *extra) {
 	// TODO: free kernel stack of kmain
 	__asm__ __volatile__("sti");
 	while (1) {
-		switch_task();
+		__asm__ __volatile__ ("hlt");
 	}
+}
+
+static void kmain_ls(const char *path) {
+	assert(path != NULL);
+	printf("> %s '%s'\n", __func__, path);
+
+	fs_node_t *dir = kopen(path, 0);
+	if (dir == NULL) {
+		printf("directory %s not found!\n\n", path);
+		return;
+	}
+
+	unsigned int i = 0;
+	do {
+		struct dirent *v = fs_readdir(dir, i);
+		if (v == NULL) {
+			break;
+		}
+		assert(v->ino == i);
+		printf("%u: %s\n", v->ino, v->name);
+		kfree(v);
+		i++;
+	} while(true);
+	printf("\n");
+	fs_close(&dir);
 }
 
 // TODO: move the multiboot specific stuff to it's own file
@@ -505,20 +530,42 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	assert(tar_root != NULL);
 	fs_mount_root(tar_root);
 
+	fs_mount_t *tmpfs_mount = fs_mount_submount(fs_root_mount, mount_tmpfs(), "tmp");
+	(void)tmpfs_mount;
+
 	{
-		printf("ls test\n");
-		int i = 0;
-		do {
-			struct dirent *v = fs_readdir(fs_root_mount->node, i);
-			if (v == NULL) {
-				break;
-			}
-			printf("%u: %s\n", v->ino, v->name);
-			kfree(v);
-			i++;
-		} while (1);
+		// test if mount was successful and kopen works
+		fs_node_t *dir = kopen("/tmp", 0);
+		assert(dir != NULL);
+		assert(dir == fs_root_mount->mounts[0]->node);
+		fs_create(dir, "test22", 0);
+		fs_node_t *file = kopen("/tmp/test22", 0);
+		assert(file != NULL);
+		char *str = "hello world!\n";
+		fs_write(file, 0, strlen(str), str);
+		fs_close(&dir);
+		fs_close(&file);
+
 	}
 
+	kmain_ls("/");
+	kmain_ls("/test_dir");
+	kmain_ls("/test/../");
+	kmain_ls("/tinycc");
+	kmain_ls("/tinycc/bin");
+
+	{
+		fs_node_t *test = kopen("/tmp/abc/file_1", 0);
+		if (test != NULL) {
+			printf("Found file!!!\n");
+			printf("file name: '%s'\n", test->name);
+			fs_close(&test);
+		}
+
+		kmain_ls("/tmp/abc");
+	}
+
+	printf("%s: exec('/init')\n", __func__);
 	{
 		fs_node_t *f = kopen("/init", 0);
 		if (f == NULL) {
@@ -527,7 +574,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 		}
 		const char *argv[2] = { "init", NULL };
 		process_t *p = process_exec(f, 1, argv);
-		fs_close(f);
+		fs_close(&f); // this should free fs_node(init)
 		p->pid = 1;
 		p->name = kmalloc(5);
 		assert(p->name != NULL);

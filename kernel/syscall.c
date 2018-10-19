@@ -136,7 +136,6 @@ static uint32_t syscall_execve(registers_t *regs) {
 	path[255] = 0;
 	printf(" path='%s'\n", path);
 
-
 	char **argv;
 	if (user_argv == 0) {
 		argv = kmalloc(sizeof(char *) * 2);
@@ -163,7 +162,7 @@ static uint32_t syscall_execve(registers_t *regs) {
 		const char *argv[] = { &path[0], NULL };
 //		const char *agrv[] = { "", NULL };
 		process_exec2(current_process, f, 2, argv);
-		fs_close(f);
+		fs_close(&f);
 		__switch_direct();
 	}
 
@@ -224,7 +223,7 @@ static uint32_t syscall_mkdir(registers_t *regs) {
 	fs_node_t *node = kopen(buffer, 0);
 	if (node != NULL) {
 		printf("already exists\n");
-		fs_close(node);
+		fs_close(&node);
 		return -1;
 	}
 

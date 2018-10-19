@@ -42,6 +42,7 @@ static void tar_open(fs_node_t *node, unsigned int flags);
 static void tar_close(fs_node_t *node);
 static struct dirent *tar_readdir(struct fs_node *node, uint32_t i);
 static fs_node_t *tar_finddir(struct fs_node *node, char *name);
+static int tar_readlink(fs_node_t *node, char *buf, size_t size);
 
 struct tar_obj *tar_create_obj_from_header(fs_node_t *device, struct tar_header *header, uintptr_t offset) {
 	struct tar_obj *obj = kcalloc(1, sizeof(struct tar_obj));
@@ -67,7 +68,7 @@ struct tar_obj *tar_create_obj_from_header(fs_node_t *device, struct tar_header 
 			obj->flags = FS_NODE_DIRECTORY;
 			break;
 		default:
-			printf("Warning: unsupported type ('%c') !\n", header->type);
+			printf("tar: %s: unsupported file type ('%c' (0x%x))!\n", __func__, header->type, header->type);
 			obj->flags = 0;
 			break;
 	}
@@ -82,7 +83,7 @@ struct tar_obj *tar_create_obj_from_header(fs_node_t *device, struct tar_header 
 }
 
 static fs_node_t *fs_node_from_tar(struct tar_obj *tar_obj) {
-	fs_node_t *f = fs_alloc_node();
+	fs_node_t *f = fs_node_new();
 	assert(f != NULL);
 
 	// removes the leading path from the name
@@ -106,6 +107,7 @@ static fs_node_t *fs_node_from_tar(struct tar_obj *tar_obj) {
 	f->readdir = tar_readdir;
 	f->finddir = tar_finddir;
 	f->read = tar_read;
+	f->readlink = tar_readlink;
 	f->length = tar_obj->length;
 	return f;
 }
@@ -117,7 +119,7 @@ static uintptr_t tar_lookup(fs_node_t *device, char *fname, struct tar_header *h
 	do {
 		s = fs_read(device, ptr, sizeof(struct tar_header), (uint8_t *)header);
 		if (s != sizeof(struct tar_header)) {
-			printf("tar: %s short read\n", __func__);
+			printf("tar: %s: short read\n", __func__);
 			return -1;
 		}
 		if (!memcmp(header->name, fname, slen_fname)) {
@@ -164,6 +166,9 @@ static void tar_close(fs_node_t *node) {
 
 static struct dirent *tar_readdir(struct fs_node *node, uint32_t i) {
 	struct tar_header header;
+	struct tar_obj *tar_obj = node->object;
+	assert(tar_obj != NULL);
+
 	if (i == 0) {
 		struct dirent *v = kcalloc(1, sizeof(struct dirent));
 		assert(v != NULL);
@@ -171,6 +176,7 @@ static struct dirent *tar_readdir(struct fs_node *node, uint32_t i) {
 		strncpy(v->name, ".", 255);
 		return v;
 	}
+
 	if (i == 1) {
 		struct dirent *v = kcalloc(1, sizeof(struct dirent));
 		assert(v != NULL);
@@ -180,14 +186,20 @@ static struct dirent *tar_readdir(struct fs_node *node, uint32_t i) {
 	}
 
 	uintptr_t ptr = 0;
-	size_t slen_fname = strlen(node->name);
+	char *fname = tar_obj->name;
+	size_t slen_fname = strlen(fname);
+	if (*fname == '/') {
+		fname++;
+		slen_fname--;
+	}
+
 	uint32_t j = 0;
 	while (1) {
 		fs_node_t *device = ((struct tar_obj *)node->object)->device;
 		size_t s = fs_read(device, ptr, sizeof(struct tar_header), (uint8_t *)&header);
 		if (s != sizeof(struct tar_header)) {
-			printf("tar: %s short read\n", __func__);
-			break;
+			printf("tar: %s: short read\n", __func__);
+			return NULL;
 		}
 
 		if (header.name[0] == 0) {
@@ -196,7 +208,7 @@ static struct dirent *tar_readdir(struct fs_node *node, uint32_t i) {
 
 		if ((header.name[0] == '.') && (header.name[1] == '/') && (header.name[2] == 0)) {
 			// ignore './' root directory entry
-		} else if (!memcmp(header.name, node->name, slen_fname)) {
+		} else if (!memcmp(header.name, fname, slen_fname)) {
 			// this complicated mess is needed to handle subdirectories correctly
 			char subname[100];
 			memset(subname, 0, 100);
@@ -214,12 +226,12 @@ static struct dirent *tar_readdir(struct fs_node *node, uint32_t i) {
 						break;
 					} else if ((*s == '/') && (*(s+1) == 0)) {
 						*s = 0;
+						j++;
 						break;
 					} else if (*s == '/') {
 						// XXX: subdir, ignore
 						break;
 					}
-
 					s++;
 				}
 				if ((i-1) == j) {
@@ -267,6 +279,27 @@ static fs_node_t *tar_finddir(struct fs_node *node, char *name) {
 	}
 }
 
+static int tar_readlink(fs_node_t *node, char *buf, size_t size) {
+	struct tar_obj *obj = (struct tar_obj *)node->object;
+	struct tar_header header;
+	assert(obj->flags & FS_NODE_SYMLINK);
+	size_t s;
+	s = fs_read(obj->device, obj->offset, sizeof(struct tar_header), (uint8_t *)&header);
+	if (s != sizeof(struct tar_header)) {
+		printf("tar: %s: short read\n", __func__);
+		return -1;
+	}
+
+	const size_t linked_name_len = strlen(header.linked_name) + 1;
+
+	if (size < linked_name_len) {
+		return -1;
+	} else {
+		memcpy(buf, header.linked_name, linked_name_len);
+		return linked_name_len - 1;
+	}
+}
+
 fs_node_t *mount_tar(fs_node_t *device) {
 	fs_open(device, 0);
 
@@ -278,8 +311,7 @@ fs_node_t *mount_tar(fs_node_t *device) {
 	tar_root_obj->name = kmalloc(1);
 	tar_root_obj->name[0] = 0;
 	tar_root_obj->flags = FS_NODE_DIRECTORY;
-
 	fs_node_t *tar_root = fs_node_from_tar(tar_root_obj);
-	fs_open(tar_root, 0);
+
 	return tar_root;
 }

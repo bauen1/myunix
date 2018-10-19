@@ -54,7 +54,7 @@ static void tmpfs_destroy_object(struct tmpfs_object *obj) {
 
 static fs_node_t *fs_node_from_tmpfs(struct tmpfs_object *tmpfs_obj) {
 	assert(tmpfs_obj != NULL);
-	fs_node_t *f = fs_alloc_node();
+	fs_node_t *f = fs_node_new();
 	assert(f != NULL);
 	strncpy(f->name, tmpfs_obj->name, 255);
 	f->flags = tmpfs_obj->flags;
