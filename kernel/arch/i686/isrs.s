@@ -21,8 +21,11 @@ isr_common_stub:
 
 	mov eax, cr3 ; save the page directory
 	push eax
-	mov eax, DWORD [ isrs_kernel_directory_ptr ]
-	mov cr3, eax
+	mov ebx, DWORD [ isrs_kernel_directory_ptr ]
+	cmp eax, ebx
+	je .skip_reload
+	mov cr3, ebx
+.skip_reload:
 
 	mov ax, 0x10        ; kernel data segment gdt index
 	mov ds, ax
@@ -37,8 +40,12 @@ isr_common_stub:
 
 global return_to_regs
 return_to_regs:
-	pop eax ; restore the page directory
-	mov cr3, eax
+	pop eax
+	mov ebx, cr3
+	cmp eax, ebx
+	je .skip_reload
+	mov cr3, eax ; restore page directory
+.skip_reload:
 
 	pop gs
 	pop fs
