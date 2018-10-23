@@ -661,10 +661,10 @@ index 00000000..d1b27121
 +#define SIZE_MAX        UINT32_MAX
 diff --git a/arch/i386-myunix/bits/syscall.h.in b/arch/i386-myunix/bits/syscall.h.in
 new file mode 100644
-index 00000000..8c666093
+index 00000000..8930cd94
 --- /dev/null
 +++ b/arch/i386-myunix/bits/syscall.h.in
-@@ -0,0 +1,27 @@
+@@ -0,0 +1,29 @@
 +#define __NR_exit 1
 +
 +#define __NR_read 3
@@ -685,6 +685,8 @@ index 00000000..8c666093
 +#define __NR_dup 41
 +
 +#define __NR_dup2 63
++
++#define __NR_readdir		 89
 +
 +#define __NR_clone 120
 +
@@ -766,22 +768,14 @@ index 00000000..43c8477a
 +);
 diff --git a/arch/i386-myunix/pthread_arch.h b/arch/i386-myunix/pthread_arch.h
 new file mode 100644
-index 00000000..d374c859
+index 00000000..7bd2c3b0
 --- /dev/null
 +++ b/arch/i386-myunix/pthread_arch.h
-@@ -0,0 +1,12 @@
-+/*
+@@ -0,0 +1,4 @@
 +static inline struct pthread *__pthread_self()
 +{
-+	struct pthread *self;
-+	__asm__ __volatile__ ("movl %%gs:0,%0" : "=r" (self) );
-+	return self;
++	return (struct pthread *)0xDEADC0DE;
 +}
-+
-+#define TP_ADJ(p) (p)
-+
-+#define MC_PC gregs[REG_EIP]
-+*/
 diff --git a/arch/i386-myunix/reloc.h b/arch/i386-myunix/reloc.h
 new file mode 100644
 index 00000000..032f454b
@@ -936,6 +930,38 @@ index 00000000..f3b61e01
 +.section .fini
 +	add $12,%esp
 +	ret
+diff --git a/include/dirent.h b/include/dirent.h
+index e0a8fe6a..b7b9f9d2 100644
+--- a/include/dirent.h
++++ b/include/dirent.h
+@@ -16,11 +16,12 @@ extern "C" {
+ #include <bits/alltypes.h>
+ 
+ typedef struct __dirstream DIR;
+-
++/*
+ #define _DIRENT_HAVE_D_RECLEN
+ #define _DIRENT_HAVE_D_OFF
++*/
+ #define _DIRENT_HAVE_D_TYPE
+-
++/*
+ struct dirent {
+ 	ino_t d_ino;
+ 	off_t d_off;
+@@ -28,6 +29,12 @@ struct dirent {
+ 	unsigned char d_type;
+ 	char d_name[256];
+ };
++*/
++struct dirent {
++	ino_t d_ino;
++	unsigned char d_type;
++	char d_name[256];
++};
+ 
+ #define d_fileno d_ino
+ 
 diff --git a/include/stdarg.h b/include/stdarg.h
 deleted file mode 100644
 index 3256f805..00000000
@@ -1150,48 +1176,74 @@ index 1acd5a69..c8f07904 100644
  
  LFS64(getdents);
 +*/
-diff --git a/src/dirent/opendir.c b/src/dirent/opendir.c
-index 5cb84e30..75686861 100644
---- a/src/dirent/opendir.c
-+++ b/src/dirent/opendir.c
-@@ -7,6 +7,8 @@
- 
- DIR *opendir(const char *name)
- {
-+/*
-+// TODO: implement
- 	int fd;
- 	DIR *dir;
- 
-@@ -18,4 +20,6 @@ DIR *opendir(const char *name)
- 	}
- 	dir->fd = fd;
- 	return dir;
-+*/
-+	return 0;
- }
 diff --git a/src/dirent/readdir.c b/src/dirent/readdir.c
-index 2cf0632c..cc5e3a70 100644
+index 2cf0632c..6378fc5b 100644
 --- a/src/dirent/readdir.c
 +++ b/src/dirent/readdir.c
-@@ -8,6 +8,8 @@ int __getdents(int, struct dirent *, size_t);
- 
+@@ -9,7 +9,7 @@ int __getdents(int, struct dirent *, size_t);
  struct dirent *readdir(DIR *dir)
  {
-+/*
-+// TODO: implement
  	struct dirent *de;
- 	
+-	
++/*
  	if (dir->buf_pos >= dir->buf_end) {
-@@ -23,6 +25,8 @@ struct dirent *readdir(DIR *dir)
+ 		int len = __syscall(SYS_getdents, dir->fd, dir->buf, sizeof dir->buf);
+ 		if (len <= 0) {
+@@ -23,6 +23,22 @@ struct dirent *readdir(DIR *dir)
  	dir->buf_pos += de->d_reclen;
  	dir->tell = de->d_off;
  	return de;
 +*/
-+	return NULL;
++	de = malloc(sizeof(struct dirent));
++	if (de == 0) {
++		return 0;
++	} else {
++		int i = __syscall(SYS_readdir, dir->fd, dir->tell, de);
++		if (i == 1) {
++			dir->tell++;
++			return de;
++		} else {
++			if (i != -ENOENT) {
++				errno = -i;
++			}
++			return 0;
++		}
++	}
  }
  
  LFS64(readdir);
+diff --git a/src/dirent/readdir_r.c b/src/dirent/readdir_r.c
+index daa6c6ed..c38b67d4 100644
+--- a/src/dirent/readdir_r.c
++++ b/src/dirent/readdir_r.c
+@@ -18,7 +18,8 @@ int readdir_r(DIR *restrict dir, struct dirent *restrict buf, struct dirent **re
+ 		return ret;
+ 	}
+ 	errno = errno_save;
+-	if (de) memcpy(buf, de, de->d_reclen);
++//	if (de) memcpy(buf, de, de->d_reclen);
++	if (de) memcpy(buf, de, sizeof(de));
+ 	else buf = NULL;
+ 
+ 	UNLOCK(dir->lock);
+diff --git a/src/dirent/scandir.c b/src/dirent/scandir.c
+index 3af2b50f..693dd1f2 100644
+--- a/src/dirent/scandir.c
++++ b/src/dirent/scandir.c
+@@ -26,9 +26,11 @@ int scandir(const char *path, struct dirent ***res,
+ 			if (!tmp) break;
+ 			names = tmp;
+ 		}
+-		names[cnt] = malloc(de->d_reclen);
++		//names[cnt] = malloc(de->d_reclen);
++		names[cnt] = malloc(sizeof(de));
+ 		if (!names[cnt]) break;
+-		memcpy(names[cnt++], de, de->d_reclen);
++		//memcpy(names[cnt++], de, de->d_reclen);
++		memcpy(names[cnt++], de, sizeof(de));
+ 	}
+ 
+ 	closedir(d);
 diff --git a/src/env/__init_tls.c b/src/env/__init_tls.c
 index b125eb1f..04446012 100644
 --- a/src/env/__init_tls.c
@@ -1243,20 +1295,18 @@ index b125eb1f..04446012 100644
  weak_alias(static_init_tls, __init_tls);
 +
 diff --git a/src/env/__libc_start_main.c b/src/env/__libc_start_main.c
-index 2d758af7..8e2eeb6f 100644
+index 2d758af7..76985d9a 100644
 --- a/src/env/__libc_start_main.c
 +++ b/src/env/__libc_start_main.c
-@@ -23,24 +23,28 @@ void __init_libc(char **envp, char *pn)
- {
+@@ -24,23 +24,27 @@ void __init_libc(char **envp, char *pn)
  	size_t i, *auxv, aux[AUX_CNT] = { 0 };
  	__environ = envp;
--	for (i=0; envp[i]; i++);
+ 	for (i=0; envp[i]; i++);
 -	libc.auxv = auxv = (void *)(envp+i+1);
 -	for (i=0; auxv[i]; i+=2) if (auxv[i]<AUX_CNT) aux[auxv[i]] = auxv[i+1];
 -	__hwcap = aux[AT_HWCAP];
 -	__sysinfo = aux[AT_SYSINFO];
 -	libc.page_size = aux[AT_PAGESZ];
-+//	for (i=0; envp[i]; i++);
 +//	libc.auxv = auxv = (void *)(envp+i+1);
 +//	for (i=0; auxv[i]; i+=2) if (auxv[i]<AUX_CNT) aux[auxv[i]] = auxv[i+1];
 +//	__hwcap = aux[AT_HWCAP];
@@ -1293,38 +1343,6 @@ index 2d758af7..8e2eeb6f 100644
  	libc.secure = 1;
  }
  
-@@ -65,12 +70,14 @@ weak_alias(libc_start_init, __libc_start_init);
- 
- int __libc_start_main(int (*main)(int,char **,char **), int argc, char **argv)
- {
--	char **envp = argv+argc+1;
-+//	char **envp = argv+argc+1;
- 
--	__init_libc(envp, argv[0]);
-+//	__init_libc(envp, argv[0]);
-+	__init_libc(NULL, NULL);
- 	__libc_start_init();
- 
- 	/* Pass control to the application */
--	exit(main(argc, argv, envp));
-+//	exit(main(argc, argv, envp));
-+	exit(main(argc, argv, NULL));
- 	return 0;
- }
-diff --git a/src/env/__reset_tls.c b/src/env/__reset_tls.c
-index 677e57f5..fe14950f 100644
---- a/src/env/__reset_tls.c
-+++ b/src/env/__reset_tls.c
-@@ -1,3 +1,4 @@
-+/*
- #include <string.h>
- #include "pthread_impl.h"
- #include "libc.h"
-@@ -14,3 +15,4 @@ void __reset_tls()
- 			p->size - p->len);
- 	}
- }
-+*/
 diff --git a/src/env/__stack_chk_fail.c b/src/env/__stack_chk_fail.c
 index 4de82fd9..4b58a3d7 100644
 --- a/src/env/__stack_chk_fail.c
@@ -1499,10 +1517,28 @@ index a189ca2e..7c7904d5 100644
  	or %eax,%edx
 diff --git a/src/internal/i386-myunix/syscall.s b/src/internal/i386-myunix/syscall.s
 new file mode 100644
-index 00000000..8b137891
+index 00000000..c731a3d4
 --- /dev/null
 +++ b/src/internal/i386-myunix/syscall.s
-@@ -0,0 +1 @@
+@@ -0,0 +1,19 @@
++.global __syscall
++.hidden __syscall
++.type __syscall,@function
++__syscall:
++	lea 24(%esp),%eax
++	push %esi
++	push %edi
++	push %eax
++	mov 16(%esp),%eax
++	mov 20(%esp),%edx
++	mov 24(%esp),%ecx
++	mov 28(%esp),%edi
++	mov 32(%esp),%esi
++	call __vsyscall6
++	pop %edi
++	pop %edi
++	pop %esi
++	ret
 +
 diff --git a/src/internal/i386/syscall.s b/src/internal/i386/syscall.s
 index 0ebf2218..612427cd 100644
@@ -1583,26 +1619,27 @@ index df864111..dc755856 100644
  int __rem_pio2l(long double, long double *);
  long double __sinl(long double, long double, int);
 diff --git a/src/internal/locale_impl.h b/src/internal/locale_impl.h
-index d5a3cc94..f549d008 100644
+index d5a3cc94..6c6717a6 100644
 --- a/src/internal/locale_impl.h
 +++ b/src/internal/locale_impl.h
-@@ -30,11 +30,13 @@ const char *__lctrans_cur(const char *);
+@@ -24,14 +24,13 @@ const char *__mo_lookup(const void *, size_t, const char *);
+ const char *__lctrans(const char *, const struct __locale_map *);
+ const char *__lctrans_cur(const char *);
+ 
+-#define LCTRANS(msg, lc, loc) __lctrans(msg, (loc)->cat[(lc)])
+-#define LCTRANS_CUR(msg) __lctrans_cur(msg)
++#define LCTRANS(msg, lc, loc) ((msg))
++#define LCTRANS_CUR(msg) ((msg))
+ 
  #define C_LOCALE ((locale_t)&__c_locale)
  #define UTF8_LOCALE ((locale_t)&__c_dot_utf8_locale)
  
 -#define CURRENT_LOCALE (__pthread_self()->locale)
-+//#define CURRENT_LOCALE (__pthread_self()->locale)
+-
 +#define CURRENT_LOCALE ((locale_t)__c_locale)
- 
--#define CURRENT_UTF8 (!!__pthread_self()->locale->cat[LC_CTYPE])
-+//#define CURRENT_UTF8 (!!__pthread_self()->locale->cat[LC_CTYPE])
+ #define CURRENT_UTF8 (!!__pthread_self()->locale->cat[LC_CTYPE])
  
  #undef MB_CUR_MAX
--#define MB_CUR_MAX (CURRENT_UTF8 ? 4 : 1)
-+//#define MB_CUR_MAX (CURRENT_UTF8 ? 4 : 1)
-+#define MB_CUR_MAX 4
- 
- #endif
 diff --git a/src/internal/pthread_impl.h b/src/internal/pthread_impl.h
 index f6a4f2c2..5213945f 100644
 --- a/src/internal/pthread_impl.h
@@ -1625,10 +1662,35 @@ index f6a4f2c2..5213945f 100644
  void __release_ptc(void);
  void __inhibit_ptc(void);
 diff --git a/src/internal/syscall.h b/src/internal/syscall.h
-index 6d378a81..f6c6f625 100644
+index 6d378a81..3c011239 100644
 --- a/src/internal/syscall.h
 +++ b/src/internal/syscall.h
-@@ -234,8 +234,10 @@ long __syscall_ret(unsigned long), __syscall(syscall_arg_t, ...),
+@@ -56,6 +56,8 @@ long __syscall_ret(unsigned long), __syscall(syscall_arg_t, ...),
+ #define socketcall __socketcall
+ #define socketcall_cp __socketcall_cp
+ 
++// FIXME:
++#if 0
+ #define __syscall_cp0(n) (__syscall_cp)(n,0,0,0,0,0,0)
+ #define __syscall_cp1(n,a) (__syscall_cp)(n,__scc(a),0,0,0,0,0)
+ #define __syscall_cp2(n,a,b) (__syscall_cp)(n,__scc(a),__scc(b),0,0,0,0)
+@@ -63,6 +65,15 @@ long __syscall_ret(unsigned long), __syscall(syscall_arg_t, ...),
+ #define __syscall_cp4(n,a,b,c,d) (__syscall_cp)(n,__scc(a),__scc(b),__scc(c),__scc(d),0,0)
+ #define __syscall_cp5(n,a,b,c,d,e) (__syscall_cp)(n,__scc(a),__scc(b),__scc(c),__scc(d),__scc(e),0)
+ #define __syscall_cp6(n,a,b,c,d,e,f) (__syscall_cp)(n,__scc(a),__scc(b),__scc(c),__scc(d),__scc(e),__scc(f))
++#else
++#define __syscall_cp0(n) __syscall0(n)
++#define __syscall_cp1(n,a) __syscall1(n,__scc(a))
++#define __syscall_cp2(n,a,b) __syscall2(n,__scc(a),__scc(b))
++#define __syscall_cp3(n,a,b,c) __syscall3(n,__scc(a),__scc(b),__scc(c))
++#define __syscall_cp4(n,a,b,c,d) __syscall4(n,__scc(a),__scc(b),__scc(c),__scc(d))
++#define __syscall_cp5(n,a,b,c,d,e) __syscall5(n,__scc(a),__scc(b),__scc(c),__scc(d),__scc(e))
++#define __syscall_cp6(n,a,b,c,d,e,f) __syscall6(n,__scc(a),__scc(b),__scc(c),__scc(d),__scc(e),__scc(f))
++#endif
+ 
+ #define __syscall_cp(...) __SYSCALL_DISP(__syscall_cp,__VA_ARGS__)
+ #define syscall_cp(...) __syscall_ret(__syscall_cp(__VA_ARGS__))
+@@ -234,8 +245,10 @@ long __syscall_ret(unsigned long), __syscall(syscall_arg_t, ...),
  #else
  #define __sys_open2(x,pn,fl) __syscall3(SYS_openat, AT_FDCWD, pn, (fl)|O_LARGEFILE)
  #define __sys_open3(x,pn,fl,mo) __syscall4(SYS_openat, AT_FDCWD, pn, (fl)|O_LARGEFILE, mo)
@@ -2179,30 +2241,31 @@ index 00000000..b9e55945
 +	return __syscall_ret(__clone(func, stack, flags, arg, ptid, tls, ctid));
 +}
 diff --git a/src/process/fork.c b/src/process/fork.c
-index da074ae9..70b979fa 100644
+index da074ae9..54e6946d 100644
 --- a/src/process/fork.c
 +++ b/src/process/fork.c
-@@ -17,11 +17,8 @@ pid_t fork(void)
+@@ -16,20 +16,11 @@ pid_t fork(void)
+ 	pid_t ret;
  	sigset_t set;
  	__fork_handler(-1);
- 	__block_all_sigs(&set);
+-	__block_all_sigs(&set);
 -#ifdef SYS_fork
 -	ret = __syscall(SYS_fork);
 -#else
  	ret = __syscall(SYS_clone, SIGCHLD, 0);
 -#endif
-+/*
++
  	if (!ret) {
- 		pthread_t self = __pthread_self();
- 		self->tid = __syscall(SYS_gettid);
-@@ -29,6 +26,7 @@ pid_t fork(void)
- 		self->robust_list.pending = 0;
+-		pthread_t self = __pthread_self();
+-		self->tid = __syscall(SYS_gettid);
+-		self->robust_list.off = 0;
+-		self->robust_list.pending = 0;
  		libc.threads_minus_1 = 0;
  	}
-+*/
- 	__restore_sigs(&set);
+-	__restore_sigs(&set);
  	__fork_handler(!ret);
  	return __syscall_ret(ret);
+ }
 diff --git a/src/process/i386-myunix b/src/process/i386-myunix
 new file mode 120000
 index 00000000..fd32fa4e
@@ -2212,20 +2275,26 @@ index 00000000..fd32fa4e
 +i386
 \ No newline at end of file
 diff --git a/src/process/posix_spawn.c b/src/process/posix_spawn.c
-index 93fb1555..f73c8586 100644
+index 93fb1555..b72ab3ef 100644
 --- a/src/process/posix_spawn.c
 +++ b/src/process/posix_spawn.c
-@@ -69,19 +69,19 @@ static int child(void *args_vp)
+@@ -49,7 +49,6 @@ static int child(void *args_vp)
+ 	 * memory, with unpredictable and dangerous results. To
+ 	 * reduce overhead, sigaction has tracked for us which signals
+ 	 * potentially have a signal handler. */
+-	__get_handler_set(&hset);
+ 	for (i=1; i<_NSIG; i++) {
+ 		if ((attr->__flags & POSIX_SPAWN_SETSIGDEF)
+ 		     && sigismember(&attr->__def, i)) {
+@@ -69,19 +68,15 @@ static int child(void *args_vp)
  	}
  
  	if (attr->__flags & POSIX_SPAWN_SETSID)
 -		if ((ret=__syscall(SYS_setsid)) < 0)
-+//		if ((ret=__syscall(SYS_setsid)) < 0)
  			goto fail;
  
  	if (attr->__flags & POSIX_SPAWN_SETPGROUP)
 -		if ((ret=__syscall(SYS_setpgid, 0, attr->__pgrp)))
-+//		if ((ret=__syscall(SYS_setpgid, 0, attr->__pgrp)))
  			goto fail;
  
  	/* Use syscalls directly because the library functions attempt
@@ -2234,34 +2303,32 @@ index 93fb1555..f73c8586 100644
  	if (attr->__flags & POSIX_SPAWN_RESETIDS)
 -		if ((ret=__syscall(SYS_setgid, __syscall(SYS_getgid))) ||
 -		    (ret=__syscall(SYS_setuid, __syscall(SYS_getuid))) )
-+//		if ((ret=__syscall(SYS_setgid, __syscall(SYS_getgid))) ||
-+//		    (ret=__syscall(SYS_setuid, __syscall(SYS_getuid))) )
  			goto fail;
  
  	if (fa && fa->__actions) {
-@@ -109,10 +109,10 @@ static int child(void *args_vp)
+@@ -109,10 +104,6 @@ static int child(void *args_vp)
  					if ((ret=__sys_dup2(fd, op->fd))<0)
  						goto fail;
  				} else {
 -					ret = __syscall(SYS_fcntl, fd, F_GETFD);
-+/*					ret = __syscall(SYS_fcntl, fd, F_GETFD);
- 					ret = __syscall(SYS_fcntl, fd, F_SETFD,
- 					                ret & ~FD_CLOEXEC);
+-					ret = __syscall(SYS_fcntl, fd, F_SETFD,
+-					                ret & ~FD_CLOEXEC);
 -					if (ret<0)
-+					if (ret<0)*/
  						goto fail;
  				}
  				break;
-@@ -133,7 +133,7 @@ static int child(void *args_vp)
+@@ -133,10 +124,6 @@ static int child(void *args_vp)
  	 * to a different fd. We don't use F_DUPFD_CLOEXEC above because
  	 * it would fail on older kernels and atomicity is not needed --
  	 * in this process there are no threads or signal handlers. */
 -	__syscall(SYS_fcntl, p, F_SETFD, FD_CLOEXEC);
-+//	__syscall(SYS_fcntl, p, F_SETFD, FD_CLOEXEC);
+-
+-	pthread_sigmask(SIG_SETMASK, (attr->__flags & POSIX_SPAWN_SETSIGMASK)
+-		? &attr->__mask : &args->oldmask, 0);
  
- 	pthread_sigmask(SIG_SETMASK, (attr->__flags & POSIX_SPAWN_SETSIGMASK)
- 		? &attr->__mask : &args->oldmask, 0);
-@@ -148,7 +148,6 @@ fail:
+ 	args->exec(args->path, args->argv, args->envp);
+ 	ret = -errno;
+@@ -148,7 +135,6 @@ fail:
  	_exit(127);
  }
  
@@ -2269,11 +2336,46 @@ index 93fb1555..f73c8586 100644
  int __posix_spawnx(pid_t *restrict res, const char *restrict path,
  	int (*exec)(const char *, char *const *, char *const *),
  	const posix_spawn_file_actions_t *fa,
-@@ -201,3 +200,4 @@ int posix_spawn(pid_t *restrict res, const char *restrict path,
- {
- 	return __posix_spawnx(res, path, execve, fa, attr, argv, envp);
+@@ -160,10 +146,6 @@ int __posix_spawnx(pid_t *restrict res, const char *restrict path,
+ 	int ec=0, cs;
+ 	struct args args;
+ 
+-	if (pipe2(args.p, O_CLOEXEC))
+-		return errno;
+-
+-	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &cs);
+ 
+ 	args.path = path;
+ 	args.exec = exec;
+@@ -171,7 +153,6 @@ int __posix_spawnx(pid_t *restrict res, const char *restrict path,
+ 	args.attr = attr ? attr : &(const posix_spawnattr_t){0};
+ 	args.argv = argv;
+ 	args.envp = envp;
+-	pthread_sigmask(SIG_BLOCK, SIGALL_SET, &args.oldmask);
+ 
+ 	pid = __clone(child, stack+sizeof stack,
+ 		CLONE_VM|CLONE_VFORK|SIGCHLD, &args);
+@@ -188,8 +169,6 @@ int __posix_spawnx(pid_t *restrict res, const char *restrict path,
+ 
+ 	if (!ec && res) *res = pid;
+ 
+-	pthread_sigmask(SIG_SETMASK, &args.oldmask, 0);
+-	pthread_setcancelstate(cs, 0);
+ 
+ 	return ec;
  }
-+
+diff --git a/src/process/system.c b/src/process/system.c
+index 8cbdda06..2608c4e8 100644
+--- a/src/process/system.c
++++ b/src/process/system.c
+@@ -17,7 +17,6 @@ int system(const char *cmd)
+ 	int status = 0x7f00, ret;
+ 	posix_spawnattr_t attr;
+ 
+-	pthread_testcancel();
+ 
+ 	if (!cmd) return 1;
+ 
 diff --git a/src/process/vfork.c b/src/process/vfork.c
 index ac954651..e59d28c5 100644
 --- a/src/process/vfork.c
@@ -2314,19 +2416,38 @@ index c67feac3..cdd460e8 100644
  }
 +*/
 diff --git a/src/process/waitpid.c b/src/process/waitpid.c
-index f75e31ef..12070968 100644
+index f75e31ef..f5948302 100644
 --- a/src/process/waitpid.c
 +++ b/src/process/waitpid.c
-@@ -4,5 +4,9 @@
+@@ -4,5 +4,5 @@
  
  pid_t waitpid(pid_t pid, int *status, int options)
  {
-+/*
-+// TODO: implement
- 	return syscall_cp(SYS_wait4, pid, status, options, 0);
-+*/
-+	return -1;
+-	return syscall_cp(SYS_wait4, pid, status, options, 0);
++	return syscall_cp(SYS_waitpid, pid, status, options);
  }
+diff --git a/src/regex/glob.c b/src/regex/glob.c
+index 85671985..d24ccce7 100644
+--- a/src/regex/glob.c
++++ b/src/regex/glob.c
+@@ -93,7 +93,7 @@ static int match_in_dir(const char *d, const char *p, int flags, int (*errfunc)(
+ 		return error;
+ 	}
+ 	while (!(error = readdir_r(dir, &de_buf, &de)) && de) {
+-		char namebuf[l+de->d_reclen+2], *name = namebuf;
++		char namebuf[l + 256 + 2], *name = namebuf;
+ 		if (!literal && fnmatch(p, de->d_name, fnm_flags))
+ 			continue;
+ 		if (literal && strcmp(p, de->d_name))
+@@ -129,7 +129,7 @@ static int match_in_dir(const char *d, const char *p, int flags, int (*errfunc)(
+ 					mark = S_ISDIR(st.st_mode);
+ 				}
+ 			}
+-			if (append(tail, name, l+de->d_reclen+1, mark)) {
++			if (append(tail, name, l + 256 + 2, mark)) {
+ 				closedir(dir);
+ 				return GLOB_NOSPACE;
+ 			}
 diff --git a/src/sched/affinity.c b/src/sched/affinity.c
 deleted file mode 100644
 index 948ece41..00000000
@@ -3636,30 +3757,6 @@ index 45557c88..a33df603 100644
  	}
  }
 +*/
-diff --git a/src/thread/__syscall_cp.c b/src/thread/__syscall_cp.c
-index 09a2be84..5ce616cb 100644
---- a/src/thread/__syscall_cp.c
-+++ b/src/thread/__syscall_cp.c
-@@ -8,7 +8,8 @@ static long sccp(syscall_arg_t nr,
-                  syscall_arg_t u, syscall_arg_t v, syscall_arg_t w,
-                  syscall_arg_t x, syscall_arg_t y, syscall_arg_t z)
- {
--	return (__syscall)(nr, u, v, w, x, y, z);
-+// FIXME:	return (__syscall)(nr, u, v, w, x, y, z);
-+	__syscall6(nr, u, v, w, x, y, z);
- }
- 
- weak_alias(sccp, __syscall_cp_c);
-@@ -19,3 +20,9 @@ long (__syscall_cp)(syscall_arg_t nr,
- {
- 	return __syscall_cp_c(nr, u, v, w, x, y, z);
- }
-+
-+long (__syscall_cp3)(syscall_arg_t nr,
-+                    syscall_arg_t u, syscall_arg_t v, syscall_arg_t w)
-+{
-+	return __syscall3(nr, u, v, w);
-+}
 diff --git a/src/thread/__timedwait.c b/src/thread/__timedwait.c
 index d2079c88..c38c51f6 100644
 --- a/src/thread/__timedwait.c

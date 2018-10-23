@@ -195,10 +195,6 @@ static void process_map_shared_region(page_directory_t *pdir, uintptr_t start, u
 	assert(pdir != NULL);
 	assert((start & 0xFFF) == 0);
 
-	if ((end & 0xFFF) != 0) {
-		printf(" WARN: end 0x%8x not aligned!\n", end);
-	}
-
 	for (uintptr_t i = 0; i < (end - start); i += BLOCK_SIZE) {
 		uintptr_t addr = start + i;
 		map_page(get_table_alloc(addr, pdir), addr, addr, permissions);
@@ -208,10 +204,6 @@ static void process_map_shared_region(page_directory_t *pdir, uintptr_t start, u
 static void process_unmap_shared_region(page_directory_t *pdir, uintptr_t start, uintptr_t end) {
 	assert(pdir != NULL);
 	assert((start & 0xFFF) == 0);
-
-	if ((end & 0xFFF) != 0) {
-		printf(" WARN: end 0x%8x not aligned!\n", end);
-	}
 
 	for (uintptr_t i = 0; i < (end - start); i += BLOCK_SIZE) {
 		uintptr_t addr = start + i;
@@ -316,7 +308,35 @@ static void process_page_directory_free(page_directory_t *pdir) {
 	}
 }
 
-void process_exec2(process_t *process, fs_node_t *f, unsigned int argc, const char **argv) {
+// process_execve helper
+static uintptr_t *process_exec_copy_array(process_t *process, uintptr_t *region_ptr, uintptr_t region_end, char * const * const array, size_t array_length) {
+	uintptr_t *ptrs = kcalloc(array_length, sizeof(uintptr_t));
+	assert(ptrs != NULL);
+
+	if (array == NULL) {
+		assert(array_length == 0);
+	} else {
+		assert(array[array_length] == NULL);
+		for (size_t i = 0; i < array_length; i++) {
+			printf("%s: trying to copy array[%u] %p '%s' to %p\n", __func__, (unsigned int)i, array[i], array[i], *region_ptr);
+			const char *v = array[i];
+			assert(v != NULL);
+			const size_t v_len = strlen(v) + 1;
+			if (*region_ptr + v_len >= region_end) {
+				// TODO: grow the region
+				assert(0);
+			}
+			int32_t r = copy_to_userspace(process->task.pdir, *region_ptr, v_len, v);
+			assert(r >= 0);
+			ptrs[i] = *region_ptr;
+			*region_ptr += v_len;
+		}
+	}
+
+	return ptrs;
+}
+
+void process_exec2(process_t *process, fs_node_t *f, size_t argc, char * const * const argv, size_t envc, char * const * const envp) {
 	const uintptr_t virt_text_start = 0x1000000;
 	const uintptr_t virt_heap_start = 0x2000000; // max 16mb text
 	const uintptr_t virt_stack_start = 0x8000000;
@@ -409,31 +429,48 @@ void process_exec2(process_t *process, fs_node_t *f, unsigned int argc, const ch
 
 	map_page(get_table(k_tmp, kernel_directory), k_tmp, 0, 0);
 
+	// TODO: good fucking god fix this please ...
+
 	/*
 	 * TODO: implement properly
 	 * XXX: ensure the user stack is 16byte aligned
 	 */
-	uintptr_t buf[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
-	size_t init_frame_size = sizeof(buf);
-	uintptr_t user_stack = virt_heap_start + (256-1)*BLOCK_SIZE;
-	user_stack -= init_frame_size;
-	buf[0] = argc; // argc
-	buf[1] = virt_misc_start; // argv[0];
-	buf[2] = 0; // argv[1]
-	buf[3] = 0; // env[0]
-	buf[4] = 0; // env[1]
 
-	copy_to_userspace(process->task.pdir, user_stack, init_frame_size, buf);
-	if (argv != NULL) {
-		copy_to_userspace(process->task.pdir, buf[1], strlen(argv[0]) + 1, argv[0]);
-	} else {
-		printf("%s: WARN: argv = NULL!\n", __func__);
+	uintptr_t misc_ptr = virt_misc_start;
+	uintptr_t misc_region_end = virt_misc_start + 1 * PAGE_SIZE;
+
+	uintptr_t *argv_ptrs = process_exec_copy_array(process, &misc_ptr, misc_region_end, argv, argc);
+	uintptr_t *envp_ptrs = process_exec_copy_array(process, &misc_ptr, misc_region_end, envp, envc);
+
+	size_t user_stack_size = argc + 2 + envc + 1;
+	uint32_t * const user_stack = kmalloc(sizeof(uint32_t) * user_stack_size);
+	assert(user_stack != NULL);
+	uint32_t *user_stack_ptr = user_stack;
+
+	// XXX: push in reverse order
+	*user_stack_ptr++ = argc;
+	for (size_t i = 0; i < argc; i++) {
+		*user_stack_ptr++ = argv_ptrs[i];
 	}
+	*user_stack_ptr++ = 0;
+	for (size_t i = 0; i < envc; i++) {
+		*user_stack_ptr++ = envp_ptrs[i];
+	}
+	*user_stack_ptr++ = 0;
+
+	const uintptr_t user_stack_top = (uintptr_t)(user_stack + user_stack_size);
+	assert((uintptr_t)user_stack_ptr == user_stack_top);
+	uintptr_t virt_stack_top = virt_heap_start + 256 * BLOCK_SIZE - user_stack_size * sizeof(uint32_t);
+	intptr_t r = copy_to_userspace(process->task.pdir, virt_stack_top, user_stack_size * sizeof(uint32_t), user_stack);
+	assert(r > 0);
+	kfree(user_stack);
+	kfree(argv_ptrs);
+	kfree(envp_ptrs);
 
 	registers_t *regs = (registers_t *)(process->task.kstack - sizeof(registers_t));
 	regs->old_directory = (uintptr_t)process->task.pdir->physical_address;
-	regs->gs = 0x23;
-	regs->fs = 0x23;
+	regs->gs = 0;
+	regs->fs = 0;
 	regs->es = 0x23;
 	regs->ds = 0x23;
 	regs->edi = 0;
@@ -448,7 +485,7 @@ void process_exec2(process_t *process, fs_node_t *f, unsigned int argc, const ch
 	regs->eip = virt_text_start;
 	regs->cs = 0x1B;
 	regs->eflags = 0x200; // enable interrupts
-	regs->esp = user_stack;
+	regs->esp = virt_stack_top;
 	regs->ss = regs->ds;
 
 	process->task.registers = regs;
@@ -458,7 +495,7 @@ void process_exec2(process_t *process, fs_node_t *f, unsigned int argc, const ch
 	process->task.eip = (uintptr_t)return_to_regs;
 }
 
-process_t *process_exec(fs_node_t *f, unsigned int argc, const char **argv) {
+process_t *process_exec(fs_node_t *f, unsigned int argc, char * const * const argv) {
 	assert(f != NULL);
 	assert(f->length != 0);
 
@@ -477,7 +514,7 @@ process_t *process_exec(fs_node_t *f, unsigned int argc, const char **argv) {
 	fd_table_set(process->fd_table, 1, fd_reference(tty_fd));
 	fd_table_set(process->fd_table, 2, fd_reference(tty_fd));
 
-	process_exec2(process, f, argc, argv);
+	process_exec2(process, f, argc, argv, 0, NULL);
 	return process;
 }
 

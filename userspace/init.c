@@ -29,9 +29,12 @@ int main(int argc, char *argv[]) {
 	}
 	free(c);
 */
-	while(1) {
-		putchar(getchar());
-	}
 
+	printf("putenv: %d\n", putenv("TEST=1234"));
+	printf("setenv: %d\n", setenv("HOME", "/", 1));
+	printf("setenv2: %d\n", setenv("HI", "hello guys", 1));
+	printf("env['HI']: '%s'\n", getenv("HI"));
+	const char *a[] = {"/sh", NULL};
+	execv(a[0], a);
 	return EXIT_FAILURE;
 }

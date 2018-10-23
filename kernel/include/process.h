@@ -51,8 +51,8 @@ int fd_table_append(fd_table_t *fd_table, fd_entry_t *entry);
 fd_entry_t *fd_table_get(fd_table_t *fd_table, unsigned int i);
 
 /* process_t helpers */
-void process_exec2(process_t *process, fs_node_t *f, unsigned int agrc, const char **argv);
-process_t *process_exec(fs_node_t *f, unsigned int argc, const char **argv);
+void process_exec2(process_t *process, fs_node_t *f, size_t argc, char * const * const argv, size_t envc, char * const * const envp);
+process_t *process_exec(fs_node_t *f, unsigned int argc, char * const * const argv);
 void process_destroy(process_t *process);
 pid_t get_pid(void);
 

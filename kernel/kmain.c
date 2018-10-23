@@ -572,7 +572,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 			printf("could not find init!\n");
 			assert(0);
 		}
-		const char *argv[2] = { "init", NULL };
+		char * const argv[2] = { "init", NULL };
 		process_t *p = process_exec(f, 1, argv);
 		fs_close(&f); // this should free fs_node(init)
 		p->pid = 1;

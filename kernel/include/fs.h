@@ -22,6 +22,7 @@ enum fs_node_flags {
 
 struct dirent {
 	uint32_t ino;
+	unsigned char type; /* FS_NODE_FLAGS */
 	char name[256];
 };
 

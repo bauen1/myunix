@@ -76,7 +76,6 @@ static void unmap_from_kernel(uintptr_t kptr, size_t n) {
 	}
 }
 
-// TODO: implement helpers to copy char**
 // only copies if all data was successfully mapped
 intptr_t copy_from_userspace(page_directory_t *pdir, uintptr_t ptr, size_t n, void *buffer) {
 	size_t size_in_blocks = (BLOCK_SIZE - 1 + n + (ptr & 0xfff)) / BLOCK_SIZE;
@@ -98,6 +97,162 @@ intptr_t copy_from_userspace(page_directory_t *pdir, uintptr_t ptr, size_t n, vo
 
 	unmap_from_kernel(kptr, size_in_blocks);
 	return n;
+}
+
+// TODO: improve this, a lot
+intptr_t copy_from_userspace_string(page_directory_t *pdir, uintptr_t ptr, size_t n, void *buffer) {
+	assert(pdir != NULL);
+	assert(ptr != 0);
+	assert(buffer != NULL);
+
+	uintptr_t kptr = find_vspace(kernel_directory, 1);
+	if (kptr == 0) {
+		return -1;
+	}
+
+	size_t i = 0;
+	char *buf = buffer;
+	uintptr_t p = ptr & ~0xFFF;
+	size_t offset = ptr & 0xFFF;
+
+	while(1) {
+		intptr_t v = map_userspace_to_kernel(pdir, p, kptr, 1);
+		if (v != 0) {
+			unmap_from_kernel(kptr, 1);
+			return -1;
+		}
+
+		for (char *v = (char *)(kptr + offset); (uintptr_t)v < kptr + BLOCK_SIZE; v++) {
+			if ((uintptr_t)buf >= (uintptr_t)buffer + n) {
+				unmap_from_kernel(kptr, 1);
+				return -1;
+			}
+			*buf = *v;
+			if (*v == 0) {
+				unmap_from_kernel(kptr, 1);
+				return i;
+			} else {
+				i++;
+				buf++;
+			}
+		}
+		*buf = 0;
+		offset = 0;
+		p += BLOCK_SIZE;
+	}
+
+	unmap_from_kernel(kptr, 1);
+	return -1;
+}
+
+// TODO: improve this, a lot
+intptr_t copy_from_userspace_ptr_array(page_directory_t *pdir, uintptr_t ptr, size_t size, uintptr_t *buffer) {
+	assert(pdir != NULL);
+	assert(buffer != NULL);
+
+	printf("%s(pdir: %p, ptr: %p, size: %u, buffer: %p)\n", __func__, pdir, ptr, (unsigned int)size, buffer);
+
+	if (ptr == 0) {
+		return 0;
+	}
+
+	if ((ptr % 4) != 0) {
+		printf("%s: misaligned pointer %p\n", __func__, ptr);
+		return -1;
+	}
+
+	uintptr_t kptr = find_vspace(kernel_directory, 1);
+	if (kptr == 0) {
+		printf("%s: could not find kernel vspace\n", __func__);
+		return -1;
+	}
+
+	size_t i = 0;
+	uintptr_t *buf = buffer;
+	uintptr_t p = ptr & ~0xFFF;
+	size_t offset = ptr & 0xFFF;
+
+	while(1) {
+		intptr_t v = map_userspace_to_kernel(pdir, p, kptr, 1);
+		if (v != 0) {
+			printf("%s: failure mapping %p from userspace\n", __func__, p);
+			unmap_from_kernel(kptr, 1);
+			return -1;
+		}
+
+		for (uintptr_t *v = (uintptr_t *)(kptr + offset); (uintptr_t)v < kptr + BLOCK_SIZE; v++) {
+			if ((uintptr_t)buf >= (uintptr_t)buffer + size * sizeof(uintptr_t)) {
+				printf("%s: end of buffer\n", __func__);
+				unmap_from_kernel(kptr, 1);
+				return i - 1;
+			}
+			printf("%s: v: %p\n", __func__, *v);
+			*buf = *v;
+			if (*v == 0) {
+				printf("%s: end of array\n", __func__);
+				unmap_from_kernel(kptr, 1);
+				return i;
+			} else {
+				i++;
+				buf++;
+			}
+		}
+		offset = 0;
+		p += BLOCK_SIZE;
+	}
+
+	unmap_from_kernel(kptr, 1);
+	return -1;
+}
+
+// TODO: limit maximum number of array elements / element size
+char **copy_from_userspace_array(page_directory_t *pdir, uintptr_t ptr, size_t size) {
+	char **array = kcalloc(size, sizeof(char *));
+	if (array == NULL) {
+		printf("%s: array allocation out of memory\n", __func__);
+		return NULL;
+	}
+
+	uintptr_t *user_array = kcalloc(size, sizeof(uintptr_t));
+	if (user_array == NULL) {
+		printf("%s: out of memory\n", __func__);
+		kfree(array);
+		return NULL;
+	}
+	{
+		intptr_t r = copy_from_userspace_ptr_array(pdir, ptr, size, user_array);
+		if (r < 0) {
+			kfree(array);
+			kfree(user_array);
+			printf("%s: copy_from_userspace_ptr_array returned %d\n", __func__, r);
+			return NULL;
+		}
+	}
+
+	for (size_t i = 0; i < (size - 1); i++) {
+		const uintptr_t user_ptr = user_array[i];
+		if (user_ptr == 0) {
+			printf("%s: user_ptr = 0 assuming end\n", __func__);
+			array[i] = NULL;
+			return array;
+		} else {
+			const size_t element_size = 256;
+			char *element = kmalloc(element_size);
+			printf("%s: copy %p from user\n", __func__, user_array[i]);
+			intptr_t r = copy_from_userspace_string(pdir, user_array[i], element_size, element);
+			if (r < 0) {
+				printf("%s: copy failure! (r=%d)\n", __func__, r);
+				kfree(array);
+				kfree(user_array);
+				return NULL;
+			}
+			array[i] = element;
+		}
+	}
+
+	array[size - 1] = NULL;
+	kfree(user_array);
+	return array;
 }
 
 intptr_t copy_to_userspace(page_directory_t *pdir, uintptr_t ptr, size_t n, const void *buffer) {
@@ -129,45 +284,79 @@ static uint32_t syscall_execve(registers_t *regs) {
 	uintptr_t user_envp = regs->edx;
 
 	printf("%s(user_path: %p, user_argv: %p, user_envp: %p)\n", __func__, user_path, user_argv, user_envp);
+
 	char path[256];
-	intptr_t r = copy_from_userspace(current_process->task.pdir, user_path, 255, path);
+	intptr_t r = copy_from_userspace_string(current_process->task.pdir, user_path, 256, path);
 	if (r < 0) {
 		return -1;
 	}
 	path[255] = 0;
 	printf(" path='%s'\n", path);
 
-	char **argv;
+	char **argv = NULL;
+	size_t argc = 0;
 	if (user_argv == 0) {
 		argv = kmalloc(sizeof(char *) * 2);
 		argv[0] = &path[0];
 		argv[1] = NULL;
+		argc = 1;
 	} else {
-		argv = kmalloc(sizeof(char *) * 3);
-		r = copy_from_userspace(current_process->task.pdir, user_argv, 3 * sizeof(char *), argv);
-		if (r < 0) {
-			printf("%s copy_from_userspace argv r < 0 return early!\n", __func__);
-			return -1;
+		argv = copy_from_userspace_array(current_process->task.pdir, user_argv, 20);
+		if (argv != NULL) {
+			for (argc = 0; argv[argc] != NULL; argc++) {;}
+			for (size_t i = 0; i < argc; i++) {
+				printf("argv[%u]: %p '%s'\n", i, argv[i], argv[i]);
+			}
 		}
 	}
-
-	for (unsigned int i = 0; i < 3; i++) {
-		printf("argv[%u]: %p\n", i, argv[i]);
+	char **envp = NULL;
+	size_t envc = 0;
+	if (user_envp != 0) {
+		envp = copy_from_userspace_array(current_process->task.pdir, user_envp, 20);
+		if (envp != NULL) {
+			for (envc = 0; envp[envc] != NULL; envc++) {;}
+			for (size_t i = 0; i < envc; i++) {
+				printf("envp[%u]: %p '%s'\n", i, envp[i], envp[i]);
+			}
+		}
 	}
 
 	fs_node_t *f = kopen(path, 0);
 	if (f == NULL) {
 		printf(" '%s' not found\n", path);
+		if (argv != NULL) {
+			for (char **v = argv; *v != NULL; v++) {
+				kfree(*v);
+			}
+			kfree(argv);
+		}
+		if (envp != NULL) {
+			for (char **v = envp; *v != NULL; v++) {
+				kfree(*v);
+			}
+			kfree(envp);
+		}
 		return 2;
 	} else {
-		const char *argv[] = { &path[0], NULL };
-//		const char *agrv[] = { "", NULL };
-		process_exec2(current_process, f, 2, argv);
+		process_exec2(current_process, f, argc, argv, envc, envp);
 		fs_close(&f);
+		if (argv != NULL) {
+			for (char **v = argv; *v != NULL; v++) {
+				kfree(*v);
+			}
+			kfree(argv);
+		}
+		if (envp != NULL) {
+			for (char **v = envp; *v != NULL; v++) {
+				kfree(*v);
+			}
+			kfree(envp);
+		}
+		printf("%s: about to __switch_direct()\n", __func__);
 		__switch_direct();
+		assert(0);
+		return -1;
 	}
-
-	return -1;
 }
 
 static uint32_t syscall_clone(registers_t *regs) {
@@ -203,6 +392,7 @@ static uint32_t syscall_lseek(registers_t *regs) {
 	}
 }
 
+// TODO: implement syscall_times
 static uint32_t syscall_times(registers_t *regs) {
 	(void)regs;
 //	printf("%s()\n", __func__);
@@ -211,10 +401,10 @@ static uint32_t syscall_times(registers_t *regs) {
 
 // TODO: implement syscall_mkdir properly
 static uint32_t syscall_mkdir(registers_t *regs) {
-	// regs->ebx 256 path
+	uintptr_t user_path = regs->ebx;
 	// regs->ecx mode
 	char buffer[256];
-	intptr_t r = copy_from_userspace(current_process->task.pdir, regs->ebx, 255, buffer);
+	intptr_t r = copy_from_userspace_string(current_process->task.pdir, user_path, 256, buffer);
 	if (r < 0) {
 		return -1;
 	}
@@ -244,10 +434,10 @@ static uint32_t syscall_rmdir(registers_t *regs) {
 
 // TODO: implement syscall_create properly
 static uint32_t syscall_create(registers_t *regs) {
-	// regs->ebx path
+	uintptr_t user_path = regs->ebx;
 	// regs->ecx mode
 	char buffer[256];
-	intptr_t r = copy_from_userspace(current_process->task.pdir, regs->ebx, 255, buffer);
+	intptr_t r = copy_from_userspace_string(current_process->task.pdir, user_path, 256, buffer);
 	if (r < 0) {
 		return -1;
 	}
@@ -259,9 +449,9 @@ static uint32_t syscall_create(registers_t *regs) {
 
 // TODO: implement syscall_unlink properly
 static uint32_t syscall_unlink(registers_t *regs) {
-	// regs->ebx path
+	uintptr_t user_path = regs->ebx;
 	char buffer[256];
-	intptr_t r = copy_from_userspace(current_process->task.pdir, regs->ebx, 255, buffer);
+	intptr_t r = copy_from_userspace_string(current_process->task.pdir, user_path, 256, buffer);
 	if (r < 0) {
 		return -1;
 	}
@@ -272,8 +462,24 @@ static uint32_t syscall_unlink(registers_t *regs) {
 }
 
 static uint32_t syscall_waitpid(registers_t *regs) {
-	(void)regs;
-	printf("%s()\n", __func__);
+	int32_t pid = regs->ebx;
+	uint32_t status = regs->ecx;
+	uint32_t options = regs->edx;
+
+	printf("%s(pid: %i, status: %u, options: %u)\n", __func__, pid, status, options);
+
+	if (pid < -1) {
+		assert(0);
+	} else if (pid == -1) {
+		assert(0);
+	} else if (pid == 0) {
+		assert(0);
+	} else{
+		while (1) {
+			switch_task();
+		}
+	}
+
 	return -1;
 }
 
@@ -297,11 +503,12 @@ static void __attribute__((noreturn)) syscall_exit(registers_t *regs) {
 
 // FIXME: syscall_open implement properly
 static uint32_t syscall_open(registers_t *regs) {
+	uintptr_t user_path = regs->ebx;
 	uint32_t flags = regs->ecx;
 	uint32_t mode = regs->edx;
 
 	char path[256];
-	intptr_t r = copy_from_userspace(current_process->task.pdir, regs->ebx, 255, path);
+	intptr_t r = copy_from_userspace_string(current_process->task.pdir, user_path, sizeof(path), path);
 	if (r < 0) {
 		return -1;
 	}
@@ -576,6 +783,41 @@ static uint32_t syscall_uname(registers_t *regs) {
 	return 0;
 }
 
+struct dirent_user {
+	int64_t d_ino;
+	unsigned char d_type;
+	char d_name[256];
+};
+
+static uint32_t syscall_readdir(registers_t *regs) {
+	uint32_t fd_num = regs->ebx;
+	uint32_t d_ino = regs->ecx;
+	uintptr_t dirent_user = regs->edx;
+
+	fd_entry_t *fd = fd_table_get(current_process->fd_table, fd_num);
+	if (fd == NULL) {
+		printf("%s: fd not valid\n", __func__);
+		return -1;
+	}
+
+	struct dirent *dirent_k = fs_readdir(fd->node, d_ino);
+	if (dirent_k == NULL) {
+		return 0;
+	} else {
+		struct dirent_user dirent_u;
+		strncpy(dirent_u.d_name, dirent_k->name, sizeof(dirent_u.d_name));
+		dirent_u.d_ino = dirent_k->ino;
+		dirent_u.d_type = dirent_k->type;
+		int32_t r = copy_to_userspace(current_process->task.pdir, dirent_user, sizeof(struct dirent_user), &dirent_u);
+		if (r < 0) {
+			printf("%s: copy_to_userspace\n", __func__);
+			return -1;
+		}
+	}
+
+	return 1;
+}
+
 static uint32_t syscall_dumpregs(registers_t *regs) {
 	dump_regs(regs);
 	return 0;
@@ -640,6 +882,9 @@ static void syscall_handler(registers_t *regs) {
 			break;
 		case 0x4e:
 			regs->eax = syscall_gettimeofday(regs);
+			break;
+		case 0x59:
+			regs->eax = syscall_readdir(regs);
 			break;
 		case 0xFF:
 			regs->eax = syscall_dumpregs(regs);
