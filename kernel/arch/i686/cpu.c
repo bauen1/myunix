@@ -49,5 +49,6 @@ void dump_regs(registers_t *regs) {
 	printf("edi:     0x%8x esi: 0x%8x ebp: 0x%8x ebx: 0x%8x edx: 0x%8x ecx: 0x%8x eax: 0x%8x\n", regs->edi, regs->esi, regs->ebp, regs->ebx, regs->edx, regs->ecx, regs->eax);
 	printf("isr_num: 0x%8x err_code: 0x%8x\n", regs->isr_num, regs->err_code);
 	printf("eip:     0x%8x eflags: 0x%8x esp: 0x%8x\n", regs->eip, regs->eflags, regs->esp);
+	printf("old_directory: 0x%8x\n", regs->old_directory);
 	printf("===================================================================================================================\n");
 }

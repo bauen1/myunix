@@ -28,6 +28,7 @@ page_directory_t *page_directory_new() {
 	page_directory_t *pdir = kcalloc(1, sizeof(page_directory_t));
 	assert(pdir != NULL);
 	pdir->physical_address = pmm_alloc_blocks_safe(1);
+	printf("%s: pdir: %p physical_address: 0x%8x\n", __func__, pdir, pdir->physical_address);
 	pdir->physical_tables = (uintptr_t *)find_vspace(kernel_directory, 1);
 	map_page(get_table_alloc((uintptr_t)pdir->physical_tables, kernel_directory), (uintptr_t)pdir->physical_tables,
 		pdir->physical_address,
@@ -411,6 +412,9 @@ static void page_fault(registers_t *regs) {
 	} else {
 		pdir = kernel_directory;
 		print_stack_trace();
+	}
+	if (pdir->physical_address != regs->old_directory) {
+		printf("%s: page directory doesn't match, dump is incorrect\n", __func__);
 	}
 	assert(pdir != NULL);
 	// TODO: consider table flags

@@ -309,6 +309,7 @@ void * __attribute__((no_sanitize_undefined)) kmalloc(size_t req_size) {
 	// So, ideally, we really want an alignment of 0 or 1 in order
 	// to save space.
 
+	// this is just asking for trouble
 	assert(size != 0);
 
 	liballoc_lock();
@@ -653,7 +654,9 @@ void* kcalloc(size_t nobj, size_t size) {
        p = kmalloc( real_size );
        assert(p != NULL);
 
-       memset( p, 0, real_size );
+       if (real_size != 0) {
+              memset( p, 0, real_size );
+       }
 
        return p;
 }

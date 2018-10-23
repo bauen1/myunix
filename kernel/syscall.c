@@ -69,6 +69,7 @@ failure:
 }
 
 static void unmap_from_kernel(uintptr_t kptr, size_t n) {
+	assert(n != 0); // probably a bug
 	for (uintptr_t i = 0; i < n; i++) {
 		uintptr_t virtaddr = i * BLOCK_SIZE + kptr;
 		map_page(get_table(virtaddr, kernel_directory), virtaddr, 0, 0);
@@ -87,7 +88,7 @@ intptr_t copy_from_userspace(page_directory_t *pdir, uintptr_t ptr, size_t n, vo
 	}
 	intptr_t v = map_userspace_to_kernel(pdir, ptr & ~0xFFF, kptr, size_in_blocks);
 	if (v != 0) {
-		unmap_from_kernel(kptr, v);
+		unmap_from_kernel(kptr, size_in_blocks);
 		return -1;
 	}
 
@@ -95,7 +96,7 @@ intptr_t copy_from_userspace(page_directory_t *pdir, uintptr_t ptr, size_t n, vo
 
 	memcpy(buffer, (void *)kptr2, n);
 
-	unmap_from_kernel(kptr, v);
+	unmap_from_kernel(kptr, size_in_blocks);
 	return n;
 }
 
@@ -110,7 +111,7 @@ intptr_t copy_to_userspace(page_directory_t *pdir, uintptr_t ptr, size_t n, cons
 	}
 	intptr_t v = map_userspace_to_kernel(pdir, ptr & ~0xFFF, kptr, size_in_blocks);
 	if (v != 0) {
-		unmap_from_kernel(kptr, v);
+		unmap_from_kernel(kptr, size_in_blocks);
 		return -1;
 	}
 
@@ -118,7 +119,7 @@ intptr_t copy_to_userspace(page_directory_t *pdir, uintptr_t ptr, size_t n, cons
 
 	memcpy((void *)kptr2, buffer, n);
 
-	unmap_from_kernel(kptr, v);
+	unmap_from_kernel(kptr, size_in_blocks);
 	return n;
 }
 
@@ -172,9 +173,7 @@ static uint32_t syscall_execve(registers_t *regs) {
 static uint32_t syscall_clone(registers_t *regs) {
 	uintptr_t flags = regs->ebx;
 	uintptr_t child_stack = regs->ecx;
-	uintptr_t child_ptid = regs->edx;
-	(void)child_ptid;
-	printf("%s(flags: 0x%8x, child_stack: %p)\n", __func__, flags, child_stack);
+
 	process_t *child = process_clone(current_process, flags, child_stack);
 	if (child == NULL) {
 		return -1;
@@ -443,7 +442,7 @@ static uint32_t syscall_write(registers_t *regs) {
 	if (r != (uint32_t)-1) {
 		fd->seek += r;
 	}
-	unmap_from_kernel(kptr, v);
+	unmap_from_kernel(kptr, n_blocks);
 	return r;
 }
 
@@ -453,7 +452,6 @@ static uint32_t syscall_mmap_anon(registers_t *regs) {
 	uintptr_t addr = regs->ebx;
 	size_t len = regs->ecx;
 	// regs->edx prot
-	printf("%s(addr: 0x%x, len: 0x%x, prot: %u)\n", __func__, addr, (uintptr_t)len, regs->edx);
 	if (len > BLOCK_SIZE*300) { // 300*4kb max alloc
 		printf("length too big!\n");
 		return -1;
@@ -480,8 +478,6 @@ static uint32_t syscall_mmap_anon(registers_t *regs) {
 			break;;
 	}
 
-	printf("addr: 0x%x prot: 0x%x\n", addr, prot);
-
 	uintptr_t kptr = find_vspace(kernel_directory, 1);
 	assert(kptr != 0);
 	for (size_t i = 0; i < len; i++) {
@@ -490,14 +486,13 @@ static uint32_t syscall_mmap_anon(registers_t *regs) {
 		// TODO: free already mapped pages
 		assert(get_page(get_table(virtaddr, current_process->task.pdir), virtaddr) == PAGE_VALUE_RESERVED);
 
-		printf("u_virtaddr: 0x%x block: 0x%x\n", virtaddr, block);
 		map_page(get_table(kptr, kernel_directory), kptr, block, PAGE_PRESENT | PAGE_READWRITE);
 		memset((void *)kptr, 0, BLOCK_SIZE);
 		map_page(get_table(kptr, kernel_directory), kptr, 0, 0);
 		invalidate_page(kptr);
 		map_page(get_table(virtaddr, current_process->task.pdir), virtaddr,
 			block,
-			PAGE_PRESENT | PAGE_READWRITE | PAGE_USER);
+			prot);
 	}
 
 	return addr;
@@ -506,7 +501,7 @@ static uint32_t syscall_mmap_anon(registers_t *regs) {
 static uint32_t syscall_munmap(registers_t *regs) {
 	uintptr_t addr = regs->ebx;
 	uintptr_t length = regs->ecx;
-	printf("munmap(0x%x, 0x%x);\n", regs->ebx, regs->ecx);
+
 	if ((addr & 0xFFF) != 0) {
 		// not aligned
 		return -1;

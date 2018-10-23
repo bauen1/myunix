@@ -97,13 +97,11 @@ fd_table_t *fd_table_new() {
 
 fd_table_t *fd_table_clone(fd_table_t *oldfdt) {
 	assert(oldfdt != NULL);
-	printf("%s()\n", __func__);
 	fd_table_t *newfdt = fd_table_new();
 	assert(newfdt != NULL);
 	for (unsigned int i = 0; i < oldfdt->length; i++) {
 		fd_entry_t *oldfd = fd_table_get(oldfdt, i);
 		if (oldfd != NULL) {
-			printf("%s: try copy fd %u (%p)\n", __func__, i, oldfd);
 			// FIXME: not 100% posix compliant
 			fd_table_set(newfdt, i, fd_reference(oldfd));
 		} else {
@@ -329,9 +327,7 @@ void process_exec2(process_t *process, fs_node_t *f, unsigned int argc, const ch
 	assert(f->length != 0);
 
 	if (process->task.pdir != NULL) {
-		printf("%s: unmapping old kstack\n", __func__);
 		process_unmap_kstack(process);
-		printf("%s: freeing old pdir\n", __func__);
 		process_page_directory_free(process->task.pdir);
 	}
 
@@ -339,7 +335,6 @@ void process_exec2(process_t *process, fs_node_t *f, unsigned int argc, const ch
 	process->task.pdir = process_page_directory_new();
 	assert(process->task.pdir != NULL);
 	if (process->task.kstack == 0) {
-		printf("%s: allocating new kstack\n", __func__);
 		task_kstack_alloc(&process->task);
 	}
 	process_map_kstack(process);
@@ -466,7 +461,6 @@ void process_exec2(process_t *process, fs_node_t *f, unsigned int argc, const ch
 process_t *process_exec(fs_node_t *f, unsigned int argc, const char **argv) {
 	assert(f != NULL);
 	assert(f->length != 0);
-	printf("%s(f: %p (f->name: '%s'), argc: %u, argv: %p)\n", __func__, f, f->name, argc, argv);
 
 	process_t *process = kcalloc(1, sizeof(process_t));
 	assert(process != NULL);
@@ -491,7 +485,6 @@ process_t *process_exec(fs_node_t *f, unsigned int argc, const char **argv) {
 static void page_directory_clone_table(page_table_t *newtable, page_table_t *oldtable) {
 	assert(oldtable != NULL);
 	assert(newtable != NULL);
-//	printf("%s(newtable: %p, oldtable: %p)\n", __func__, newtable, oldtable);
 
 	uintptr_t oldkvtmp = find_vspace(kernel_directory, 1);
 	assert(oldkvtmp != 0);
@@ -507,7 +500,6 @@ static void page_directory_clone_table(page_table_t *newtable, page_table_t *old
 				}
 				uintptr_t oldphys = page & ~0x3FF;
 				uintptr_t newphys = pmm_alloc_blocks_safe(1);
-//				printf("%s: cloning page %i from %p to: %p\n", __func__, i, oldphys, newphys);
 				map_page(get_table(oldkvtmp, kernel_directory), oldkvtmp,
 					oldphys, PAGE_PRESENT | PAGE_READWRITE);
 				invalidate_page(oldkvtmp);
@@ -574,9 +566,7 @@ process_t *process_clone(process_t *oldproc, enum syscall_clone_flags flags, uin
 		child->fd_table = fd_table_reference(current_process->fd_table);
 	} else {
 		// FIXME: not 100% correct
-		printf("%s: attempting to fd_table_clone\n", __func__);
 		child->fd_table = fd_table_clone(current_process->fd_table);
-		printf("%s: successfully cloned fd_table\n", __func__);
 		if (child->fd_table == NULL) {
 			kfree(child);
 			return NULL;
@@ -598,10 +588,8 @@ process_t *process_clone(process_t *oldproc, enum syscall_clone_flags flags, uin
 	const size_t name_strlen = strlen(current_process->name);
 	child->name = kmalloc(name_strlen + 1);
 	strncpy(child->name, current_process->name, name_strlen);
-	printf("%s: child name: '%s'\n", __func__, child->name);
 
 	child->pid = get_pid();
-	printf("%s: child pid: %u\n", __func__, child->pid);
 
 	child->task.type = current_process->task.type;
 	child->task.registers = (registers_t *)(child->task.kstack - sizeof(registers_t));
@@ -626,6 +614,9 @@ TODO: move syscall_fork, syscall_clone and syscall_exec here
 
 void process_destroy(process_t *process) {
 	printf("%s(process: %p (name: '%s'))\n", __func__, process, process->name);
+
+	assert(process->pid != 1);
+	assert(process->pid != 0);
 
 	bitmap_unset(pid_bitmap, process->pid);
 	process_unmap_kstack(process);
