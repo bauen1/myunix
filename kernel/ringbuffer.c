@@ -4,7 +4,7 @@
 #include <ringbuffer.h>
 #include <process.h>
 
-static size_t ringbuffer_unread(ringbuffer_t *ringbuffer) {
+size_t ringbuffer_unread(ringbuffer_t *ringbuffer) {
 	if (ringbuffer->write_head < ringbuffer->read_head) {
 		return (ringbuffer->size - ringbuffer->read_head) + ringbuffer->write_head;
 	} else /*if (ringbuffer->write_head >= ringbuffer->read_head)*/ {

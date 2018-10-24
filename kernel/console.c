@@ -10,6 +10,7 @@
 #include <serial.h>
 #include <tty.h>
 #include <fs.h>
+#include <ringbuffer.h>
 
 #define ensure_int_disabled \
 	uint32_t _eflags = 0; \
@@ -20,12 +21,14 @@
 #define restore_int }\
 	if (_eflags & (1<<9)) { __asm__ __volatile__("sti"); };
 
+static char buffer_getc(void);
+
 static uint32_t tty_read(fs_node_t *node, uint32_t offset, uint32_t size, void *buf) {
 	(void)offset;
 	assert(node == &tty_node);
 
 	for (uintptr_t i = 0; i < size; i++) {
-		((char *)buf)[i] = getc();
+		((char *)buf)[i] = buffer_getc();
 	}
 	return size;
 }
@@ -49,8 +52,51 @@ fs_node_t tty_node = {
 	.__refcount = -1, // immortal because it isn't allocated
 };
 
+static unsigned char buffer[2048];
+static ringbuffer_t text_buffer;
+
 void console_init() {
 	serial_init();
+	ringbuffer_init(&text_buffer, buffer, sizeof(buffer));
+}
+
+__attribute__((used))
+static char buffer_getc(void) {
+	if (ringbuffer_unread(&text_buffer) == 0) {
+		char tmp_buffer[1024];
+		size_t i = 0;
+		while (i < sizeof(tmp_buffer)) {
+			char c = getc();
+			assert(c != 0);
+			switch(c) {
+				case '\b':
+				case 127:
+					if (i > 0) {
+						i--;
+					}
+					putc('\b');
+					break;
+				case '\n':
+				default:
+					tmp_buffer[i] = c;
+					i++;
+					putc(c);
+					break;
+			}
+			if (c == '\n') {
+				break;
+			}
+		}
+		for (size_t i = 0; i < sizeof(tmp_buffer); i++) {
+			char c = tmp_buffer[i];
+			ringbuffer_write_byte(&text_buffer, c);
+			if (c == '\n') {
+				break;
+			}
+		}
+	}
+
+	return (char)ringbuffer_read_byte(&text_buffer);
 }
 
 char getc() {
