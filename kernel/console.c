@@ -19,7 +19,7 @@
 	{
 
 #define restore_int }\
-	if (_eflags & (1<<9)) { __asm__ __volatile__("sti"); };
+	if ((_eflags & (1<<9) != 0) { __asm__ __volatile__("sti"); };
 
 static char buffer_getc(void);
 

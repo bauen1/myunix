@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <stddef.h>
 
-
 typedef struct node {
 	struct node *next;
 	struct node *prev;

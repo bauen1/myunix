@@ -102,7 +102,7 @@ clean:
 
 %.o: %.s
 	@echo NASM $< -o $@
-	@$(AS) $(ASFLAGS) -MF $(@:.o=.d) $< -o $@
+	@$(AS) $(ASFLAGS) $(CPPFLAGS) -MF $(@:.o=.d) $< -o $@
 
 .PHONY: kernel
 kernel: kernel.elf kernel.sym kernel.bin
