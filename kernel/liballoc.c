@@ -93,20 +93,34 @@ static long long l_warningCount = 0;            // Number of warnings encountere
 static long long l_errorCount = 0;              // Number of actual errors
 static long long l_possibleOverruns = 0;        // Number of possible overruns
 
+static unsigned int liballoc_lock_count = 0;
+static bool liballoc_lock_enable = false;
+
 /* implementation specific helpers */
-static int eflags;
 static int liballoc_lock() {
 	// TODO: implement properly
-	__asm__ __volatile__("pushf\n"
-				"pop %0\n"
-				"cli"
-			: "=r" (eflags));
+	uint32_t eflags;
+	__asm__ __volatile__ ("pushf\n"
+	                      "pop %0\n"
+	                      : "=r"(eflags));
+	interrupts_disable();
+	if (liballoc_lock_count == 0) {
+		if (eflags & (1<<9)) {
+			// XXX: interrupts where enabled when called, enable them on exit too
+			liballoc_lock_enable = true;
+		}
+	}
+	liballoc_lock_count++;
 	return 0;
 }
 static int liballoc_unlock() {
 	// TODO: implement properly
-	if (eflags & (1 << 9)) {
-		__asm__ __volatile__("sti");
+	liballoc_lock_count--;
+	if (liballoc_lock_count == 0) {
+		if (liballoc_lock_enable) {
+			liballoc_lock_enable = false;
+			interrupts_enable();
+		}
 	}
 	return 0;
 }

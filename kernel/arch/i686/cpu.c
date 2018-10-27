@@ -5,32 +5,32 @@
 
 inline uint8_t inb(uint16_t port) {
 	uint8_t data;
-	__asm__ __volatile__ ("inb %1, %0" : "=a" (data) : "dN" (port));
+	__asm__ __volatile__("inb %1, %0" : "=a" (data) : "dN" (port));
 	return data;
 }
 
 inline uint16_t inw(uint16_t port) {
 	uint16_t data;
-	__asm__ __volatile__ ("inw %1, %0" : "=a" (data) : "dN" (port));
+	__asm__ __volatile__("inw %1, %0" : "=a" (data) : "dN" (port));
 	return data;
 }
 
 inline uint32_t inl(uint16_t port) {
 	uint32_t data;
-	__asm__ __volatile__ ("inl %1, %0" : "=a" (data) : "dN" (port));
+	__asm__ __volatile__("inl %1, %0" : "=a" (data) : "dN" (port));
 	return data;
 }
 
 inline void outb(uint16_t port, uint8_t data) {
-	__asm__ __volatile("outb %0, %1" : : "a" (data), "dN" (port));
+	__asm__ __volatile__("outb %0, %1" : : "a" (data), "dN" (port));
 }
 
 inline void outw(uint16_t port, uint16_t data) {
-	__asm__ __volatile("outw %0, %1" : : "a" (data), "dN" (port));
+	__asm__ __volatile__("outw %0, %1" : : "a" (data), "dN" (port));
 }
 
 inline void outl(uint16_t port, uint32_t data) {
-	__asm__ __volatile("outl %0, %1" : : "a" (data), "dN" (port));
+	__asm__ __volatile__("outl %0, %1" : : "a" (data), "dN" (port));
 }
 
 
@@ -51,4 +51,12 @@ void dump_regs(registers_t *regs) {
 	printf("eip:     0x%8x eflags: 0x%8x esp: 0x%8x\n", regs->eip, regs->eflags, regs->esp);
 	printf("old_directory: 0x%8x\n", regs->old_directory);
 	printf("===================================================================================================================\n");
+}
+
+void interrupts_disable(void) {
+	__asm__ __volatile__("cli");
+}
+
+void interrupts_enable(void) {
+	__asm__ __volatile__("sti");
 }

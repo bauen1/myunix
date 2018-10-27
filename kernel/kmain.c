@@ -457,7 +457,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	printf("[%u] [OK] keyboard_init\n", (unsigned int)ticks);
 
 	/* enable interrupts */
-	__asm__ __volatile__ ("sti");
+	interrupts_enable();
 	printf("[%u] [OK] enable interrupts\n", (unsigned int)ticks);
 
 	printf("free %u kb\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);

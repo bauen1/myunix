@@ -47,4 +47,7 @@ void iowait();
 
 void dump_regs(registers_t *regs);
 
+void interrupts_disable(void);
+void interrupts_enable(void);
+
 #endif

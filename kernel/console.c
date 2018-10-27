@@ -12,14 +12,33 @@
 #include <fs.h>
 #include <ringbuffer.h>
 
-#define ensure_int_disabled \
-	uint32_t _eflags = 0; \
-	__asm__ __volatile__("pushf\npop %0" : "=r"(_eflags)); \
-	__asm__ __volatile__("cli"); \
-	{
+static unsigned int console_lock_count = 0;
+static bool console_lock_enable = false;
 
-#define restore_int }\
-	if ((_eflags & (1<<9) != 0) { __asm__ __volatile__("sti"); };
+static void console_lock(void) {
+	uint32_t eflags;
+	__asm__ __volatile__ ("pushf\n"
+	                      "pop %0\n"
+	                      : "=r"(eflags));
+	interrupts_disable();
+	if (console_lock_count == 0) {
+		if (eflags & (1<<9)) {
+			// XXX: interrupts where enabled when called, enable them on exit too
+			console_lock_enable = true;
+		}
+	}
+	console_lock_count++;
+}
+
+static void console_unlock(void) {
+	console_lock_count--;
+	if (console_lock_count == 0) {
+		if (console_lock_enable) {
+			console_lock_enable = false;
+			interrupts_enable();
+		}
+	}
+}
 
 static char buffer_getc(void);
 
@@ -102,39 +121,22 @@ static char buffer_getc(void) {
 char getc() {
 	char c;
 
-	uint32_t eflags = 0;
-	__asm__ __volatile__("pushf\n"
-				"pop %0\n"
-				"cli"
-			: "=r" (eflags));
-
-	c = keyboard_getc();
-	//char c = serial_getc();
+	console_lock();
+	c = serial_getc();
 	if (c == '\r') {
 		c = '\n';
 	}
-
-	if (eflags & ( 1 << 9) ) {
-		__asm__ __volatile__("sti");
-	}
+	console_unlock();
 
 	return c;
 }
 
 void putc(char c) {
-	uint32_t eflags = 0;
-	__asm__ __volatile__("pushf\n"
-				"pop %0\n"
-				"cli"
-			: "=r" (eflags));
-
+	console_lock();
 	tty_putc(c);
 	framebuffer_putc(c);
 	serial_putc(c);
-
-	if (eflags & ( 1 << 9) ) {
-		__asm__ __volatile__("sti");
-	}
+	console_unlock();
 }
 
 void puts(const char *s) {
