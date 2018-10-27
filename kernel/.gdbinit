@@ -1,3 +1,3 @@
 target remote localhost:1234
-symbole-file kernel.elf
+symbol-file kernel.elf
 hbreak kmain
