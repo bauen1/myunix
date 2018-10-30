@@ -13,7 +13,7 @@ endif
 ARCHDIR=arch/$(TARGET_ARCH)
 
 # default flags
-CFLAGS?=-O2 -g -Wall -Wextra -Werror -Wno-attributes -Wno-format -Wcast-align
+CFLAGS?=-O2 -g -Wall -Wextra -Werror -Wno-attributes -Wno-format -Wcast-align -Wvla
 CPPFLAGS?=
 LDFLAGS?=
 LIBS?=
