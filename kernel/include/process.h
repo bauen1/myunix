@@ -9,6 +9,7 @@
 #include <task.h>
 #include <fs.h>
 #include <vmm.h>
+#include <tree.h>
 
 #define PROCESS_MAX_PID 32768
 
@@ -32,9 +33,11 @@ typedef struct process {
 	char *name;
 	pid_t pid;
 	fd_table_t *fd_table;
+	tree_node_t *ptree_node;
+	task_queue_t wait_queue;
 } process_t;
 
-extern process_t *current_process;
+#define current_process ((process_t *)(current_task->type == TASK_TYPE_USER_PROCESS ? current_task->obj : NULL))
 
 /* fd_entry_t helpers */
 fd_entry_t *fd_reference(fd_entry_t *fd);
@@ -51,8 +54,8 @@ int fd_table_append(fd_table_t *fd_table, fd_entry_t *entry);
 fd_entry_t *fd_table_get(fd_table_t *fd_table, unsigned int i);
 
 /* process_t helpers */
-void process_exec2(process_t *process, fs_node_t *f, size_t argc, char * const * const argv, size_t envc, char * const * const envp);
-process_t *process_exec(fs_node_t *f, unsigned int argc, char * const * const argv);
+void process_execve(process_t *process, fs_node_t *f, size_t argc, char * const * const argv, size_t envc, char * const * const envp);
+process_t *process_spawn_init(fs_node_t *f, size_t argc, char * const * const argv);
 void process_destroy(process_t *process);
 pid_t get_pid(void);
 
@@ -86,5 +89,7 @@ process_t *process_clone(process_t *oldproc, enum syscall_clone_flags flags, uin
 
 void process_add(process_t *process);
 void process_init(void);
+
+uint32_t process_waitpid(pid_t pid, uint32_t status, uint32_t options);
 
 #endif

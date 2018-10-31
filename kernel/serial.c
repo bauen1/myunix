@@ -8,25 +8,25 @@
 #include <ringbuffer.h>
 #include <serial.h>
 
+#define PORT 0x3F8
+#define serial_is_transmit_ready() (inb(PORT + 5) & 0x20)
+#define serial_is_read_ready() (inb(PORT + 5) & 0x01),
+
 #define SERIALBUFFER_LENGTH 1024
 static ringbuffer_t serial_ringbuffer;
 static unsigned char serialbuffer[SERIALBUFFER_LENGTH];
 
-#define PORT 0x3F8
-
 static unsigned int irq4_handler(unsigned int irq, void *extra) {
 	assert(extra != NULL);
 	if (inb(PORT + 5) & 1) { // byte received ?
-		ringbuffer_write_byte((ringbuffer_t *)extra, inb(PORT));
+		char c = inb(PORT);
+		ringbuffer_write_byte((ringbuffer_t *)extra, c);
 		irq_ack(irq);
 		return IRQ_HANDLED;
 	}
 
 	return IRQ_IGNORED;
 }
-
-#define serial_is_transmit_ready() (inb(PORT + 5) & 0x20)
-#define serial_is_read_ready() (inb(PORT + 5) & 0x01),
 
 void serial_init() {
 	ringbuffer_init(&serial_ringbuffer, serialbuffer, SERIALBUFFER_LENGTH);
@@ -50,7 +50,7 @@ void serial_putc(char c) {
 		serial_putc('\r');
 	}
 	while (serial_is_transmit_ready() == 0) {
-		switch_task();
+		yield();
 	}
 	outb(PORT, c);
 }

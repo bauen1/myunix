@@ -11,7 +11,7 @@
 #include <irq.h>
 #include <pci.h>
 #include <pic.h>
-#include <pit.h>
+#include <task.h>
 #include <pmm.h>
 #include <string.h>
 #include <vmm.h>

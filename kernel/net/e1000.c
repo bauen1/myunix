@@ -12,7 +12,7 @@
 #include <net/e1000.h>
 #include <net/net.h>
 #include <pci.h>
-#include <pit.h>
+#include <task.h>
 #include <process.h>
 #include <string.h>
 #include <vmm.h>
@@ -74,8 +74,12 @@ typedef struct e1000 {
 	uint8_t mac[6];
 	e1000_rx_desc_t *rx;
 	e1000_tx_desc_t *tx;
+
 	list_t *rx_queue;
+	semaphore_t rx_sem;
+
 	list_t *tx_queue;
+	semaphore_t tx_sem;
 } e1000_t;
 
 /* helpers */
@@ -219,10 +223,7 @@ static packet_t *e1000_receive_packet(void *extra) {
 	e1000_t *e1000 = (e1000_t *)extra;
 	assert(e1000 != NULL);
 	assert(e1000->rx_queue != NULL);
-	while (e1000->rx_queue->length == 0) {
-		switch_task();
-	}
-
+	semaphore_acquire(&e1000->rx_sem);
 	return (packet_t *)list_dequeue(e1000->rx_queue);
 }
 
@@ -277,6 +278,7 @@ static unsigned int e1000_irq(unsigned int irq, void *extra) {
 				e1000->rx[rx_index].status = 0;
 				// FIXME: race condition
 				list_insert(e1000->rx_queue, packet);
+				semaphore_release(&e1000->rx_sem);
 				e1000_cmd_writel(e1000, E1000_REG_RX_DESC_TAIL, rx_index);
 			} else {
 				break;

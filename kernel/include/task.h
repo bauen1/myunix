@@ -6,15 +6,24 @@
 #include <stdint.h>
 #include <cpu.h>
 #include <vmm.h>
+#include <atomic.h>
 
-// kernel stack size in pages
-// XXX: this includes the guard pages
+// kernel stack size in pages, including guard pages
 #define KSTACK_SIZE 8
 
 enum task_type {
 	TASK_TYPE_INVALID      = 0,
 	TASK_TYPE_KTASK        = 1,
 	TASK_TYPE_USER_PROCESS = 2,
+};
+
+enum task_state {
+	TASK_STATE_READY = 0,
+	TASK_STATE_BLOCKED = 1,
+	TASK_STATE_RUNNING = 2,
+	TASK_STATE_TERMINATED = 3,
+	TASK_STATE_WAITING = 4,
+	TASK_STATE_BLOCKED_LOCK = 5,
 };
 
 typedef struct task {
@@ -26,18 +35,56 @@ typedef struct task {
 	page_directory_t *pdir;
 	enum task_type type;
 	void *obj;
+	struct task *next_task;
+	enum task_state state;
+	uint64_t wait_target;
 } task_t;
 
 extern task_t *current_task;
 
-/* task_t helpers */
+/* task_t kernel stack helpers */
 void task_kstack_alloc(task_t *task);
 void task_kstack_free(task_t *task);
-void task_kstack_delayed_free(task_t *task);
+
+/* task_t blocking */
+typedef struct {
+	task_t *first;
+	task_t *last;
+} task_queue_t;
+
+void task_block(task_queue_t *queue, unsigned int reason);
+void task_unblock_next(task_queue_t *queue);
+
+void task_sleep_until(uint64_t target);
+
+/* semaphore_t */
+typedef struct {
+	unsigned int count;
+	task_queue_t blocked_tasks;
+	spin_t lock;
+} semaphore_t;
+
+void semaphore_acquire(semaphore_t *semaphore);
+void semaphore_release(semaphore_t *semaphore);
+
+/* yield, don't block but give up the cpu until scheduled again */
+void yield(void);
+
+/* everything else */
+// XXX: don't use
+void _sleep(uint64_t delta);
 
 void task_add(task_t *task);
-void task_remove(task_t *task);
 
-void __attribute__((noreturn)) tasking_enable(void);
+void scheduler_lock(void);
+void scheduler_unlock(void);
+// XXX: only call after scheduler_lock
+void schedule(void);
+void scheduler_wakeup(void);
+
+__attribute__((noreturn)) void task_exit(void);
+
+/* kmain exit call */
+__attribute__((noreturn)) void tasking_enable(void);
 
 #endif

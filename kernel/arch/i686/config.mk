@@ -14,6 +14,7 @@ $(ARCHDIR)/isrs.o \
 $(ARCHDIR)/paging.o \
 $(ARCHDIR)/task.o \
 $(ARCHDIR)/memcpy.o \
-$(ARCHDIR)/mmio.o
+$(ARCHDIR)/mmio.o \
+$(ARCHDIR)/atomic.o
 
 ARCH_LDSCRIPT:= $(ARCHDIR)/link.ld

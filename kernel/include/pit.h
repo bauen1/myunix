@@ -1,10 +1,11 @@
 #ifndef PIT_H
 #define PIT_H 1
 
-extern unsigned long ticks;
+#include <stdint.h>
 
-void pit_init();
+#define FREQUENCY 1000
 
-void _sleep(unsigned long miliseconds);
+extern uint64_t timer_ticks;
+void pit_init(void);
 
 #endif

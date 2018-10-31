@@ -10,6 +10,7 @@
 #include <pmm.h>
 #include <string.h>
 #include <vmm.h>
+#include <atomic.h>
 
 /*  Durand's Amazing Super Duper Memory functions.  */
 
@@ -93,35 +94,15 @@ static long long l_warningCount = 0;            // Number of warnings encountere
 static long long l_errorCount = 0;              // Number of actual errors
 static long long l_possibleOverruns = 0;        // Number of possible overruns
 
-static unsigned int liballoc_lock_count = 0;
-static bool liballoc_lock_enable = false;
+static spin_t liballoc_spinlock;
 
 /* implementation specific helpers */
-static int liballoc_lock() {
-	// TODO: implement properly
-	uint32_t eflags;
-	__asm__ __volatile__ ("pushf\n"
-	                      "pop %0\n"
-	                      : "=r"(eflags));
-	interrupts_disable();
-	if (liballoc_lock_count == 0) {
-		if (eflags & (1<<9)) {
-			// XXX: interrupts where enabled when called, enable them on exit too
-			liballoc_lock_enable = true;
-		}
-	}
-	liballoc_lock_count++;
+static int liballoc_lock(void) {
+	spin_lock(liballoc_spinlock);
 	return 0;
 }
-static int liballoc_unlock() {
-	// TODO: implement properly
-	liballoc_lock_count--;
-	if (liballoc_lock_count == 0) {
-		if (liballoc_lock_enable) {
-			liballoc_lock_enable = false;
-			interrupts_enable();
-		}
-	}
+static int liballoc_unlock(void) {
+	spin_unlock(liballoc_spinlock);
 	return 0;
 }
 
@@ -151,11 +132,14 @@ static int liballoc_free(void *v, size_t pages) {
 	for (size_t i = 0; i < pages; i++) {
 		uintptr_t vaddr = (uintptr_t)v + i * BLOCK_SIZE;
 		page_table_t *table = get_table(vaddr, kernel_directory);
-		assert(table != NULL);
 		page_t page = get_page(table, vaddr);
-		uintptr_t block = page & ~0xFFF;
-		map_page(table, vaddr, 0, 0);
-		pmm_free_blocks(block, 1);
+		if (page == PAGE_VALUE_RESERVED) {
+			map_page(table, vaddr, 0, 0);
+		} else {
+			uintptr_t block = page & ~0xFFF;
+			map_page(table, vaddr, 0, 0);
+			pmm_free_blocks(block, 1);
+		}
 	}
 	return 0;
 }

@@ -4,16 +4,24 @@ read_eip:
 	ret
 .end:
 
-extern __switch_task
-global switch_task:function (switch_task.end - switch_task)
-switch_task:
+extern switch_task
+global call_switch_task:function (call_switch_task.end - call_switch_task)
+call_switch_task:
+	push ebp
+	mov ebp, esp
+
 	pushf
 	pusha
 
-	call __switch_task
-.done:
+	push DWORD [ebp + 8]
+	call switch_task
+	add esp, 4
+
 	popa
 	popf
+
+	mov esp, ebp
+	pop ebp
 	ret
 .end:
 

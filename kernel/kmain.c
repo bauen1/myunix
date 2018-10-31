@@ -34,15 +34,6 @@
 #include <tty.h>
 #include <vmm.h>
 
-int kidle(const char *name, void *extra) {
-	(void)extra;
-	(void)name;
-	// TODO: free kernel stack of kmain
-	__asm__ __volatile__("sti");
-	while (1) {
-		__asm__ __volatile__ ("hlt");
-	}
-}
 
 static void kmain_ls(const char *path) {
 	assert(path != NULL);
@@ -132,25 +123,25 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	multiboot_dump(mbi);
 
 	gdt_init();
-	printf("[%u] [OK] gdt_init\n", (unsigned int)ticks);
+	printf("[%u] [OK] gdt_init\n", (unsigned int)timer_ticks);
 
 	idt_install();
-	printf("[%u] [OK] idt_install\n", (unsigned int)ticks);
+	printf("[%u] [OK] idt_install\n", (unsigned int)timer_ticks);
 
 	isr_init();
-	printf("[%u] [OK] isr_init\n", (unsigned int)ticks);
+	printf("[%u] [OK] isr_init\n", (unsigned int)timer_ticks);
 
 	pic_init();
-	printf("[%u] [OK] pic_init\n", (unsigned int)ticks);
+	printf("[%u] [OK] pic_init\n", (unsigned int)timer_ticks);
 
 	irq_init();
-	printf("[%u] [OK] irq_init\n", (unsigned int)ticks);
+	printf("[%u] [OK] irq_init\n", (unsigned int)timer_ticks);
 
 	pit_init();
-	printf("[%u] [OK] pit_init\n", (unsigned int)ticks);
+	printf("[%u] [OK] pit_init\n", (unsigned int)timer_ticks);
 
 	if (mbi->flags & MULTIBOOT_INFO_MODS) {
-		printf("[%u] %u modules\n", (unsigned int)ticks, mbi->mods_count);
+		printf("[%u] %u modules\n", (unsigned int)timer_ticks, mbi->mods_count);
 		if (mbi->mods_count > 0) {
 			// we have modules
 			multiboot_module_t *mods = (multiboot_module_t *)mbi->mods_addr;
@@ -184,7 +175,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	}
 
 	if (mbi->flags & MULTIBOOT_INFO_CMDLINE) {
-		printf("[%u] cmdline: '%s'\n", (unsigned int)ticks, (char *)mbi->cmdline);
+		printf("[%u] cmdline: '%s'\n", (unsigned int)timer_ticks, (char *)mbi->cmdline);
 	}
 
 	real_end = (real_end+0xFFF) & 0xFFFFF000;
@@ -217,7 +208,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 		mem_avail = 0xFFFFFFFF;
 	}
 	pmm_init((void *)real_end, mem_avail);
-	printf("[%u] [OK] pmm_init\n", (unsigned int)ticks);
+	printf("[%u] [OK] pmm_init\n", (unsigned int)timer_ticks);
 
 	if (mbi->flags & MULTIBOOT_INFO_MEM_MAP) {
 		for (multiboot_memory_map_t *mmap = (multiboot_memory_map_t *)mbi->mmap_addr;
@@ -350,7 +341,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	printf("free %u kb\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
 	// you can use pmm_alloc_* atfer here
 	vmm_init();
-	printf("[%u] [OK] vmm_init\n", (unsigned int)ticks);
+	printf("[%u] [OK] vmm_init\n", (unsigned int)timer_ticks);
 	printf("free %u kb\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
 
 	// directly map the multiboot structure
@@ -440,30 +431,27 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 
 	/* enable paging */
 	vmm_enable();
-	printf("[%u] [OK] vmm_enable\n", (unsigned int)ticks);
+	printf("[%u] [OK] vmm_enable\n", (unsigned int)timer_ticks);
 
 	printf("free %u kb\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
 
 	liballoc_init();
-	printf("[%u] [OK] liballoc_init\n", (unsigned int)ticks);
+	printf("[%u] [OK] liballoc_init\n", (unsigned int)timer_ticks);
 
 	syscall_init();
-	printf("[%u] [OK] syscall_init\n", (unsigned int)ticks);
+	printf("[%u] [OK] syscall_init\n", (unsigned int)timer_ticks);
 
 	framebuffer_enable_double_buffer();
-	printf("[%u] [OK] tripple framebuffer enabled\n", (unsigned int)ticks);
+	printf("[%u] [OK] tripple framebuffer enabled\n", (unsigned int)timer_ticks);
 
 	keyboard_init();
-	printf("[%u] [OK] keyboard_init\n", (unsigned int)ticks);
+	printf("[%u] [OK] keyboard_init\n", (unsigned int)timer_ticks);
 
 	/* enable interrupts */
 	interrupts_enable();
-	printf("[%u] [OK] enable interrupts\n", (unsigned int)ticks);
+	printf("[%u] [OK] enable interrupts\n", (unsigned int)timer_ticks);
 
 	printf("free %u kb\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
-
-	/* start processes */
-	ktask_spawn(kidle, "kidle", NULL);
 
 	/* scan for device and initialise them */
 	pci_print_all();
@@ -573,7 +561,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 			assert(0);
 		}
 		char * const argv[2] = { "init", NULL };
-		process_t *p = process_exec(f, 1, argv);
+		process_t *p = process_spawn_init(f, 1, argv);
 		fs_close(&f); // this should free fs_node(init)
 		p->pid = 1;
 		p->name = kmalloc(5);
@@ -585,5 +573,6 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 
 	printf("%u kb free\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
 	// TODO: free anything left lying around that won't be needed (eg. multiboot info)
+
 	return tasking_enable();
 }

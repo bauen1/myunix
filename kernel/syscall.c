@@ -10,6 +10,8 @@
 #include <string.h>
 #include <vmm.h>
 #include <heap.h>
+#include <task.h>
+#include <gdt.h>
 
 /*
 returns 0 on success
@@ -338,7 +340,7 @@ static uint32_t syscall_execve(registers_t *regs) {
 		}
 		return 2;
 	} else {
-		process_exec2(current_process, f, argc, argv, envc, envp);
+		process_execve(current_process, f, argc, argv, envc, envp);
 		fs_close(&f);
 		if (argv != NULL) {
 			for (char **v = argv; *v != NULL; v++) {
@@ -352,10 +354,10 @@ static uint32_t syscall_execve(registers_t *regs) {
 			}
 			kfree(envp);
 		}
-		printf("%s: about to __switch_direct()\n", __func__);
-		__switch_direct();
-		assert(0);
-		return -1;
+		printf("%s: kstack: %p\n", __func__, current_task->kstack);
+		current_task->state = TASK_STATE_RUNNING;
+		tss_set_kstack(current_process->task.kstack);
+		return 0;
 	}
 }
 
@@ -468,19 +470,12 @@ static uint32_t syscall_waitpid(registers_t *regs) {
 
 	printf("%s(pid: %i, status: %u, options: %u)\n", __func__, pid, status, options);
 
-	if (pid < -1) {
-		assert(0);
-	} else if (pid == -1) {
-		assert(0);
-	} else if (pid == 0) {
-		assert(0);
-	} else{
-		while (1) {
-			switch_task();
-		}
-	}
+	uint32_t r = process_waitpid(pid, status, options);
 
-	return -1;
+	process_waitpid(pid, status, options);
+
+	printf("%s: done: %u\n", __func__, r);
+	return r;
 }
 
 // TODO: implement syscall_gettimeofday properly
@@ -745,11 +740,11 @@ static uint32_t syscall_munmap(registers_t *regs) {
 	return 0;
 }
 
-static uint32_t syscall_sleep(registers_t *regs) {
-	unsigned long target = ticks + regs->ebx;
-	while (ticks <= target) {
-		switch_task();
-	}
+static uint32_t syscall_nano_sleep(registers_t *regs) {
+//	unsigned long target = ticks + regs->ebx;
+	uint32_t delay = regs->ebx;
+	uint64_t target = timer_ticks + delay;
+	task_sleep_until(target);
 	return 0;
 }
 
@@ -829,9 +824,6 @@ static void syscall_handler(registers_t *regs) {
 		case 0x01:
 			syscall_exit(regs);
 			break;
-		case 0x02:
-			regs->eax = syscall_sleep(regs);
-			break;
 		case 0x03:
 			regs->eax = syscall_read(regs);
 			break;
@@ -891,6 +883,9 @@ static void syscall_handler(registers_t *regs) {
 			break;
 		case 0x78:
 			regs->eax = syscall_clone(regs);
+			break;
+		case 0xa2:
+			regs->eax = syscall_nano_sleep(regs);
 			break;
 		case 0x14a:
 			regs->eax = syscall_dup3(regs);

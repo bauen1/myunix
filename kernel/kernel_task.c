@@ -39,19 +39,19 @@ void ktask_spawn(ktask_func func, const char *name, void *extra) {
 	task_add(&ktask->task);
 }
 
+// TODO: implement
 void ktask_destroy(ktask_t *ktask) {
 	(void)ktask;
 	printf("%s: TODO: implement\n", __func__);
 	assert(0);
 }
 
-// XXX: should only be called with interrupts off
-void __attribute__((noreturn)) __ktask_exit(uint32_t status) {
-	__asm__ __volatile__ ("cli");
-	ktask_t *ktask = (ktask_t *)current_task->obj;
+// FIXME: name gets overwritten for some reason
+__attribute__((noreturn)) void __ktask_exit(uint32_t status) {
+	ktask_t *ktask = current_task->obj;
 	assert(ktask != NULL);
-	printf("%s(name: '%s' status: %u)\n", __func__, ktask->name, status);
-	task_remove(&ktask->task);
+	printf("%s(status: %u)\n", __func__, status);
+	task_exit();
+	assert(0);
 	ktask_destroy(ktask);
-	__switch_direct();
 }

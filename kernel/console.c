@@ -11,34 +11,7 @@
 #include <tty.h>
 #include <fs.h>
 #include <ringbuffer.h>
-
-static unsigned int console_lock_count = 0;
-static bool console_lock_enable = false;
-
-static void console_lock(void) {
-	uint32_t eflags;
-	__asm__ __volatile__ ("pushf\n"
-	                      "pop %0\n"
-	                      : "=r"(eflags));
-	interrupts_disable();
-	if (console_lock_count == 0) {
-		if (eflags & (1<<9)) {
-			// XXX: interrupts where enabled when called, enable them on exit too
-			console_lock_enable = true;
-		}
-	}
-	console_lock_count++;
-}
-
-static void console_unlock(void) {
-	console_lock_count--;
-	if (console_lock_count == 0) {
-		if (console_lock_enable) {
-			console_lock_enable = false;
-			interrupts_enable();
-		}
-	}
-}
+#include <atomic.h>
 
 static char buffer_getc(void);
 
@@ -121,22 +94,21 @@ static char buffer_getc(void) {
 char getc() {
 	char c;
 
-	console_lock();
 	c = serial_getc();
 	if (c == '\r') {
 		c = '\n';
 	}
-	console_unlock();
 
 	return c;
 }
 
 void putc(char c) {
-	console_lock();
+	static spin_t console_write_lock;
+	spin_lock(console_write_lock);
 	tty_putc(c);
 	framebuffer_putc(c);
 	serial_putc(c);
-	console_unlock();
+	spin_unlock(console_write_lock);
 }
 
 void puts(const char *s) {

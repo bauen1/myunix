@@ -3,12 +3,14 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <task.h>
 
 typedef struct {
 	unsigned char *buffer;
 	size_t size;
 	size_t write_head;
 	size_t read_head;
+	semaphore_t sem;
 } ringbuffer_t;
 
 ringbuffer_t *ringbuffer_init(ringbuffer_t *ringbuffer, unsigned char *buffer, size_t size);

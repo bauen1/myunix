@@ -370,14 +370,14 @@ static void handle_arp(netif_t *netif, ethernet_packet_t *ethernet_packet, size_
 
 	switch (ntohs(arp_packet->opcode)) {
 		case ARP_OPCODE_REQUEST:
-			printf("  ARP REQUEST from %u.%u.%u.%u (%2x:%2x:%2x:%2x:%2x:%2x) for %u.%u.%u.%u (%2x:%2x:%2x:%2x:%2x:%2x)\n",
+			printf("  ARP REQUEST from %u.%u.%u.%u (%2x:%2x:%2x:%2x:%2x:%2x) for %u.%u.%u.%u (%2x:%2x:%2x:%2x:%2x:%2x) : ",
 				arp_packet->srcpr[0], arp_packet->srcpr[1], arp_packet->srcpr[2], arp_packet->srcpr[3],
 				arp_packet->srchw[0], arp_packet->srchw[1], arp_packet->srchw[2], arp_packet->srchw[3], arp_packet->srchw[4], arp_packet->srchw[5],
 				arp_packet->dstpr[0], arp_packet->dstpr[1], arp_packet->dstpr[2], arp_packet->dstpr[3],
 				arp_packet->dsthw[0], arp_packet->dsthw[1], arp_packet->dsthw[2], arp_packet->dsthw[3], arp_packet->dsthw[4], arp_packet->dsthw[5]);
 
 			if (!memcmp(netif->ip, arp_packet->dstpr, 4)) {
-				printf("   we are requested, sending reply ...");
+				printf("we are requested, sending reply ...");
 				if (net_send_arp(netif, netif->mac, ethernet_packet->src, ARP_OPCODE_REPLY,
 					netif->mac, netif->ip, arp_packet->srchw, arp_packet->srcpr)) {
 					printf(" sent!\n");
@@ -385,27 +385,28 @@ static void handle_arp(netif_t *netif, ethernet_packet_t *ethernet_packet, size_
 					printf(" error!\n");
 				}
 			} else {
-				printf("   not for us, ignoreing\n");
+				printf("not for us, ignoreing\n");
 			}
 			break;
 		case ARP_OPCODE_REPLY:
-			printf("  ARP REPLY from %u.%u.%u.%u is at %2x:%2x:%2x:%2x:%2x:%2x (for %u.%u.%u.%u (%2x:%2x:%2x:%2x:%2x:%2x))\n",
+			printf("  ARP REPLY from %u.%u.%u.%u is at %2x:%2x:%2x:%2x:%2x:%2x (for %u.%u.%u.%u (%2x:%2x:%2x:%2x:%2x:%2x)) : ",
 				arp_packet->srcpr[0], arp_packet->srcpr[1], arp_packet->srcpr[2], arp_packet->srcpr[3],
 				arp_packet->srchw[0], arp_packet->srchw[1], arp_packet->srchw[2], arp_packet->srchw[3], arp_packet->srchw[4], arp_packet->srchw[5],
 				arp_packet->dstpr[0], arp_packet->dstpr[1], arp_packet->dstpr[2], arp_packet->dstpr[3],
 				arp_packet->dsthw[0], arp_packet->dsthw[1], arp_packet->dsthw[2], arp_packet->dsthw[3], arp_packet->dsthw[4], arp_packet->dsthw[5]);
-			printf("   arp reply!\n");
 			if (!memcmp(arp_packet->srcpr, netif->gateway, 4)) {
-				printf("    arp reply for gateway\n");
+				printf("arp reply for gateway\n");
 				memcpy(netif->gateway_mac, arp_packet->srchw, 6);
 				netif->gateway_mac_configured = true;
 				const char *msg = "hello from the other side. I must have called a thousand times!\n";
 				bool success = net_send_udp(netif, netif->gateway, 1234, 4321, strlen(msg) + 1, (const uint8_t *)msg);
 				if (success) {
-					printf("success!!!!!\n");
+					printf("success!\n");
 				} else {
-					printf("failure!!!\n");
+					printf("failure!\n");
 				}
+			} else {
+				printf("for someone we don't care about\n");
 			}
 			// TODO: check if we requested the arp
 			break;

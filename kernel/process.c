@@ -1,3 +1,4 @@
+// TODO: LOCKS EVERYWHERE!
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -15,6 +16,7 @@
 #include <process.h>
 #include <string.h>
 #include <task.h>
+#include <tree.h>
 #include <vmm.h>
 #include <syscall.h>
 
@@ -32,6 +34,20 @@ pid_t get_pid(void) {
 	return pid;
 }
 
+tree_t *ptree;
+tree_node_t *ptree_get_init_node(void) {
+	return ptree->root;
+}
+
+tree_node_t *ptree_new_node(tree_node_t *parent, process_t *process) {
+	tree_node_t *v = tree_node_new();
+	assert(v != NULL);
+	v->value = process;
+	tree_node_insert_child(ptree, ((process_t *)parent->value)->ptree_node, v);
+	return v;
+}
+
+/* fd_entry_t helpers */
 fd_entry_t *fd_reference(fd_entry_t *fd) {
 	assert(fd != NULL);
 	if (fd->__refcount != -1) {
@@ -64,7 +80,7 @@ void fd_free(fd_entry_t *fd) {
 	}
 }
 
-/* helper */
+/* fd_table_t helpers */
 static void fd_table_realloc(fd_table_t *table) {
 	assert(table != NULL);
 	if (table->entries == NULL) {
@@ -130,7 +146,6 @@ void fd_table_free(fd_table_t *fd_table) {
 	}
 }
 
-/* helpers */
 int fd_table_set(fd_table_t *fd_table, unsigned int i, fd_entry_t *entry) {
 	assert(fd_table != NULL);
 
@@ -190,7 +205,7 @@ fd_entry_t *fd_table_get(fd_table_t *fd_table, unsigned int i) {
 	return fd_table->entries[i];
 }
 
-/* helpers */
+/* process_t helpers */
 static void process_map_shared_region(page_directory_t *pdir, uintptr_t start, uintptr_t end, unsigned int permissions) {
 	assert(pdir != NULL);
 	assert((start & 0xFFF) == 0);
@@ -336,7 +351,7 @@ static uintptr_t *process_exec_copy_array(process_t *process, uintptr_t *region_
 	return ptrs;
 }
 
-void process_exec2(process_t *process, fs_node_t *f, size_t argc, char * const * const argv, size_t envc, char * const * const envp) {
+void process_execve(process_t *process, fs_node_t *f, size_t argc, char * const * const argv, size_t envc, char * const * const envp) {
 	const uintptr_t virt_text_start = 0x1000000;
 	const uintptr_t virt_heap_start = 0x2000000; // max 16mb text
 	const uintptr_t virt_stack_start = 0x8000000;
@@ -489,13 +504,12 @@ void process_exec2(process_t *process, fs_node_t *f, size_t argc, char * const *
 	regs->ss = regs->ds;
 
 	process->task.registers = regs;
-
 	process->task.esp = (uint32_t)regs;
 	process->task.ebp = process->task.esp;
 	process->task.eip = (uintptr_t)return_to_regs;
 }
 
-process_t *process_exec(fs_node_t *f, unsigned int argc, char * const * const argv) {
+process_t *process_spawn_init(fs_node_t *f, size_t argc, char * const * const argv) {
 	assert(f != NULL);
 	assert(f->length != 0);
 
@@ -503,6 +517,10 @@ process_t *process_exec(fs_node_t *f, unsigned int argc, char * const * const ar
 	assert(process != NULL);
 	process->task.type = TASK_TYPE_USER_PROCESS;
 	process->task.obj = process;
+
+	process->pid = 1;
+	process->ptree_node = ptree_get_init_node();
+	process->ptree_node->value = process;
 
 	process->fd_table = fd_table_new();
 	assert(process->fd_table != NULL);
@@ -514,7 +532,7 @@ process_t *process_exec(fs_node_t *f, unsigned int argc, char * const * const ar
 	fd_table_set(process->fd_table, 1, fd_reference(tty_fd));
 	fd_table_set(process->fd_table, 2, fd_reference(tty_fd));
 
-	process_exec2(process, f, argc, argv, 0, NULL);
+	process_execve(process, f, argc, argv, 0, NULL);
 	return process;
 }
 
@@ -547,8 +565,8 @@ static void page_directory_clone_table(page_table_t *newtable, page_table_t *old
 				// XXX: we might be copying more than we want
 				newtable->pages[i] = newphys | (page & 0x3FF);
 			} else {
-//				assert(0);
 				// XXX: ignore kernel pages
+//				assert(0);
 				continue;
 			}
 		} else if (page == 0) {
@@ -627,8 +645,10 @@ process_t *process_clone(process_t *oldproc, enum syscall_clone_flags flags, uin
 	strncpy(child->name, current_process->name, name_strlen);
 
 	child->pid = get_pid();
+	child->ptree_node = ptree_new_node(oldproc->ptree_node, child);
 
 	child->task.type = current_process->task.type;
+	child->task.state = TASK_STATE_READY;
 	child->task.registers = (registers_t *)(child->task.kstack - sizeof(registers_t));
 	memcpy(child->task.registers, current_process->task.registers, sizeof(registers_t));
 	registers_t *child_registers = child->task.registers;
@@ -638,6 +658,7 @@ process_t *process_clone(process_t *oldproc, enum syscall_clone_flags flags, uin
 	if (child_stack != 0) {
 		child_registers->esp = (uint32_t)child_stack;
 	}
+
 	child->task.esp = (uint32_t)child_registers;
 	child->task.ebp = child->task.esp;
 	child->task.eip = (uintptr_t)return_to_regs;
@@ -648,7 +669,6 @@ process_t *process_clone(process_t *oldproc, enum syscall_clone_flags flags, uin
 /*
 TODO: move syscall_fork, syscall_clone and syscall_exec here
 */
-
 void process_destroy(process_t *process) {
 	printf("%s(process: %p (name: '%s'))\n", __func__, process, process->name);
 
@@ -656,6 +676,8 @@ void process_destroy(process_t *process) {
 	assert(process->pid != 0);
 
 	bitmap_unset(pid_bitmap, process->pid);
+	tree_node_delete_child(ptree, process->ptree_node->parent, process->ptree_node);
+
 	process_unmap_kstack(process);
 	task_kstack_free(&process->task);
 	fd_table_free(process->fd_table);
@@ -671,22 +693,31 @@ void __attribute__((noreturn)) process_exit(unsigned int status) {
 	}
 	printf("process_exit (pid: %u name: '%s') status: %u\n", current_process->pid, current_process->name, status);
 	process_t *p = current_process;
-	printf("%s: removing process %p (name: '%s') from queue\n", __func__, p, p->name);
-	task_remove(&p->task);
 
-	/* free process */
+	/* free anything not critical */
+	printf("%s: freeing fd table\n", __func__);
 	fd_table_free(p->fd_table);
-	bitmap_unset(pid_bitmap, p->pid);
+	printf("%s: unmapping kstack from userspace\n", __func__);
 	process_unmap_kstack(p);
-	task_kstack_delayed_free(&p->task);
+	printf("%s: page directory free\n", __func__);
 	process_page_directory_free(p->task.pdir);
-	kfree(p->name);
-	kfree(p);
 
-	printf("%s: __switch_direct\n", __func__);
-
-	__switch_direct();
+	printf("%s: scheduler_lock()\n", __func__);
+	scheduler_lock();
+	printf("%s: task_unblock_next()\n", __func__);
+	task_unblock_next(&p->wait_queue);
+	task_exit();
+	assert(0);
 }
+
+/*
+void process_reap(process_t *process) {
+	task_free_kstack(&process->kstack);
+	bitmap_unset(pid_bitmap, p->pid);
+	kfree(process->name);
+	kfree(process);
+}
+*/
 
 void process_add(process_t *process) {
 	assert(process != NULL);
@@ -700,4 +731,42 @@ void process_init(void) {
 	assert(pid_bitmap != NULL);
 	bitmap_set(pid_bitmap, 0); // "kidle"
 	bitmap_set(pid_bitmap, 1); // init
+	ptree = tree_new();
+	ptree->root = tree_node_new();
+	ptree->root->value = NULL;
+}
+
+process_t *process_waitpid_find(tree_node_t *parent_node, pid_t pid, uint32_t options) {
+	(void)options;
+
+	for (node_t *node = parent_node->children->head; node != NULL; node = node->next) {
+		tree_node_t *tree_node = node->value;
+		process_t *candidate = tree_node->value;
+		if (candidate->pid == pid) {
+			return candidate;
+		}
+	}
+
+	return NULL;
+}
+
+uint32_t process_waitpid(pid_t pid, uint32_t status, uint32_t options) {
+	printf("%s(pid: %u, status: %u, options: %u)\n", __func__, pid, status, options);
+
+	do { // TODO: implement for other than pid > 0
+		process_t *p = process_waitpid_find(current_process->ptree_node, pid, options);
+		if (p == NULL) {
+			printf("%s: no process found, returning\n", __func__);
+			return -1;
+		}
+
+		if (p->task.state == TASK_STATE_TERMINATED) {
+			printf("%s: done\n", __func__);
+			return p->pid;
+		} else {
+			printf("%s: blocking\n", __func__);
+			task_block(&p->wait_queue, TASK_STATE_BLOCKED);
+			printf("%s: after block\n", __func__);
+		}
+	} while (1);
 }

@@ -1,9 +1,11 @@
 #include <sys/mman.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <errno.h>
 
 int main(int argc, char *argv[]) {
 	setvbuf(stdin, NULL, _IONBF, 0);
@@ -29,6 +31,32 @@ int main(int argc, char *argv[]) {
 	}
 	free(c);
 */
+	pid_t cpid = fork();
+	if (cpid == -1) {
+		perror("fork");
+	} else if (cpid == 0) {
+		// child
+		printf("%s: child (pid: %u)\n", __func__, getpid());
+		_exit(1111);
+	} else {
+		int wstatus;
+		do {
+			pid_t w = waitpid(cpid, &wstatus, WUNTRACED | WCONTINUED);
+			if (w == -1) {
+				perror("waitpid");
+				break;
+			}
+			if (WIFEXITED(wstatus)) {
+				printf("child exited, status=%d\n", WEXITSTATUS(wstatus));
+			} else if (WIFSIGNALED(wstatus)) {
+				printf("child killed by signal=%d\n", WTERMSIG(wstatus));
+			} else if (WIFSTOPPED(wstatus)) {
+				printf("child stopped by signal=%d\n", WSTOPSIG(wstatus));
+			} else if (WIFCONTINUED(wstatus)) {
+				printf("child continued\n");
+			}
+		} while (!WIFEXITED(wstatus) && !WIFSIGNALED(wstatus));
+	}
 
 	printf("putenv: %d\n", putenv("TEST=1234"));
 	printf("setenv: %d\n", setenv("HOME", "/", 1));
