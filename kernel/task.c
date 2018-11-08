@@ -449,7 +449,7 @@ TODO: ktask reaper / cleaner / parent
 */
 __attribute__((noreturn)) void task_exit(void) {
 	printf("%s: task: %p\n", __func__, current_task);
-	assert_panic(scheduler_lock_count == 1); // XXX: this might even work ...
+	assert(scheduler_lock_count == 1); // XXX: this might even work ...
 	task_t *task = current_task;
 	assert(task != NULL);
 	assert(task->state == TASK_STATE_RUNNING);

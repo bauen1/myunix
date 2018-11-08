@@ -45,7 +45,7 @@
 // TODO: move the tcp, arp, dns and icmp code to seprate files
 
 
-static int ktask_net(const char *name, void *extra);
+static unsigned int ktask_net(const char *name, void *extra);
 
 list_t *netif_list;
 
@@ -418,7 +418,7 @@ static void handle_arp(netif_t *netif, ethernet_packet_t *ethernet_packet, size_
 	}
 }
 
-static int ktask_net(const char *name, void *extra) {
+static unsigned int ktask_net(const char *name, void *extra) {
 	(void)name;
 
 	netif_t *netif = (netif_t *)extra;
