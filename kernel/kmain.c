@@ -564,9 +564,8 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 		process_t *p = process_spawn_init(f, 1, argv);
 		fs_close(&f); // this should free fs_node(init)
 		p->pid = 1;
-		p->name = kmalloc(5);
+		p->name = strndup(argv[0], strlen(argv[0]));
 		assert(p->name != NULL);
-		strncpy(p->name, "init", 5);
 		process_add(p);
 	}
 	printf("%s: done\n", __func__);

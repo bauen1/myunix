@@ -51,10 +51,8 @@ struct tar_obj *tar_create_obj_from_header(fs_node_t *device, struct tar_header 
 	obj->offset = offset;
 
 	obj->length = oct2bin(header->fsize, 12);
-	obj->name = kmalloc(101);
+	obj->name = strndup(header->name, 100);
 	assert(obj->name != NULL);
-	strncpy(obj->name, header->name, 100);
-	obj->name[strlen(header->name)] = 0;
 
 	switch((char)header->type) {
 		case 0:

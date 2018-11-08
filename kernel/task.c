@@ -238,7 +238,7 @@ static void __schedule(void) {
 }
 
 void scheduler_lock(void) {
-	uint32_t eflags;
+	__attribute__((used)) uint32_t eflags;
 	__asm__ __volatile__ ("pushf\n"
 	                      "pop %0\n"
 	                      : "=r"(eflags));
@@ -328,7 +328,7 @@ void task_unblock_next(task_queue_t *queue) {
 // TODO: implement sleep delta list https://wiki.osdev.org/Blocking_Process
 
 void task_sleep_until(uint64_t target) {
-	printf("%s: task %p sleeping until %u\n", __func__, current_task, target);
+	printf("%s: task %p sleeping until %u\n", __func__, current_task, (unsigned int)target);
 
 	scheduler_lock();
 	if (target <= timer_ticks) {

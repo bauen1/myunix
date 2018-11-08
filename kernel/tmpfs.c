@@ -30,9 +30,8 @@ static struct tmpfs_object *tmpfs_create_obj(char *name, enum fs_node_flags flag
 	struct tmpfs_object *obj = kcalloc(1, sizeof(struct tmpfs_object));
 	assert(obj != NULL);
 	obj->flags = flags;
-	obj->name = kmalloc(strlen(name) + 1);
+	obj->name = strndup(name, strlen(name));
 	assert(obj->name != NULL);
-	strncpy(obj->name, name, 255);
 	if (obj->flags & FS_NODE_DIRECTORY) {
 		// directory, init files list
 		obj->childs = list_init();

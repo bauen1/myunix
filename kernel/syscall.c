@@ -307,7 +307,7 @@ static uint32_t syscall_execve(registers_t *regs) {
 		if (argv != NULL) {
 			for (argc = 0; argv[argc] != NULL; argc++) {;}
 			for (size_t i = 0; i < argc; i++) {
-				printf("argv[%u]: %p '%s'\n", i, argv[i], argv[i]);
+				printf("argv[%u]: %p '%s'\n", (unsigned int)i, argv[i], argv[i]);
 			}
 		}
 	}
@@ -318,7 +318,7 @@ static uint32_t syscall_execve(registers_t *regs) {
 		if (envp != NULL) {
 			for (envc = 0; envp[envc] != NULL; envc++) {;}
 			for (size_t i = 0; i < envc; i++) {
-				printf("envp[%u]: %p '%s'\n", i, envp[i], envp[i]);
+				printf("envp[%u]: %p '%s'\n", (unsigned int)i, envp[i], envp[i]);
 			}
 		}
 	}

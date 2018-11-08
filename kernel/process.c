@@ -639,10 +639,8 @@ process_t *process_clone(process_t *oldproc, enum syscall_clone_flags flags, uin
 	task_kstack_alloc(&child->task);
 	process_map_kstack(child);
 
-	// FIXME: strdup to the rescue
-	const size_t name_strlen = strlen(current_process->name);
-	child->name = kmalloc(name_strlen + 1);
-	strncpy(child->name, current_process->name, name_strlen);
+	child->name = strndup(current_process->name, strlen(current_process->name));
+	assert(child->name != NULL);
 
 	child->pid = get_pid();
 	child->ptree_node = ptree_new_node(oldproc->ptree_node, child);

@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stddef.h>
+#include <heap.h>
 
 size_t __attribute__((pure)) strlen(const char *str) {
 	assert(str != NULL);
@@ -44,4 +45,13 @@ void *memset(void *dest, int c, size_t len) {
 		*d++ = (char)c;
 	}
 	return dest;
+}
+
+char *strndup(const char *s, size_t n) {
+	char *s2 = kmalloc(sizeof(char) * (n + 1));
+	if (s2 == NULL) {
+		return NULL;
+	}
+	strncpy(s2, s, n + 1);
+	return s2;
 }
