@@ -397,7 +397,7 @@ void semaphore_acquire(semaphore_t *semaphore) {
 		scheduler_unlock();
 	}
 	// XXX: if we don't schedule after spin_unlock we might return without acquireing
-	assert_panic(scheduler_lock_count == 1);
+	assert(scheduler_lock_count == 1);
 	spin_unlock(semaphore->lock);
 	return;
 }
@@ -428,7 +428,7 @@ void _sleep(uint64_t delta) {
 
 void task_add(task_t *task) {
 	printf("%s(task: %p)\n", __func__, task);
-	assert(task != NULL),
+	assert(task != NULL);
 	assert(task->obj != NULL);
 	task->state = TASK_STATE_READY;
 
@@ -481,6 +481,7 @@ __attribute__((noreturn)) void tasking_enable(void) {
 	assert(current_task != NULL);
 	assert(current_task->state == TASK_STATE_READY);
 	current_task->state = TASK_STATE_RUNNING;
+	assert(scheduler_lock_count == 0);
 	__restore_task(current_task);
 	assert(0);
 }
