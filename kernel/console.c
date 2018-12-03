@@ -52,42 +52,46 @@ void console_init() {
 	ringbuffer_init(&text_buffer, buffer, sizeof(buffer));
 }
 
-__attribute__((used))
-static char buffer_getc(void) {
-	if (ringbuffer_unread(&text_buffer) == 0) {
-		char tmp_buffer[1024];
-		size_t i = 0;
-		while (i < sizeof(tmp_buffer)) {
-			char c = getc();
-			assert(c != 0);
-			switch(c) {
-				case '\b':
-				case 127:
-					if (i > 0) {
-						i--;
-					}
-					putc('\b');
-					break;
-				case '\n':
-				default:
-					tmp_buffer[i] = c;
-					i++;
-					putc(c);
-					break;
-			}
-			if (c == '\n') {
+static void buffer_fill(void) {
+	char tmp_buffer[1024];
+	size_t i = 0;
+	while (i < sizeof(tmp_buffer)) {
+		char c = getc();
+		assert(c != 0);
+		switch(c) {
+			case '\b':
+			case 127:
+				if (i > 0) {
+					i--;
+				}
+				putc('\b');
 				break;
-			}
+			case '\n':
+			default:
+				tmp_buffer[i] = c;
+				i++;
+				putc(c);
+				break;
 		}
-		for (size_t i = 0; i < sizeof(tmp_buffer); i++) {
-			char c = tmp_buffer[i];
-			ringbuffer_write_byte(&text_buffer, c);
-			if (c == '\n') {
-				break;
-			}
+		if (c == '\n') {
+			break;
 		}
 	}
+	for (size_t i = 0; i < sizeof(tmp_buffer); i++) {
+		char c = tmp_buffer[i];
+		ringbuffer_write_byte(&text_buffer, c);
+		if (c == '\n') {
+			break;
+		}
+	}
+}
 
+static char buffer_getc(void) {
+	if (ringbuffer_unread(&text_buffer) == 0) {
+		buffer_fill();
+	}
+
+	assert(ringbuffer_unread(&text_buffer) > 0);
 	return (char)ringbuffer_read_byte(&text_buffer);
 }
 
@@ -121,11 +125,14 @@ void puts(const char *s) {
 	}
 }
 
+mutex_t print_mutex;
+
 void vprintf(const char *fmt, va_list args) {
 	char buf[256]; // probably too much
 	char *s;
 	int tmp;
 
+	mutex_lock(&print_mutex);
 	while (*fmt != 0) {
 		if (*fmt == '%') {
 			fmt++;
@@ -179,6 +186,7 @@ void vprintf(const char *fmt, va_list args) {
 		}
 		fmt++;
 	}
+	mutex_unlock(&print_mutex);
 }
 
 void printf(const char *fmt, ...) {
