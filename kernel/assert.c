@@ -72,3 +72,9 @@ void print_stack_trace(void) {
 	printf("=== stack trace ===\n");
 	print_stack(-1, ebp_r);
 }
+
+void __attribute__((noreturn)) __panic(const char *msg, const char *file, int line) {
+	printf("PANIC %s:%i: '%s'\n", file, line, msg);
+	print_stack_trace();
+	halt();
+}

@@ -10,9 +10,6 @@
 #include <task.h>
 #include <vmm.h>
 
-#define assert_panic(exp) if (!(exp)) { interrupts_disable(); __asm__ __volatile__("hlt");}
-#define assert_interrupts_disabled() do {uint32_t f;__asm__ __volatile__("pushf\npop %0":"=r"(f)); assert_panic(!(f & 1<<9)); }while(0)
-
 /* kstack helpers */
 void task_kstack_alloc(task_t *task) {
 	assert(task != NULL);
@@ -69,6 +66,21 @@ void task_kstack_free(task_t *task) {
 	task->kstack = 0;
 }
 
+/* actual scheduler logic */
+task_t *current_task;
+task_queue_t ready_queue;
+task_queue_t wait_queue;
+task_queue_t terminated_queue;
+list_t blocked_list;
+bool scheduler_ready = false;
+volatile unsigned int scheduler_lock_count = 0;
+bool postponed_schedule = false;
+bool enable_ints = false;
+
+/* debug helpers */
+#define assert_panic(exp) if (!(exp)) { interrupts_disable(); __asm__ __volatile__("hlt");}
+#define assert_interrupts_disabled() do {uint32_t f;__asm__ __volatile__("pushf\npop %0":"=r"(f)); assert_panic(!(f & 1<<9)); }while(0)
+
 /* task_queue_t helpers */
 static void task_queue(task_queue_t *queue, task_t *task) {
 	assert_interrupts_disabled();
@@ -90,11 +102,12 @@ static void task_queue(task_queue_t *queue, task_t *task) {
 static task_t *task_dequeue(task_queue_t *queue) {
 	assert_interrupts_disabled();
 	assert(queue != NULL);
-	if (queue->first == NULL) {
+
+	task_t *task = queue->first;
+	if (task == NULL) {
 		return NULL;
 	}
 
-	task_t *task = queue->first;
 	queue->first = task->next_task;
 	if (queue->first == NULL) {
 		assert(task->next_task == NULL);
@@ -105,21 +118,11 @@ static task_t *task_dequeue(task_queue_t *queue) {
 	return task;
 }
 
-/* actual scheduler logic */
-task_t *current_task;
-task_queue_t ready_queue;
-task_queue_t wait_queue;
-task_queue_t terminated_queue;
-
-bool scheduler_ready = false;
-volatile unsigned int scheduler_lock_count = 0;
-bool postponed_schedule = false;
-bool enable_ints = false;
 
 // TODO: rewrite partially in assembly
 __attribute__((noreturn)) static void __restore_task(task_t *task) {
 	assert_interrupts_disabled();
-	assert(scheduler_lock_count == 0);
+	assert_panic(scheduler_lock_count == 0);
 
 	tss_set_kstack(task->kstack);
 
@@ -149,9 +152,9 @@ __attribute__((noreturn)) static void __restore_task(task_t *task) {
  */
 __attribute__((used)) void switch_task(task_t *new_task) {
 	assert_interrupts_disabled();
-	assert(current_task != NULL);
-	assert(new_task != NULL);
-	assert(scheduler_lock_count == 0);
+	assert_panic(current_task != NULL);
+	assert_panic(new_task != NULL);
+	assert_panic(scheduler_lock_count == 0);
 
 	uint32_t esp, ebp;
 	__asm__ __volatile__("mov %%esp, %0\n"
@@ -171,79 +174,93 @@ __attribute__((used)) void switch_task(task_t *new_task) {
 
 static void __schedule(void) {
 	assert_interrupts_disabled();
-	assert(scheduler_lock_count == 0);
+	assert_panic(scheduler_lock_count == 0);
 
-	task_t *next_task = current_task;
-	if (current_task != NULL) {
-		assert_panic(current_task->state != TASK_STATE_READY);
-	}
+	assert(current_task != NULL);
 
-	if (ready_queue.first != NULL) {
-		// XXX: switch to next ready task
-		next_task = task_dequeue(&ready_queue);
-		assert(next_task != current_task);
-		assert(next_task != NULL);
-	} else {
+	// XXX: get next ready task
+	task_t *next_task = task_dequeue(&ready_queue);
+	if (next_task == NULL) {
+		// XXX: no new task waiting for cpu time
 		if (current_task != NULL) {
 			if (current_task->state == TASK_STATE_RUNNING) {
-				// XXX: only process that wants cpu so don't bother doing anything
-			} else {
-				// XXX: idle
+				// XXX: keep running, since we're the only task asking for cpu
 				next_task = current_task;
+			} else {
+				// XXX: current task blocking on something so we have nothing to do, idle
+				task_t *task = current_task;
 				current_task = NULL;
 				scheduler_lock_count++;
+
 				do {
 					interrupts_enable();
 					__asm__ __volatile__("hlt");
 					interrupts_disable(); //XXX: need to be disabled for while check below
 				} while (ready_queue.first == NULL);
+
+				assert_panic(postponed_schedule == false);
+
 				scheduler_lock_count--;
-				assert(scheduler_lock_count == 0);
-				current_task = next_task;
+				assert_panic(scheduler_lock_count == 0);
+				current_task = task;
+
 				next_task = task_dequeue(&ready_queue);
 				assert_panic(next_task != NULL);
 			}
 		} else {
-			// XXX: already idleing, an interrupt handler called __schedule, in short: we're fucked
-			assert(0);
+			// XXX: already idleing somewhere, we shouldn't have been called: this is bad
+			assert_panic(0);
 		}
 	}
 
+	assert(next_task != NULL);
+
 	if (current_task != next_task) {
+		// XXX: switch to next task
 		if (current_task != NULL) {
 			if (current_task->state == TASK_STATE_RUNNING) {
-				// XXX: task got preempted
+				// XXX: task got preempted, add him back to the queue
 				current_task->state = TASK_STATE_READY;
 				task_queue(&ready_queue, current_task);
+			} else if (current_task->state == TASK_STATE_TERMINATED) {
+				printf("%s: terminating task %p\n", __func__, current_task);
+				task_queue(&terminated_queue, current_task);
+				assert_panic(next_task->state == TASK_STATE_READY);
+				next_task->state = TASK_STATE_RUNNING;
+				current_task = next_task;
+				__restore_task(current_task);
+				assert_panic(0);
 			} else {
 				// XXX: task blocked or something else
 
 			}
+
 			assert(next_task->state == TASK_STATE_READY);
 			next_task->state = TASK_STATE_RUNNING;
 			call_switch_task(next_task);
 		} else {
-			printf("%s: WARN: terminating current task\n", __func__);
-			// XXX: previous task terminated
-			// XXX: ensure we don't get here if current_task == NULL because of idle
-			current_task = next_task;
-			assert(next_task->state == TASK_STATE_READY);
-			current_task->state = TASK_STATE_RUNNING;
-			__restore_task(current_task);
+			assert_panic(0);
 		}
 	} else {
-		assert(current_task != NULL);
-		current_task->state = TASK_STATE_RUNNING;
+		// XXX: no need to switch
 	}
+
+	// perfom some sanity checks
+	assert(current_task != NULL);
+	assert(current_task->state == TASK_STATE_RUNNING);
 }
 
 void scheduler_lock(void) {
-	__attribute__((used)) uint32_t eflags;
+	uint32_t eflags; (void)eflags;
 	__asm__ __volatile__ ("pushf\n"
 	                      "pop %0\n"
 	                      : "=r"(eflags));
 	interrupts_disable();
 	if (scheduler_lock_count == 0) {
+		if (postponed_schedule) {
+			assert_panic(0);
+		}
+
 		if (eflags & (1<<9)) {
 			// XXX: interrupts where enabled when called, enable them on exit too
 			enable_ints = true;
@@ -254,6 +271,7 @@ void scheduler_lock(void) {
 
 void scheduler_unlock(void) {
 	assert_interrupts_disabled();
+	assert_panic(scheduler_lock_count != 0);
 	scheduler_lock_count--;
 	if (scheduler_lock_count == 0) {
 		if ((scheduler_ready) && postponed_schedule) {
@@ -293,6 +311,7 @@ static void __task_block(task_queue_t *queue, task_t *task, unsigned int reason)
 
 	task->state = reason;
 	task_queue(queue, task);
+	list_insert(&blocked_list, task);
 }
 
 void task_block(task_queue_t *queue, unsigned int reason) {
@@ -311,6 +330,7 @@ static void __task_unblock(task_t *task) {
 
 	task->state = TASK_STATE_READY;
 	task_queue(&ready_queue, task);
+	list_remove(&blocked_list, task);
 }
 
 void task_unblock_next(task_queue_t *queue) {
@@ -326,61 +346,66 @@ void task_unblock_next(task_queue_t *queue) {
 
 /* task sleep helpers */
 // TODO: implement sleep delta list https://wiki.osdev.org/Blocking_Process
-
 void task_sleep_until(uint64_t target) {
 	printf("%s: task %p sleeping until %u\n", __func__, current_task, (unsigned int)target);
 
-	scheduler_lock();
 	if (target <= timer_ticks) {
-		scheduler_unlock();
 		return;
 	}
 
+	scheduler_lock();
+	assert_panic(scheduler_lock_count == 1);
+	assert_panic(current_task != NULL);
+	assert_panic(current_task->state == TASK_STATE_RUNNING);
+
 	current_task->state = TASK_STATE_WAITING;
 	current_task->wait_target = target;
+
 	task_queue(&wait_queue, current_task);
+
 	schedule();
 	scheduler_unlock();
-	assert(scheduler_lock_count == 0);
+}
+
+void task_sleep_miliseconds(uint64_t time) {
+	scheduler_lock();
+	assert(scheduler_lock_count == 1);
+	assert(current_task != NULL);
+	current_task->wait_target = timer_ticks + time;
+	__task_block(&wait_queue, current_task, TASK_STATE_WAITING);
+	schedule();
+	scheduler_unlock();
 }
 
 /*
  * scheduler_wakeup is called by a timer to wake up sleeping tasks
- * and to preempt the current running task
+ * and to preempt the current running task if needed
  */
 void scheduler_wakeup(void) {
-	if (scheduler_ready) {
-		scheduler_lock();
-		task_t *task = wait_queue.first;
-		wait_queue.first = NULL;
-		wait_queue.last = NULL;
-		while (task != NULL) {
-			task_t *next_task = task->next_task;
-			if (task->wait_target <= timer_ticks) {
-				// XXX: hey, wake up
-				task->state = TASK_STATE_READY;
-				task->next_task = NULL;
-				task_queue(&ready_queue, task);
-			} else {
-				// XXX: put it back
-				// FIXME: inefficient
-				task_queue(&wait_queue, task);
-			}
-			task = next_task;
+	if (!scheduler_ready) {
+		return;
+	}
+
+	scheduler_lock();
+
+	task_t *task = wait_queue.first;
+	wait_queue.first = NULL;
+	wait_queue.last = NULL;
+	while (task != NULL) {
+		task_t *next_task = task->next_task;
+		task->next_task = NULL;
+		if (task->wait_target <= timer_ticks) {
+			printf("%s: wakeup %p\n", __func__, task);
+			task->wait_target = 0;
+			__task_unblock(task);
+		} else {
+			// XXX: put the task back
+			task_queue(&wait_queue, task);
 		}
-		schedule();
-/*
-	if (scheduler_lock_count == 1) {
-		// XXX: first level IRQ
-		schedule();
-	} else if (scheduler_lock_count == 2) {
-		// XXX: second level IRQ do not schedule
-	} else {
-		assert_panic(0);
+		task = next_task;
 	}
-*/
-		scheduler_unlock();
-	}
+	schedule();
+	scheduler_unlock();
 }
 
 /* semaphore_t helpers */
@@ -417,6 +442,34 @@ void semaphore_release(semaphore_t *semaphore) {
 	return;
 }
 
+/* mutex_t helpers */
+void mutex_lock(mutex_t *mutex) {
+	int prev = arch_atomic_swap(mutex->lock, 1);
+	if (prev != 0) {
+		// XXX: wait to be woken up
+		scheduler_lock();
+		__task_block(&mutex->blocked_tasks, current_task, TASK_STATE_BLOCKED_LOCK);
+		schedule();
+		scheduler_unlock();
+	}
+	assert(mutex->locked_task == NULL);
+	mutex->locked_task = current_task;
+}
+
+void mutex_unlock(mutex_t *mutex) {
+	int prev = arch_atomic_swap(mutex->lock, 1);
+	assert(prev == 1);
+	assert(mutex->locked_task == current_task);
+
+	mutex->locked_task = NULL;
+
+	if (mutex->blocked_tasks.first != NULL) {
+		task_unblock_next(&mutex->blocked_tasks);
+	} else {
+		arch_atomic_swap(mutex->lock, 0);
+	}
+}
+
 /* other helpers */
 void _sleep(uint64_t delta) {
 	// TODO: FIXME: this shouldn't be used anywhere
@@ -450,20 +503,13 @@ TODO: ktask reaper / cleaner / parent
 __attribute__((noreturn)) void task_exit(void) {
 	printf("%s: task: %p\n", __func__, current_task);
 	assert(scheduler_lock_count == 1); // XXX: this might even work ...
-	task_t *task = current_task;
-	assert(task != NULL);
-	assert(task->state == TASK_STATE_RUNNING);
-	current_task = NULL;
-
-	printf("%s: queueing task %p on terminated_queue\n", __func__, task);
-	task->state = TASK_STATE_TERMINATED;
-	task_queue(&terminated_queue, task);
+	assert(current_task->state == TASK_STATE_RUNNING);
+	current_task->state = TASK_STATE_TERMINATED;
 
 	scheduler_lock_count--;
 	assert_panic(scheduler_lock_count == 0);
 	postponed_schedule = false;
 	__schedule();
-	printf("%s: WTF AFTER __schedule()\n", __func__);
 	assert_panic(0);
 
 #ifndef __TINYC__

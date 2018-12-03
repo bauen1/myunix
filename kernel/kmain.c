@@ -34,6 +34,49 @@
 #include <tty.h>
 #include <vmm.h>
 
+static mutex_t test_mutex;
+static unsigned int test = 0;
+
+static unsigned int ktask_test1(const char * const name, void *extra) {
+	printf("%s: name: '%s', extra: %p\n", __func__, name, extra);
+	printf("%s: acquireing mutex %p\n", __func__, &test_mutex);
+	mutex_lock(&test_mutex);
+	printf("%s: sleeping for 1s\n", __func__);
+	task_sleep_until(timer_ticks + 1 * 1000);
+	printf("%s: unlocking\n", __func__);
+	mutex_unlock(&test_mutex);
+	return 0;
+}
+
+static unsigned int ktask_test2(const char * const name, void *extra) {
+	printf("%s: name: '%s', extra: %p\n", __func__, name, extra);
+	printf("%s: sleep(500ms)\n", __func__);
+	printf("%s: current time %u, sleeping until %u\n", __func__, (unsigned int) timer_ticks, (unsigned int) (timer_ticks + 200));
+	task_sleep_until(timer_ticks + 200);
+	task_sleep_miliseconds(200);
+	printf("%s: lock mutex\n", __func__);
+	mutex_lock(&test_mutex);
+	printf("%s: test = 200\n", __func__);
+	test = 200;
+	printf("%s: unlock mutex\n", __func__);
+	mutex_unlock(&test_mutex);
+	return 0;
+}
+
+static unsigned int ktask_test(const char * const name, void *extra) {
+	printf("%s: name: '%s', extra: %p\n", __func__, name, extra);
+
+	for (unsigned int i = 0; i < 10; i++) {
+		printf("%s: trying to acquire mutex\n", __func__);
+		mutex_lock(&test_mutex);
+		printf("test: %u\n", test);
+		test++;
+		mutex_unlock(&test_mutex);
+	}
+	unsigned int r = 22;
+	printf("%s: returning with %u\n", __func__, r);
+	return r;
+}
 
 static void kmain_ls(const char *path) {
 	assert(path != NULL);
@@ -569,6 +612,10 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 		process_add(p);
 	}
 	printf("%s: done\n", __func__);
+
+	ktask_spawn(ktask_test1, "test1", (void *)0x11111111);
+	ktask_spawn(ktask_test2, "test2", (void *)0x22222222);
+	ktask_spawn(ktask_test, "test", (void *)0x3333333);
 
 	printf("%u kb free\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
 	// TODO: free anything left lying around that won't be needed (eg. multiboot info)

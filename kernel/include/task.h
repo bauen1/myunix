@@ -56,6 +56,7 @@ void task_block(task_queue_t *queue, unsigned int reason);
 void task_unblock_next(task_queue_t *queue);
 
 void task_sleep_until(uint64_t target);
+void task_sleep_miliseconds(uint64_t time);
 
 /* semaphore_t */
 typedef struct {
@@ -66,6 +67,18 @@ typedef struct {
 
 void semaphore_acquire(semaphore_t *semaphore);
 void semaphore_release(semaphore_t *semaphore);
+
+/* mutex_t */
+typedef struct {
+	volatile int lock[1];
+	// XXX: locked_task might be NULL even when lock is 1
+	task_t *locked_task;
+	// XXX: only modify after scheduler_lock();
+	task_queue_t blocked_tasks;
+} mutex_t;
+
+void mutex_lock(mutex_t *mutex);
+void mutex_unlock(mutex_t *mutex);
 
 /* yield, don't block but give up the cpu until scheduled again */
 void yield(void);
