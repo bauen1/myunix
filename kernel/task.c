@@ -198,7 +198,9 @@ static void __schedule(void) {
 					interrupts_disable(); //XXX: need to be disabled for while check below
 				} while (ready_queue.first == NULL);
 
-				assert_panic(postponed_schedule == false);
+				if (postponed_schedule) {
+					postponed_schedule = false;
+				}
 
 				scheduler_lock_count--;
 				assert_panic(scheduler_lock_count == 0);
@@ -206,6 +208,11 @@ static void __schedule(void) {
 
 				next_task = task_dequeue(&ready_queue);
 				assert_panic(next_task != NULL);
+				// FIXME: somewhat ugly workaround to ensure the sanity checks a few lines down don't fail
+				if (current_task == next_task) {
+					assert(current_task->state == TASK_STATE_READY);
+					current_task->state = TASK_STATE_RUNNING;
+				}
 			}
 		} else {
 			// XXX: already idleing somewhere, we shouldn't have been called: this is bad
@@ -405,6 +412,7 @@ void scheduler_wakeup(void) {
 		task = next_task;
 	}
 	schedule();
+
 	scheduler_unlock();
 }
 
@@ -510,7 +518,6 @@ __attribute__((noreturn)) void task_exit(void) {
 	assert_panic(scheduler_lock_count == 0);
 	postponed_schedule = false;
 	__schedule();
-	assert_panic(0);
 
 #ifndef __TINYC__
 	__builtin_unreachable();
@@ -529,5 +536,4 @@ __attribute__((noreturn)) void tasking_enable(void) {
 	current_task->state = TASK_STATE_RUNNING;
 	assert(scheduler_lock_count == 0);
 	__restore_task(current_task);
-	assert(0);
 }
