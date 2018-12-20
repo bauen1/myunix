@@ -21,7 +21,7 @@ ASFLAGS?=-g
 
 # mandatory flags
 # -fno-omit-frame-pointer is needed to generate a stack trace
-CFLAGS:=$(CFLAGS) -ffreestanding -std=gnu99 -fstack-protector -fno-omit-frame-pointer
+CFLAGS:=$(CFLAGS) -ffreestanding -std=gnu99 -fstack-protector-strong -fno-omit-frame-pointer
 CPPFLAGS:=$(CPPFLAGS) -D__myunix_kernel -I./include -I./$(ARCHDIR)
 LDFLAGS:=$(LDFLAGS) -static -nostdinc
 LIBS:=$(LIBS) -nostdlib
