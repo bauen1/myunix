@@ -157,7 +157,7 @@ debug-grub: myunix2.iso
 
 .PHONY: cppcheck-tcc
 cppcheck-tcc:
-	cppcheck --quiet --enable=all $(CPPFLAGS) $(SRCS_GLOBS) -I ../toolchain/opt/lib/tcc/include $(EXTRA_CPPCHECKFLAGS)
+	cppcheck --quiet --enable=all $(CPPFLAGS) -DDEBUG=1 $(SRCS_GLOBS) -I ../toolchain/opt/lib/tcc/include $(EXTRA_CPPCHECKFLAGS)
 
 .PHONY: codespell
 codespell:
