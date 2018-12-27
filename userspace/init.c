@@ -64,5 +64,8 @@ int main(int argc, char *argv[]) {
 	printf("env['HI']: '%s'\n", getenv("HI"));
 	const char *a[] = {"/sh", NULL};
 	execv(a[0], a);
-	return EXIT_FAILURE;
+	printf("Could not run /sh !\nLooping forever ...\n");
+	while (1) {
+		// ...
+	};
 }

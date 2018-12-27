@@ -196,7 +196,7 @@ static void e1000_init_rx(e1000_t *e1000) {
 		);
 }
 
-static void e1000_send_packet(void *extra, uint8_t *data, size_t length) {
+static void e1000_send_packet(void *extra, const uint8_t *data, size_t length) {
 	e1000_t *e1000 = (e1000_t *)extra;
 	assert(e1000 != NULL);
 	assert(data != NULL);

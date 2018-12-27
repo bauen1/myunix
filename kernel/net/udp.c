@@ -11,8 +11,7 @@
 #define debug_udp(...)
 #endif
 
-void handle_udp(netif_t *netif, ethernet_packet_t *ethernet_packet, size_t ethernet_length,
-	ipv4_packet_t *ipv4_packet, size_t ipv4_data_length) {
+void net_handle_udp(netif_t *netif, const ethernet_packet_t *ethernet_packet, size_t ethernet_length, const ipv4_packet_t *ipv4_packet, size_t ipv4_data_length) {
 	(void)ethernet_length;
 	(void)ethernet_packet;
 	(void)netif;
@@ -51,7 +50,7 @@ void handle_udp(netif_t *netif, ethernet_packet_t *ethernet_packet, size_t ether
 	}
 }
 
-bool net_send_udp(netif_t *netif, uint8_t *destip, uint16_t srcport, uint16_t dstport, uint16_t length, const uint8_t *data) {
+bool net_send_udp(netif_t *netif, const uint8_t dstip[4], uint16_t srcport, uint16_t dstport, uint16_t length, const uint8_t *data) {
 	size_t size = sizeof(udp_packet_t) + length;
 	udp_packet_t *packet = kcalloc(1, size);
 	if (packet == NULL) {
@@ -65,7 +64,7 @@ bool net_send_udp(netif_t *netif, uint8_t *destip, uint16_t srcport, uint16_t ds
 	packet->checksum = 0;
 	memcpy(packet->data, data, length);
 	// FIXME: pretty sure identification = 0 isn't valid (more than once atleast)
-	bool success = net_send_ipv4(netif, NULL, 0, IPV4_TYPE_UDP, netif->ip, destip, (uint8_t *)packet, size);
+	bool success = net_send_ipv4(netif, NULL, 0, IPV4_TYPE_UDP, netif->ip, dstip, (uint8_t *)packet, size);
 	kfree(packet);
 	return success;
 }

@@ -56,7 +56,6 @@ static list_t *copy_elements(node_t *start, node_t *end) {
 	}
 
 	assert(elements->length == 0);
-	assert(start != end);
 
 	for (node_t *node = start; node != end; node = node->next) {
 		assert(node != NULL);
