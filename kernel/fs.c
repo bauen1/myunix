@@ -89,6 +89,7 @@ static void fs_node_free(fs_node_t **node) {
 	if ((*node)->close) {
 		(*node)->close(*node);
 	}
+
 	kfree(*node);
 	*node = NULL;
 }
@@ -492,8 +493,9 @@ static fs_node_t *findfile(const char *root, const char *relative_path) {
 	return f;
 }
 
+/* kernel filesystem api wrappers */
+
 fs_node_t *kopen(const char *path, unsigned int flags) {
-//	printf("%s(path: '%s', flags:%u)\n", __func__, path, flags);
 	fs_node_t *node;
 
 	if (!memcmp(path, "/", 2)) {

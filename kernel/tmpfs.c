@@ -130,13 +130,13 @@ static struct dirent *tmpfs_readdir(fs_node_t *node, uint32_t i) {
 	int j = i - 2;
 	list_t *l = obj->childs;
 	assert(l != NULL);
-	for (node_t *v = l->head; v != NULL; v = v->next) {
+	for (node_t *node = l->head; node != NULL; node = node->next) {
 		if (j == 0) {
-			fs_node_t *f = (fs_node_t *)v->value;
+			struct tmpfs_object *nobj = (struct tmpfs_object *)node->value;
 			struct dirent *v = kcalloc(1, sizeof(struct dirent));
 			assert(v != NULL);
 			v->ino = i;
-			strncpy(v->name, f->name, 255);
+			strncpy(v->name, nobj->name, sizeof(v->name));
 			return v;
 		} else {
 			j--;
