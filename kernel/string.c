@@ -48,10 +48,13 @@ void *memset(void *dest, int c, size_t len) {
 }
 
 char *strndup(const char *s, size_t n) {
-	char *s2 = kmalloc(sizeof(char) * (n + 1));
+	const size_t s_len = strlen(s);
+	const size_t len = s_len > n ? n : s_len;
+	char *s2 = kmalloc(sizeof(char) * (len + 1));
 	if (s2 == NULL) {
 		return NULL;
 	}
-	strncpy(s2, s, n + 1);
+	strncpy(s2, s, len);
+	s2[len + 1] = 0;
 	return s2;
 }

@@ -19,6 +19,7 @@ void list_free(list_t *list) {
 	node_t *v = list->head;
 	while (v) {
 		node_t *v2 = v->next;
+		assert(v->value == NULL);
 		kfree(v);
 		v = v2;
 	}

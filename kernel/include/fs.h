@@ -1,8 +1,11 @@
 #ifndef FS_H
 #define FS_H 1
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+
+#include <list.h>
 
 /*
  * TODO: promote usage of these macros every where
@@ -82,7 +85,7 @@ typedef struct fs_mount {
 	 * mounts: TODO: use hashed list
 	 * list of sub mounts
 	 */
-	struct fs_mount **mounts;
+	list_t *mounts;
 	/*
 	 * __refcount: reference counting, used to implement bind mounts
 	 */
@@ -128,7 +131,6 @@ void fs_mkdir(fs_node_t *node, char *name, uint16_t permission);
 void fs_mount_root(fs_node_t *node);
 
 fs_node_t *kopen(const char *path, unsigned int flags);
-
-fs_mount_t *fs_mount_submount(fs_mount_t *parent, fs_node_t *node, const char *path_element);
+bool kmount(const char *path, fs_node_t *node);
 
 #endif

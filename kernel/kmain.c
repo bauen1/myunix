@@ -561,25 +561,38 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	assert(tar_root != NULL);
 	fs_mount_root(tar_root);
 
-	fs_mount_t *tmpfs_mount = fs_mount_submount(fs_root_mount, mount_tmpfs(), "tmp");
-	(void)tmpfs_mount;
+	{
+		bool success = kmount("/tmp", mount_tmpfs());
+		printf("%s: %s mounted /tmp!\n", __func__, success ? "successfully" : "failed to");
+		if (success) {
+			fs_node_t *tmp = kopen("/tmp", 0);
+			if (tmp) {
+				fs_mkdir(tmp, "test", 0);
+				printf("mkdir /tmp/test/\n");
+				bool success2 = kmount("/tmp/test", mount_tmpfs());
+				printf("%s: %s mounted /tmp/test!\n", __func__, success2 ? "successfully" : "failed to");
+			}
+		}
+	}
 
 	{
 		// test if mount was successful and kopen works
 		fs_node_t *dir = kopen("/tmp", 0);
 		assert(dir != NULL);
-		assert(dir == fs_root_mount->mounts[0]->node);
+		assert(dir == ((fs_mount_t *)fs_root_mount->mounts->head->value)->node);
 		fs_create(dir, "test22", 0);
 		fs_node_t *file = kopen("/tmp/test22", 0);
 		assert(file != NULL);
-		char *str = "hello world!\n";
-		fs_write(file, 0, strlen(str), str);
+		char *str = "hi!\n";
+		uint32_t r = fs_write(file, 0, 4, str);
+		printf("r: %u\n", r);
 		fs_close(&dir);
 		fs_close(&file);
 
 	}
 
 	kmain_ls("/");
+	kmain_ls("/tmp");
 	kmain_ls("/test_dir");
 	kmain_ls("/test/../");
 	kmain_ls("/tinycc");
