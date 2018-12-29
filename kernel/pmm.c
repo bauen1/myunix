@@ -66,6 +66,7 @@ inline uint32_t pmm_find_region(size_t size) {
 			continue;
 		}
 
+		// find the first free block inside this byte
 		for (unsigned int j = 0; j < 32; j++) {
 			uint32_t bit = (1 << j);
 			if (block_map[i] & bit) {
@@ -73,25 +74,24 @@ inline uint32_t pmm_find_region(size_t size) {
 				continue;
 			}
 
-			uint32_t start = i * 32 + j;
-			size_t len = 1; // start = blocks[0]
-			while (len < size) {
-				if (pmm_test_block(start + len)) {
+			uint32_t block_start = i * 32 + j;
+			size_t block_length = 1;
+			while (block_length < size) {
+				const uint32_t block = block_start + block_length;
+				assert(block < block_map_size);
+				if (pmm_test_block(block)) {
 					// used
 					break;
 				} else {
-					len++;
-					assert((len + start) < block_map_size);
+					block_length++;
 				}
 			}
-			if (len == size) {
-				return start;
+			if (block_length == size) {
+				return block_start;
 			} else {
-				i = i + len / 32;
-				j = j + len % 32;
+				i = i + block_length / 32;
+				j = j + block_length % 32;
 			}
-
-			assert(0);
 		}
 	}
 
