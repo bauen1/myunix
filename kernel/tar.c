@@ -166,6 +166,8 @@ static struct dirent *tar_readdir(struct fs_node *node, uint32_t i) {
 	struct tar_header header;
 	struct tar_obj *tar_obj = node->object;
 	assert(tar_obj != NULL);
+	fs_node_t *device = tar_obj->device;
+	assert(device != NULL);
 
 	if (i == 0) {
 		struct dirent *v = kcalloc(1, sizeof(struct dirent));
@@ -193,7 +195,6 @@ static struct dirent *tar_readdir(struct fs_node *node, uint32_t i) {
 
 	uint32_t j = 0;
 	while (1) {
-		fs_node_t *device = ((struct tar_obj *)node->object)->device;
 		size_t s = fs_read(device, ptr, sizeof(struct tar_header), (uint8_t *)&header);
 		if (s != sizeof(struct tar_header)) {
 			printf("tar: %s: short read\n", __func__);
@@ -207,7 +208,7 @@ static struct dirent *tar_readdir(struct fs_node *node, uint32_t i) {
 		if ((header.name[0] == '.') && (header.name[1] == '/') && (header.name[2] == 0)) {
 			// ignore './' root directory entry
 		} else if (!memcmp(header.name, fname, slen_fname)) {
-			// this complicated mess is needed to handle subdirectories correctly
+			// XXX: this complicated mess is needed to handle subdirectories correctly
 			char subname[100];
 			memset(subname, 0, 100);
 			if (header.name[slen_fname] == '/') {
@@ -222,17 +223,19 @@ static struct dirent *tar_readdir(struct fs_node *node, uint32_t i) {
 					if (*s == 0) {
 						j++;
 						break;
-					} else if ((*s == '/') && (*(s+1) == 0)) {
-						*s = 0;
-						j++;
-						break;
 					} else if (*s == '/') {
-						// XXX: subdir, ignore
-						break;
+						if (*(s + 1) == 0) {
+							*s = 0;
+							j++;
+							break;
+						} else {
+							// XXX: sub directory, ignore
+							break;
+						}
 					}
 					s++;
 				}
-				if ((i-1) == j) {
+				if (j == (i - 1)) {
 					struct dirent *v = kcalloc(1, sizeof(struct dirent));
 					assert(v != NULL);
 					v->ino = i;
