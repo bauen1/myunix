@@ -13,6 +13,8 @@ struct tmpfs_object {
 	char *name;
 	enum fs_node_flags flags;
 	list_t *childs;
+	void *block;
+	size_t block_size;
 	int __refcount;
 };
 
@@ -36,8 +38,11 @@ static struct tmpfs_object *tmpfs_create_obj(char *name, enum fs_node_flags flag
 		// directory, init files list
 		obj->childs = list_init();
 		assert(obj->childs != NULL);
+		obj->block = NULL;
+		obj->block_size = 0;
 	} else {
-		// file, init block list
+		obj->block = NULL;
+		obj->block_size = 0;
 		obj->childs = NULL;
 	}
 	return obj;
@@ -46,8 +51,14 @@ static struct tmpfs_object *tmpfs_create_obj(char *name, enum fs_node_flags flag
 static void tmpfs_destroy_object(struct tmpfs_object *obj) {
 	assert(obj->__refcount == 0);
 	kfree(obj->name);
-	assert(obj->childs->length == 0);
-	kfree(obj->childs);
+	if (obj->flags & FS_NODE_FILE) {
+		if (obj->block != NULL) {
+			kfree(obj->block);
+		}
+	} else {
+		assert(obj->childs->length == 0);
+		list_free(obj->childs);
+	}
 	kfree(obj);
 }
 
@@ -82,13 +93,47 @@ static fs_node_t *fs_node_from_tmpfs(struct tmpfs_object *tmpfs_obj) {
 }
 
 static uint32_t tmpfs_read(fs_node_t *node, uint32_t offset, uint32_t size, void *buf) {
-	(void)node; (void)offset; (void)size; (void)buf;
-	return -1;
+	assert(node != NULL);
+	assert(node->object != NULL);
+	struct tmpfs_object *obj = (struct tmpfs_object *)node->object;
+	if (obj->flags & FS_NODE_FILE) {
+		(void)size; (void)buf;
+		if (offset > obj->block_size) {
+			return -1;
+		}
+
+		const size_t len = (offset + size) <= obj->block_size ? size : (obj->block_size - offset);
+		if (len == 0) {
+			return 0;
+		} else {
+			void *src = (void *)((uintptr_t)obj->block + offset);
+			memcpy(buf, src, len);
+			return len;
+		}
+	} else {
+		return -1;
+	}
 }
 
 static uint32_t tmpfs_write(fs_node_t *node, uint32_t offset, uint32_t size, void *buf) {
-	(void)node; (void)offset; (void)size; (void)buf;
-	return -1;
+	assert(node != NULL);
+	assert(node->object != NULL);
+	struct tmpfs_object *obj = (struct tmpfs_object *)node->object;
+	if (obj->flags & FS_NODE_FILE) {
+		(void)offset; (void)size; (void)buf;
+		const size_t size_req = offset + size;
+		if (size_req > obj->block_size) {
+			obj->block = krealloc(obj->block, size_req);
+			assert(obj->block != NULL);
+			obj->block_size = size_req;
+		} else {
+			assert(obj->block != NULL);
+		}
+		memcpy((void *)(((uintptr_t)obj->block) + offset), buf, size);
+		return size;
+	} else {
+		return -1;
+	}
 }
 
 static void tmpfs_open(fs_node_t *node, unsigned int flags) {
