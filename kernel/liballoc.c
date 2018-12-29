@@ -108,7 +108,6 @@ static int liballoc_unlock(void) {
 
 static int liballoc_free(void *v, size_t pages);
 static void *liballoc_alloc(size_t pages) {
-	printf("liballoc_alloc(%u)\n", (uintptr_t)pages);
 	uintptr_t v_start = find_vspace(kernel_directory, pages);
 	for (size_t i = 0; i < pages; i++) {
 		uintptr_t real_block = pmm_alloc_blocks(1);
@@ -155,25 +154,25 @@ void liballoc_dump()
 #endif
 
 	printf( "liballoc: ------ Memory data ---------------\n");
-	printf( "liballoc: System memory allocated: %i bytes\n", l_allocated );
-	printf( "liballoc: Memory in used (malloc'ed): %i bytes\n", l_inuse );
-	printf( "liballoc: Warning count: %i\n", l_warningCount );
-	printf( "liballoc: Error count: %i\n", l_errorCount );
-	printf( "liballoc: Possible overruns: %i\n", l_possibleOverruns );
+	printf( "liballoc: System memory allocated:    %u bytes\n", l_allocated );
+	printf( "liballoc: Memory in used (malloc'ed): %u bytes\n", l_inuse );
+	printf( "liballoc: Warning count:              %i\n", l_warningCount );
+	printf( "liballoc: Error count:                %i\n", l_errorCount );
+	printf( "liballoc: Possible overruns:          %u\n", l_possibleOverruns );
 
 #ifdef DEBUG
 		while ( maj != NULL )
 		{
-			printf( "liballoc: %x: total = %i, used = %i\n",
-						maj, 
+			printf("liballoc: %p: total = %u, used = %u\n",
+						maj,
 						maj->size,
 						maj->usage );
 
 			min = maj->first;
 			while ( min != NULL )
 			{
-				printf( "liballoc:    %x: %i bytes\n",
-							min, 
+				printf("liballoc:    %p: %u bytes\n",
+							min,
 							min->size );
 				min = min->next;
 			}
@@ -210,13 +209,11 @@ static bool __attribute__((no_sanitize_undefined)) liballoc_verify_magic(struct 
 
 		if ( min->magic == LIBALLOC_DEAD ) {
 			#if defined DEBUG || defined INFO
-			printf( "liballoc: ERROR double kfree( %x ).\n",
-				ptr);
+			printf("liballoc: ERROR: double kfree(%p).\n", ptr);
 			#endif
 		} else {
 			#if defined DEBUG || defined INFO
-			printf( "liballoc: ERROR: Bad kfree( %x ) called\n",
-				ptr);
+			printf("liballoc: ERROR: bad kfree(%p).\n", ptr);
 			#endif
 		}
 		printf("liballoc_verify_magic fail!\n");
@@ -252,7 +249,7 @@ static struct liballoc_major *allocate_new_page( unsigned int size ) {
 	if ( maj == NULL ) {
 		l_warningCount += 1;
 		#if defined DEBUG || defined INFO
-		printf( "liballoc: WARNING: liballoc_alloc( %i ) return NULL\n", st );
+		printf( "liballoc: WARNING: liballoc_alloc( %u ) return NULL\n", st );
 		#endif
 		return NULL;	// uh oh, we ran out of memory.
 	}
@@ -267,7 +264,7 @@ static struct liballoc_major *allocate_new_page( unsigned int size ) {
 	l_allocated += maj->size;
 
 	#ifdef DEBUG
-	printf( "liballoc: Resource allocated %x of %i pages (%i bytes) for %i size.\n", maj, st, maj->size, size );
+	printf( "liballoc: Resource allocated %p of %u pages (%u bytes) for %u size.\n", maj, st, maj->size, size );
 	printf( "liballoc: Total memory usage = %i KB\n",  (int)((l_allocated / (1024))) );
 	#endif
 
@@ -286,7 +283,7 @@ void liballoc_init() {
 	l_memRoot = allocate_new_page( ALIGNMENT + ALIGN_INFO );
 	assert(l_memRoot != NULL);
 	#ifdef DEBUG
-	printf( "liballoc: set up first memory major %x\n", l_memRoot );
+	printf( "liballoc: set up first memory major %p\n", l_memRoot );
 	#endif
 }
 
@@ -315,7 +312,7 @@ void * __attribute__((no_sanitize_undefined)) kmalloc(size_t req_size) {
 	assert(l_memRoot != NULL);
 
 	#ifdef DEBUG
-	printf( "liballoc: %x kmalloc( %i ): ",
+	printf( "liballoc: %x kmalloc( %u ): ",
 					__builtin_return_address(0),
 					size );
 	#endif
@@ -351,7 +348,7 @@ void * __attribute__((no_sanitize_undefined)) kmalloc(size_t req_size) {
 		if ( diff < (size + sizeof( struct liballoc_minor )) )
 		{
 			#ifdef DEBUG
-			printf( "CASE 1: Insufficient space in block %x\n", maj);
+			printf("CASE 1: Insufficient space in block %p\n", maj);
 			#endif
 			// Another major block next to this one?
 
@@ -400,7 +397,7 @@ void * __attribute__((no_sanitize_undefined)) kmalloc(size_t req_size) {
 			ALIGN( p );
 
 			#ifdef DEBUG
-			printf( "CASE 2: returning %x\n", p);
+			printf( "CASE 2: returning %p\n", p);
 			#endif
 			liballoc_unlock();		// release the lock
 			return p;
@@ -432,7 +429,7 @@ void * __attribute__((no_sanitize_undefined)) kmalloc(size_t req_size) {
 			ALIGN( p );
 
 			#ifdef DEBUG
-			printf( "CASE 3: returning %x\n", p);
+			printf( "CASE 3: returning %p\n", p);
 			#endif
 			liballoc_unlock();		// release the lock
 			return p;
@@ -476,7 +473,7 @@ void * __attribute__((no_sanitize_undefined)) kmalloc(size_t req_size) {
 						ALIGN( p );
 
 						#ifdef DEBUG
-						printf( "CASE 4.1: returning %x\n", p);
+						printf( "CASE 4.1: returning %p\n", p);
 						#endif
 						liballoc_unlock();		// release the lock
 						return p;
@@ -516,7 +513,7 @@ void * __attribute__((no_sanitize_undefined)) kmalloc(size_t req_size) {
 						ALIGN( p );
 
 						#ifdef DEBUG
-						printf( "CASE 4.2: returning %x\n", p);
+						printf( "CASE 4.2: returning %p\n", p);
 						#endif
 
 						liballoc_unlock();		// release the lock
@@ -562,7 +559,7 @@ void * __attribute__((no_sanitize_undefined)) kmalloc(size_t req_size) {
 	printf( "All cases exhausted. No memory available.\n");
 	#endif
 	#if defined DEBUG || defined INFO
-	printf( "liballoc: WARNING: kmalloc( %i ) returning NULL.\n", size);
+	printf( "liballoc: WARNING: kmalloc( %u ) returning NULL.\n", size);
 	liballoc_dump();
 	#endif
 	return NULL;
@@ -574,7 +571,7 @@ void __attribute__((no_sanitize_undefined)) kfree(void *ptr)
 	struct liballoc_major *maj;
 
 	if ( ptr == NULL ) {
-		printf("%s(ptr: NULL) called from %p\n", __func__, __builtin_return_address(0));
+		printf("%s(ptr: NULL) called from %p\n", __func__, (uintptr_t)__builtin_return_address(0));
 		assert(0);
 		l_warningCount += 1;
 		return;
@@ -594,9 +591,9 @@ void __attribute__((no_sanitize_undefined)) kfree(void *ptr)
 	}
 
 	#ifdef DEBUG
-	printf( "liballoc: %x kfree( %x ): ",
-				__builtin_return_address( 0 ),
-				ptr );
+	printf( "liballoc: %p kfree( %p ): ",
+				(uintptr_t)__builtin_return_address( 0 ),
+				(uintptr_t)ptr );
 	#endif
 
 
