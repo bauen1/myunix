@@ -26,4 +26,7 @@ void list_remove(list_t *list, void *v);
 void *list_dequeue(list_t *list);
 void list_delete(list_t *list, node_t *v);
 
+#define list_foreach(v, list) for list_each((v), (list))
+#define list_each(v, list) (node_t *v = (list)->head; v != NULL; v = v->next)
+
 #endif
