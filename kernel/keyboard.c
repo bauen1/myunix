@@ -80,12 +80,12 @@ static unsigned int irq1_handler(unsigned int irq, void *extra) {
 	return IRQ_IGNORED;
 }
 
-void keyboard_init() {
+void keyboard_init(void) {
 	ringbuffer_init(&keyboard_ringbuffer, keybuffer, KEYBUFFER_LENGTH);
 	irq_set_handler(1, irq1_handler, &keyboard_ringbuffer);
 }
 
-unsigned char keyboard_getc() {
+unsigned char keyboard_getc(void) {
 	return ringbuffer_read_byte(&keyboard_ringbuffer);
 }
 

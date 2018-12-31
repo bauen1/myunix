@@ -18,7 +18,7 @@ static void gdt_set_gate(uint8_t i, uint32_t base, uint32_t limit, uint8_t acces
 	gdt[i].base_high = (uint8_t)((base >> 24) & 0xFF);
 }
 
-void gdt_init() {
+void gdt_init(void) {
 	memset(&tss, 0, sizeof(tss));
 
 	uint32_t tss_base = (uint32_t)&tss;

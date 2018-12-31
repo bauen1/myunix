@@ -3,6 +3,6 @@
 
 #include <fs.h>
 
-fs_node_t *mount_tmpfs();
+fs_node_t *mount_tmpfs(void);
 
 #endif

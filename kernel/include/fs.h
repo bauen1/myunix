@@ -66,7 +66,7 @@ typedef struct fs_node {
 } fs_node_t;
 
 /* fs_node_t helpers */
-fs_node_t *fs_node_new();
+fs_node_t *fs_node_new(void);
 void fs_node_release(fs_node_t **node);
 fs_node_t *fs_node_reference(fs_node_t *node);
 

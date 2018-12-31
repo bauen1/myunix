@@ -145,7 +145,7 @@ static int liballoc_free(void *v, size_t pages) {
 
 // ***********   HELPER FUNCTIONS  *******************************
 
-void liballoc_dump()
+void liballoc_dump(void)
 {
 #if defined DEBUG || defined INFO
 #ifdef DEBUG

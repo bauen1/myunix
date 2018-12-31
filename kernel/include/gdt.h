@@ -52,7 +52,7 @@ extern gdt_pointer_t gdt_pointer;
 extern gdt_entry_t gdt[6];
 extern tss_t tss;
 
-void gdt_init();
+void gdt_init(void);
 
 void tss_set_kstack(uintptr_t stack);
 

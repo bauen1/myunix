@@ -14,6 +14,6 @@ typedef struct {
 		.init = &i \
 	}
 
-void modules_init();
+void modules_init(void);
 
 #endif

@@ -8,6 +8,6 @@ typedef void (*isr_handler)(registers_t *regs);
 
 void isr_set_handler(uint8_t i, isr_handler handler);
 
-void isr_init();
+void isr_init(void);
 
 #endif

@@ -3,7 +3,7 @@
 
 #include <fs.h>
 
-fs_node_t *null_create();
-fs_node_t *zero_create();
+fs_node_t *null_create(void);
+fs_node_t *zero_create(void);
 
 #endif

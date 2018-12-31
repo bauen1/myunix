@@ -6,9 +6,9 @@
 
 extern fs_node_t tty_node;
 
-void console_init();
+void console_init(void);
 
-char getc();
+char getc(void);
 void putc(char c);
 void puts(const char *s);
 

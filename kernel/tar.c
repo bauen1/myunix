@@ -1,4 +1,3 @@
-// FIXME: possible memory leaks
 #include <assert.h>
 
 #include <console.h>

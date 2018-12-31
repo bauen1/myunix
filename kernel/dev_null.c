@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <dev_null.h>
 #include <fs.h>
 #include <heap.h>
 #include <string.h>
@@ -22,7 +23,7 @@ static uint32_t zero_read(fs_node_t *node, uint32_t offset, uint32_t size, void 
 	return size;
 }
 
-fs_node_t *null_create() {
+fs_node_t *null_create(void) {
 	fs_node_t *f = fs_node_new();
 	assert(f != NULL);
 	strncpy(f->name, "null", 255);
@@ -32,7 +33,7 @@ fs_node_t *null_create() {
 	return f;
 }
 
-fs_node_t *zero_create() {
+fs_node_t *zero_create(void) {
 	fs_node_t *f = fs_node_new();
 	assert(f != NULL);
 	strncpy(f->name, "zero", 255);

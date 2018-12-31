@@ -15,7 +15,7 @@ static void *backbuffer1 = NULL;
 static volatile uintptr_t pitch, width, height, bpp;
 static unsigned int cursor_x, cursor_y;
 
-void framebuffer_enable_double_buffer() {
+void framebuffer_enable_double_buffer(void) {
 	if (vmem == NULL) {return;}
 
 	// TODO: backbuffers could be larger than actually needed
@@ -38,7 +38,7 @@ void framebuffer_enable_double_buffer() {
 	printf("tripple buffer: %p\n", backbuffer0);
 }
 
-static inline void framebuffer_copy_to_front() {
+static inline void framebuffer_copy_to_front(void) {
 	if (backbuffer0 == NULL) {return;}
 	if (backbuffer1 == NULL) {return;}
 
@@ -107,7 +107,7 @@ static inline void put_c_at(char c, unsigned int x, unsigned int y) {
 	framebuffer_copy_region_if_needed(x, y, 8, 8);
 }
 
-static void framebuffer_scroll() {
+static void framebuffer_scroll(void) {
 	for (uintptr_t y = 0; y < (height - 8); y++) {
 		if (backbuffer0 == NULL) {
 			memcpy((void *)((uintptr_t)vmem + y * pitch), (void *)((uintptr_t)vmem + (y + 8) * pitch), pitch);

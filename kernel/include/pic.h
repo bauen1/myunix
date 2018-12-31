@@ -10,7 +10,7 @@
 
 #define PIC_EOI 0x20
 
-void pic_init();
+void pic_init(void);
 
 #define irq_from_isr(i) ((unsigned int)((unsigned int)(i))-32)
 #define isr_from_irq(i) ((unsigned int)((unsigned int)(i))+32)

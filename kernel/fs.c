@@ -168,7 +168,7 @@ static list_t *copy_elements(node_t *start, node_t *end) {
 }
 
 /* fs_node_t helpers */
-fs_node_t *fs_node_new() {
+fs_node_t *fs_node_new(void) {
 	fs_node_t *node = kcalloc(1, sizeof(fs_node_t));
 	if (node == NULL) {
 		return NULL;
@@ -213,7 +213,7 @@ fs_node_t *fs_node_reference(fs_node_t *node) {
 }
 
 /* fs_mount_t helpers */
-fs_mount_t *fs_mount_new() {
+static fs_mount_t *fs_mount_new(void) {
 	fs_mount_t *mount = kcalloc(1, sizeof(fs_mount_t));
 	if (mount == NULL) {
 		return NULL;
@@ -241,14 +241,14 @@ static void fs_mount_free(fs_mount_t **mount) {
 	return;
 }
 
-fs_mount_t *fs_mount_reference(fs_mount_t *mount) {
+static fs_mount_t *fs_mount_reference(fs_mount_t *mount) {
 	if (mount->__refcount > 0) {
 		mount->__refcount++;
 	}
 	return mount;
 }
 
-void fs_mount_release(fs_mount_t **mount) {
+static void fs_mount_release(fs_mount_t **mount) {
 	assert(mount != NULL);
 	assert(*mount != NULL);
 	assert((*mount)->__refcount != 0);

@@ -20,7 +20,7 @@ static struct {
 	uint32_t base __attribute__((packed));
 } __attribute__((packed)) idt_p;
 
-void idt_install() {
+void idt_install(void) {
 	idt_p.limit = sizeof(idt_entries) - 1;
 	idt_p.base = (uint32_t)&idt_entries;
 	memset(&idt_entries, 0, sizeof(idt_entries));

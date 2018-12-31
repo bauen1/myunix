@@ -15,7 +15,7 @@ void isr_set_handler(uint8_t i, isr_handler handler) {
 	isr_handlers[i] = handler;
 }
 
-void isr_init() {
+void isr_init(void) {
 	// exceptions
 	idt_set_gate( 0, _isr0 , 0x08, 0x8E);
 	idt_set_gate( 1, _isr1 , 0x08, 0x8E);

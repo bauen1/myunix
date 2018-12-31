@@ -47,7 +47,7 @@ void fd_free(fd_entry_t *fd);
 /* fd_table_t helpers */
 fd_table_t *fd_table_reference(fd_table_t *fd);
 fd_table_t *fd_table_clone(fd_table_t *oldfdt);
-fd_table_t *fd_table_new();
+fd_table_t *fd_table_new(void);
 void fd_table_free(fd_table_t *fd_table);
 int fd_table_set(fd_table_t *fd_table, unsigned int i, fd_entry_t *entry);
 int fd_table_append(fd_table_t *fd_table, fd_entry_t *entry);

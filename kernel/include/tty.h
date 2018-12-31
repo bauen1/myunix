@@ -11,7 +11,7 @@
 
 void tty_init(uintptr_t vmem_ptr, uint32_t w, uint32_t h, uint32_t bpp, uint32_t pitch);
 
-void tty_clear_screen();
+void tty_clear_screen(void);
 
 void tty_move_cursor(unsigned int x, unsigned int y);
 

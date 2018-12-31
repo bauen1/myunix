@@ -47,7 +47,7 @@ fs_node_t tty_node = {
 static unsigned char buffer[2048];
 static ringbuffer_t text_buffer;
 
-void console_init() {
+void console_init(void) {
 	serial_init();
 	ringbuffer_init(&text_buffer, buffer, sizeof(buffer));
 }
@@ -95,7 +95,7 @@ static char buffer_getc(void) {
 	return (char)ringbuffer_read_byte(&text_buffer);
 }
 
-char getc() {
+char getc(void) {
 	char c;
 
 	c = serial_getc();
@@ -125,7 +125,7 @@ void puts(const char *s) {
 	}
 }
 
-mutex_t print_mutex;
+static mutex_t print_mutex;
 
 void vprintf(const char *fmt, va_list args) {
 	char buf[256]; // probably too much

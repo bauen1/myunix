@@ -95,6 +95,7 @@ void scheduler_unlock(void);
 void schedule(void);
 void scheduler_wakeup(void);
 
+// XXX: only call after scheduler_lock
 __attribute__((noreturn)) void task_exit(void);
 
 /* kmain exit call */

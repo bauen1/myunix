@@ -54,7 +54,7 @@ extern page_directory_t *kernel_directory;
 
 /* page_directory_t helpers */
 page_directory_t *page_directory_reference(page_directory_t *pdir);
-page_directory_t *page_directory_new();
+page_directory_t *page_directory_new(void);
 void page_directory_release(page_directory_t *pdir);
 
 void invalidate_page(uintptr_t virtaddr);
@@ -77,7 +77,7 @@ void *dma_malloc(size_t m);
 /* debug helpers */
 void dump_directory(page_directory_t *directory);
 
-void vmm_init();
-void vmm_enable();
+void vmm_init(void);
+void vmm_enable(void);
 
 #endif

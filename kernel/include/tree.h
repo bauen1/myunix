@@ -13,8 +13,8 @@ typedef struct tree {
 	tree_node_t *root;
 } tree_t;
 
-tree_t *tree_new();
-tree_node_t *tree_node_new();
+tree_t *tree_new(void);
+tree_node_t *tree_node_new(void);
 void tree_node_insert_child(tree_t *tree, tree_node_t *parent, tree_node_t *node);
 tree_node_t *tree_node_find(tree_node_t *parent, void *value);
 tree_node_t *tree_find(tree_t *tree, void *value);

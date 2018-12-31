@@ -328,18 +328,7 @@ static void dump_table(page_table_t *table, uintptr_t table_addr, char *prefix) 
 			uintptr_t v_addr = (table_addr) | (page_i << 12);
 
 			if (page & PAGE_PRESENT) {
-				printf("%s0x%8x => 0x%8x ", prefix, v_addr, page);
-				if (page & PAGE_USER) {
-					printf("u");
-				} else {
-					printf("k");
-				}
-				if (page & PAGE_READWRITE) {
-					printf("w");
-				} else {
-					printf("r");
-				}
-				printf("\n");
+				printf("%s0x%8x => 0x%8x %c%c\n", prefix, v_addr, page, (page & PAGE_USER) ? 'u' : 'k', (page & PAGE_READWRITE) ? 'w' : 'r');
 			} else {
 				printf("%s0x%8x ## 0x%8x\n", prefix, v_addr, page);
 			}

@@ -13,7 +13,7 @@ struct idt_entry {
 
 extern struct idt_entry idt_entries[256];
 
-void idt_install();
+void idt_install(void);
 
 void idt_set_gate(uint8_t i, void * isr, uint16_t selector, uint8_t flags);
 

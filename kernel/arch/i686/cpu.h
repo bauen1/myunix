@@ -30,8 +30,8 @@ typedef struct registers {
 } __attribute__((packed)) registers_t;
 
 /* _halt is found in boot.s */
-__attribute__((noreturn)) extern void _halt();
-__attribute__((noreturn)) void halt();
+__attribute__((noreturn)) extern void _halt(void);
+__attribute__((noreturn)) void halt(void);
 
 uint8_t inb(uint16_t port);
 uint16_t inw(uint16_t port);

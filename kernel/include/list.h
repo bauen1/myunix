@@ -17,7 +17,7 @@ typedef struct {
 	size_t length;
 } list_t;
 
-list_t *list_init();
+list_t *list_init(void);
 void list_free(list_t *list);
 
 void list_append(list_t *list, node_t *v);

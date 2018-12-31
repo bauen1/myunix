@@ -16,7 +16,7 @@ bool pmm_test_block(uintptr_t block);
 
 void pmm_init(void *mem_map, size_t mem_size);
 
-uint32_t pmm_count_free_blocks();
+uint32_t pmm_count_free_blocks(void);
 
 uint32_t pmm_find_region(size_t size);
 uintptr_t pmm_alloc_blocks(size_t size);

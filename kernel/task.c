@@ -175,7 +175,6 @@ __attribute__((used)) void switch_task(task_t *new_task) {
 static void __schedule(void) {
 	assert_interrupts_disabled();
 	assert_panic(scheduler_lock_count == 0);
-
 	assert(current_task != NULL);
 
 	// XXX: get next ready task
@@ -300,6 +299,7 @@ void schedule(void) {
 	assert_interrupts_disabled();
 	assert(scheduler_lock_count != 0);
 	assert(scheduler_ready);
+
 	postponed_schedule = true;
 }
 

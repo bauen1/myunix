@@ -12,7 +12,7 @@ void __attribute__((noreturn)) __assert_failed(const char *exp, const char *file
 	halt();
 }
 
-void __attribute__((noreturn)) __attribute__((used)) __stack_chk_fail() {
+void __attribute__((noreturn)) __attribute__((used)) __stack_chk_fail(void) {
 	// XXX: consider everything on the stack to be attacker controlled
 	printf("__stack_chk_fail!\n");
 	print_stack_trace(); // should be safe since we only read
