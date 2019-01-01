@@ -57,7 +57,7 @@ _entry:
 	push stack.top
 	push eax
 	push ebx
-	; setup last frame for print_stack_trace in assert.c
+	; setup the last stack trace frame
 	xor ebp, ebp
 	call kmain
 	jmp _halt

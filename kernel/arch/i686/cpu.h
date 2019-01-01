@@ -45,9 +45,11 @@ void iowait();
 
 #define hlt() __asm__ __volatile__ ("hlt")
 
-void dump_regs(registers_t *regs);
-
 void interrupts_disable(void);
 void interrupts_enable(void);
+
+/* debug helpers */
+void dump_regs(registers_t *regs);
+void print_stack_trace(void);
 
 #endif

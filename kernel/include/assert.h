@@ -17,9 +17,6 @@ void __attribute__((noreturn)) __assert_failed(const char *exp, const char *file
 
 void __attribute__((noreturn)) __stack_chk_fail(void);
 
-void print_stack(unsigned int max_frames, uintptr_t ebp_r);
-void print_stack_trace(void);
-
 void __attribute__((noreturn)) __panic(const char *msg, const char *file, int line);
 #define panic(msg) ((void)__panic(#msg, __FILE__,  __LINE__))
 

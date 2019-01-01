@@ -24,24 +24,3 @@ call_switch_task:
 	pop ebp
 	ret
 .end:
-
-extern __ktask_exit
-extern halt
-global __call_ktask:function (__call_ktask.end - __call_ktask)
-__call_ktask:
-	; ensure interrupts are off
-	cli
-
-	; call kfunc
-	pop eax
-	call eax
-
-	; remove name and extra
-	add esp, 8
-
-	; call __ktask_exit(eax = status)
-	push eax
-	; if __ktask_exit tries to return, halt the cpu
-	push halt
-	jmp __ktask_exit
-.end:
