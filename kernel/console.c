@@ -162,6 +162,17 @@ void vprintf(const char *fmt, va_list args) {
 					itoa(va_arg(args, int), &buf[0], 10, width);
 					puts(buf);
 					break;
+				case 'l':
+					fmt++;
+					if (*fmt == 'u') {
+						utoa(va_arg(args, unsigned long), buf, 10, width);
+					} else if ((*fmt == 'i') || (*fmt == 'd')) {
+						utoa(va_arg(args, signed long), buf, 10, width);
+					} else {
+						assert(0 && "not implemented format character or end of string");
+					}
+					puts(buf);
+					break;
 				case 'u':
 					utoa(va_arg(args, unsigned int), &buf[0], 10, width);
 					puts(buf);
@@ -189,7 +200,7 @@ void vprintf(const char *fmt, va_list args) {
 	mutex_unlock(&print_mutex);
 }
 
-void printf(const char *fmt, ...) {
+void __attribute__((format(printf,1,2))) printf(const char *fmt, ...) {
 	va_list args;
 	va_start(args, fmt);
 
