@@ -159,6 +159,10 @@ debug-grub: myunix2.iso
 cppcheck-tcc:
 	cppcheck --quiet --enable=all $(CPPFLAGS) -DDEBUG=1 $(SRCS_GLOBS) -I ../toolchain/opt/lib/tcc/include $(EXTRA_CPPCHECKFLAGS)
 
+.PHONY: sparse
+sparse:
+	sparse $(CPPFLAGS) $(CFLAGS) -std=c99 $(SRCS) -gcc-base-dir ../toolchain/lib/gcc/i686-elf/7.3.0/ $(EXTRA_SPARSEFLAGS)
+
 .PHONY: codespell
 codespell:
 	codespell -w -c --interactive=3 --skip="*.o,*.d,*.bin,*.ld,*.elf,*.iso,./iso/*" .
