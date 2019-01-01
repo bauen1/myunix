@@ -12,7 +12,7 @@ struct tar_header {
 	char mode[8] __attribute__((packed));
 	char gid[8] __attribute__((packed));
 	char uid[8] __attribute__((packed));
-	char fsize[12] __attribute__((pcked));
+	char fsize[12] __attribute__((packed));
 	char last_mod[12] __attribute__((packed));
 	char checksum[8] __attribute__((packed));
 	char type __attribute__((packed));
@@ -43,15 +43,24 @@ static struct dirent *tar_readdir(struct fs_node *node, uint32_t i);
 static fs_node_t *tar_finddir(struct fs_node *node, char *name);
 static int tar_readlink(fs_node_t *node, char *buf, size_t size);
 
+static size_t tar_entry_length(struct tar_header *header) {
+	return (((oct2bin(header->fsize, 12) + 511) / 512) + 1) * 512;
+}
+
 struct tar_obj *tar_create_obj_from_header(fs_node_t *device, struct tar_header *header, uintptr_t offset) {
 	struct tar_obj *obj = kcalloc(1, sizeof(struct tar_obj));
-	assert(obj != NULL);
+	if (obj == NULL) {
+		return NULL;
+	}
 	obj->device = device;
 	obj->offset = offset;
 
 	obj->length = oct2bin(header->fsize, 12);
 	obj->name = strndup(header->name, 100);
-	assert(obj->name != NULL);
+	if (obj->name == NULL) {
+		kfree(obj);
+		return NULL;
+	}
 
 	switch((char)header->type) {
 		case 0:
@@ -81,7 +90,9 @@ struct tar_obj *tar_create_obj_from_header(fs_node_t *device, struct tar_header 
 
 static fs_node_t *fs_node_from_tar(struct tar_obj *tar_obj) {
 	fs_node_t *f = fs_node_new();
-	assert(f != NULL);
+	if (f == NULL) {
+		return NULL;
+	}
 
 	// removes the leading path from the name
 	// probably really inefficient but hey, it works /shrug
@@ -109,33 +120,37 @@ static fs_node_t *fs_node_from_tar(struct tar_obj *tar_obj) {
 	return f;
 }
 
+// iterate over every tar entry using the backing device 'device' and writing the header to 'dest', declares 'ptr' and 's' in the loop scope
+// it's a bit complicated but simplifies a lot of the code beyond here
+#define tar_foreach_entry(device, header) for ( \
+	uintptr_t ptr = 0, s = fs_read((device), ptr, sizeof(struct tar_header), (uint8_t *)(header)); \
+	s == sizeof(struct tar_header); \
+	ptr += tar_entry_length((header)), s = fs_read((device), ptr, sizeof(struct tar_header), (uint8_t *)(header)) \
+)
+
+
 static uintptr_t tar_lookup(fs_node_t *device, char *fname, struct tar_header *header) {
-	uintptr_t ptr = 0;
-	size_t s = 0;
-	size_t slen_fname = strlen(fname);
-	do {
-		s = fs_read(device, ptr, sizeof(struct tar_header), (uint8_t *)header);
-		if (s != sizeof(struct tar_header)) {
-			printf("tar: %s: short read\n", __func__);
-			return -1;
-		}
-		if (!memcmp(header->name, fname, slen_fname)) {
-			if (*(header->name + slen_fname + 1) == 0) {
+	const size_t fname_len = strlen(fname);
+	if (fname_len > (100 - 2)) {
+		return -1;
+	}
+
+	tar_foreach_entry(device, header) {
+		if (!memcmp(header->name, fname, fname_len)) {
+			if (header->name[fname_len + 1] == 0) {
 				return ptr;
-			} else if ((*(header->name + slen_fname + 1) == '/') && (*(header->name + slen_fname + 2) == 0)) {
+			} else if ((header->name[fname_len + 1] == '/') && (header->name[fname_len + 2] == 0)) {
 				return ptr;
 			}
 		}
-		uintptr_t jump = oct2bin(header->fsize, 12);
-		if ((jump % 512) != 0) {
-			jump += 512 - (jump % 512);
-		}
-		ptr += 512 + jump;
-	} while (s == 512);
+	}
 	return -1;
 }
 
 static uint32_t tar_read(fs_node_t *node, uint32_t offset, uint32_t size, void *buffer) {
+	struct tar_obj *tar_obj = (struct tar_obj *)node->object;
+	assert(tar_obj != NULL);
+
 	if (offset > node->length) {
 		return 0;
 	}
@@ -143,8 +158,6 @@ static uint32_t tar_read(fs_node_t *node, uint32_t offset, uint32_t size, void *
 	if (offset + size > node->length) {
 		size = node->length - offset;
 	}
-
-	struct tar_obj *tar_obj = (struct tar_obj *)node->object;
 
 	return fs_read(tar_obj->device, (tar_obj->offset + 512 + offset), size, buffer);
 }
@@ -161,8 +174,8 @@ static void tar_close(fs_node_t *node) {
 	kfree(tar_obj);
 }
 
+// FIXME: overflow checks
 static struct dirent *tar_readdir(struct fs_node *node, uint32_t i) {
-	struct tar_header header;
 	struct tar_obj *tar_obj = node->object;
 	assert(tar_obj != NULL);
 	fs_node_t *device = tar_obj->device;
@@ -184,70 +197,56 @@ static struct dirent *tar_readdir(struct fs_node *node, uint32_t i) {
 		return v;
 	}
 
-	uintptr_t ptr = 0;
 	char *fname = tar_obj->name;
-	size_t slen_fname = strlen(fname);
-	if (*fname == '/') {
-		fname++;
-		slen_fname--;
-	}
+	const size_t fname_len = strlen(fname);
 
-	uint32_t j = 0;
-	while (1) {
-		size_t s = fs_read(device, ptr, sizeof(struct tar_header), (uint8_t *)&header);
-		if (s != sizeof(struct tar_header)) {
-			printf("tar: %s: short read\n", __func__);
-			return NULL;
-		}
-
-		if (header.name[0] == 0) {
-			break;
-		}
-
-		if ((header.name[0] == '.') && (header.name[1] == '/') && (header.name[2] == 0)) {
+	// inode counter
+	uint32_t j = 1;
+	struct tar_header header;
+	tar_foreach_entry(device, &header) {
+		if (!memcmp(header.name, "./", 3)) {
 			// ignore './' root directory entry
-		} else if (!memcmp(header.name, fname, slen_fname)) {
+		} else if (!memcmp(header.name, fname, fname_len)) {
+			// this inode matches the leading path
+
 			// XXX: this complicated mess is needed to handle subdirectories correctly
-			char subname[100];
+			// FIXME: strncpy maximum length of 100 isn't correct, we need to caclulate it
+			char subname[100]; // everything after the fname
 			memset(subname, 0, 100);
-			if (header.name[slen_fname] == '/') {
-				strncpy(subname, (const char *)&header.name[slen_fname + 1], 100);
+
+			// strip leading '/' of subname if needed
+			if (header.name[fname_len] == '/') {
+				strncpy(subname, (const char *)&header.name[fname_len + 1], 100);
 			} else {
-				strncpy(subname, (const char *)&header.name[slen_fname], 100);
+				strncpy(subname, (const char *)&header.name[fname_len], 100);
 			}
-			// ignore the directory entry for the node
-			if (subname[0] != 0) {
-				char *s = &subname[0];
-				while (1) {
-					if (*s == 0) {
-						j++;
-						break;
-					} else if (*s == '/') {
-						if (*(s + 1) == 0) {
-							*s = 0;
-							j++;
-							break;
-						} else {
-							// XXX: sub directory, ignore
-							break;
-						}
-					}
-					s++;
+
+			// XXX: if the headers name ends with '/\0' it is the entrie for the director we are searching in, ignore it and don't count it
+			if (subname[0] == 0) {
+				continue;
+			}
+
+			const size_t subname_plen = path_element_size(subname);
+			if (subname[subname_plen] == '/') {
+				// inode of a directory found
+				if (subname[subname_plen + 1] != 0) {
+					// entry of the directory, ignore
+					continue;
 				}
-				if (j == (i - 1)) {
-					struct dirent *v = kcalloc(1, sizeof(struct dirent));
-					assert(v != NULL);
-					v->ino = i;
-					strncpy(v->name, subname, 100);
-					return v;
-				}
+				// remove the trailing /
+				subname[subname_plen] = 0;
+			}
+			j++;
+
+			// check if we have found the entry we need
+			if (j == i) {
+				struct dirent *v = kcalloc(1, sizeof(struct dirent));
+				assert(v != NULL);
+				v->ino = i;
+				strncpy(v->name, subname, 100);
+				return v;
 			}
 		}
-		uintptr_t jump = oct2bin(header.fsize, 12);
-		if ((jump % 512) != 0) {
-			jump += 512 - (jump % 512);
-		}
-		ptr += sizeof(struct tar_header) + jump;
 	}
 
 	return NULL;
@@ -271,20 +270,23 @@ static fs_node_t *tar_finddir(struct fs_node *node, char *name) {
 
 	uintptr_t off = tar_lookup(((struct tar_obj *)node->object)->device, path, &header);
 
-	if (off == (unsigned)-1) {
+	if (off == (uintptr_t)-1) {
 		return NULL;
 	} else {
 		struct tar_obj *obj2 = tar_create_obj_from_header(obj->device, &header, off);
-		return fs_node_from_tar(obj2);
+		assert(obj2 != NULL);
+		fs_node_t *f = fs_node_from_tar(obj2);
+		assert(f != NULL);
+		return f;
 	}
 }
 
 static int tar_readlink(fs_node_t *node, char *buf, size_t size) {
 	struct tar_obj *obj = (struct tar_obj *)node->object;
-	struct tar_header header;
 	assert(obj->flags & FS_NODE_SYMLINK);
-	size_t s;
-	s = fs_read(obj->device, obj->offset, sizeof(struct tar_header), (uint8_t *)&header);
+
+	struct tar_header header;
+	size_t s = fs_read(obj->device, obj->offset, sizeof(struct tar_header), (uint8_t *)&header);
 	if (s != sizeof(struct tar_header)) {
 		printf("tar: %s: short read\n", __func__);
 		return -1;
@@ -301,17 +303,17 @@ static int tar_readlink(fs_node_t *node, char *buf, size_t size) {
 }
 
 fs_node_t *mount_tar(fs_node_t *device) {
-	fs_open(device, 0);
-
 	struct tar_obj *tar_root_obj = kcalloc(1, sizeof(struct tar_obj));
 	assert(tar_root_obj != NULL);
 
+	fs_open(device, 0);
 	tar_root_obj->device = device;
 	tar_root_obj->offset = 0;
 	tar_root_obj->name = kmalloc(1);
+	assert(tar_root_obj->name != NULL);
 	tar_root_obj->name[0] = 0;
 	tar_root_obj->flags = FS_NODE_DIRECTORY;
-	fs_node_t *tar_root = fs_node_from_tar(tar_root_obj);
-
-	return tar_root;
+	fs_node_t *f = fs_node_from_tar(tar_root_obj);
+	assert(f != NULL);
+	return f;
 }

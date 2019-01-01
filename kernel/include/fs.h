@@ -13,6 +13,9 @@
 #define PATH_SEPERATOR '/'
 #define PATH_SEPERATOR_STRING "/"
 
+/* strlen for path elements */
+size_t path_element_size(const char *path);
+
 enum fs_node_flags {
 	FS_NODE_FILE        = 0x01,
 	FS_NODE_DIRECTORY   = 0x02,

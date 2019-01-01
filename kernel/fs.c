@@ -16,7 +16,7 @@ fs_mount_t *fs_root_mount = NULL;
 
 /* misc. helpers */
 /* strlen for path elements */
-static size_t path_element_size(const char *path) {
+size_t path_element_size(const char *path) {
 	size_t i = 0;
 	while ((path[i] != 0) && (path[i] != '/')) {
 		i++;
