@@ -17,4 +17,10 @@ $(ARCHDIR)/memcpy.o \
 $(ARCHDIR)/mmio.o \
 $(ARCHDIR)/atomic.o
 
+ARCH_SRCS:= \
+$(ARCHDIR)/cpu.c \
+$(ARCHDIR)/mmio.c \
+$(ARCHDIR)/memcpy.c \
+$(ARCHDIR)/atomic.c
+
 ARCH_LDSCRIPT:= $(ARCHDIR)/link.ld

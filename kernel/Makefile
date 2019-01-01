@@ -13,7 +13,7 @@ endif
 ARCHDIR=arch/$(TARGET_ARCH)
 
 # default flags
-CFLAGS?=-O2 -g -Wall -Wextra -Werror -Wno-attributes -Wno-format -Wcast-align -Wvla
+CFLAGS?=-O2 -g -Wall -Wextra -Werror -Wno-attributes -Wno-format -Wcast-align -Wvla -Wnonnull -Wformat-signedness
 CPPFLAGS?=
 LDFLAGS?=
 LIBS?=
@@ -157,11 +157,15 @@ debug-grub: myunix2.iso
 
 .PHONY: cppcheck-tcc
 cppcheck-tcc:
-	cppcheck --quiet --enable=all $(CPPFLAGS) -DDEBUG=1 $(SRCS_GLOBS) -I ../toolchain/opt/lib/tcc/include $(EXTRA_CPPCHECKFLAGS)
+	cppcheck --quiet --enable=all $(CPPFLAGS) -DDEBUG=1 $(SRCS_GLOBS) $(ARCH_SRCS) -I ../toolchain/opt/lib/tcc/include $(EXTRA_CPPCHECKFLAGS)
+
+.PHONY: cppcheck-gcc
+cppcheck-gcc:
+	cppcheck --quiet --enable=all $(CPPFLAGS) -DDEBUG=1 $(SRCS_GLOBS) $(ARCH_SRCS) -I../toolchain/lib/gcc/i686-elf/7.3.0/include/ $(EXTRA_CPPCHECKFLAGS)
 
 .PHONY: sparse
 sparse:
-	sparse $(CPPFLAGS) $(CFLAGS) -std=c99 $(SRCS) -gcc-base-dir ../toolchain/lib/gcc/i686-elf/7.3.0/ $(EXTRA_SPARSEFLAGS)
+	sparse $(CPPFLAGS) $(CFLAGS) -std=c99 $(SRCS) $(ARCH_SRCS) -gcc-base-dir ../toolchain/lib/gcc/i686-elf/7.3.0/ $(EXTRA_SPARSEFLAGS)
 
 .PHONY: codespell
 codespell:
@@ -169,7 +173,7 @@ codespell:
 
 .PHONY: complexity
 complexity:
-	complexity -h -c $(SRCS)
+	complexity -h -c $(SRCS) $(ARCH_SRCS)
 
 #
 
