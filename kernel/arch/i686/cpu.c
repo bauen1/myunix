@@ -101,7 +101,7 @@ void print_stack_trace(void) {
 		const uint32_t frame_ebp = ebp[0];
 		printf("ebp: 0x%8x ", frame_ebp);
 		if (!is_mapped((uintptr_t)&ebp[1])) {
-			printf("-\n", ebp[0]);
+			printf("-\n");
 			break;
 		}
 

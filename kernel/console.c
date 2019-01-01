@@ -130,7 +130,6 @@ static mutex_t print_mutex;
 void vprintf(const char *fmt, va_list args) {
 	char buf[256]; // probably too much
 	char *s;
-	int tmp;
 
 	mutex_lock(&print_mutex);
 	while (*fmt != 0) {
@@ -145,52 +144,44 @@ void vprintf(const char *fmt, va_list args) {
 				width = width * 10 + (*fmt - '0');
 				fmt++;
 			}
+			if (*fmt == 'l') { // Allow for %lu, %li, we interpret everything as long anyway
+				fmt++;
+			}
 			switch (*fmt) {
-				case '%':
+				case '%': /* % */
 					putc('%');
 					break;
-				case 'c':
-					tmp = (int)va_arg(args, int);
-					putc(tmp);
+				case 'c': /* single character */
+					putc((char)va_arg(args, int));
 					break;
-				case 's':
+				case 's': /* string */
 					s = va_arg(args, char *);
 					puts(s);
 					break;
-				case 'i':
+				case 'i': /* signed integer (base 10) */
 				case 'd':
-					itoa(va_arg(args, int), &buf[0], 10, width);
+					itoa(va_arg(args, signed int), buf, 10, width);
 					puts(buf);
 					break;
-				case 'l':
-					fmt++;
-					if (*fmt == 'u') {
-						utoa(va_arg(args, unsigned long), buf, 10, width);
-					} else if ((*fmt == 'i') || (*fmt == 'd')) {
-						utoa(va_arg(args, signed long), buf, 10, width);
-					} else {
-						assert(0 && "not implemented format character or end of string");
-					}
+				case 'u': /* unsigned integer (base 10) */
+					utoa(va_arg(args, unsigned int), buf, 10, width);
 					puts(buf);
 					break;
-				case 'u':
-					utoa(va_arg(args, unsigned int), &buf[0], 10, width);
+				case 'p': /* pointer (void * or uintptr_t) */
+					puts("*0x");
+					utoa((uintptr_t)va_arg(args, void *), buf, 16, width);
 					puts(buf);
 					break;
-				case 'p':
-					putc('0');
-					putc('x');
-					utoa(va_arg(args, unsigned int), &buf[0], 16, width);
-					puts(buf);
-					break;
-				case 'x':
-					utoa(va_arg(args, unsigned int), &buf[0], 16, width);
+				case 'x': /* unsigned integer (base 16) */
+					utoa(va_arg(args, unsigned int), buf, 16, width);
 					puts(buf);
 					break;
 				case 0:
 				default:
-					assert(0 && "not implemented format character or end of string");
-					break;
+					// XXX: we need to unlock the mutex or assert will deadlock calling printf
+					mutex_unlock(&print_mutex);
+					assert(0);
+					return;
 			}
 		} else {
 			putc(*fmt);
