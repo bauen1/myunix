@@ -1,4 +1,5 @@
 #include <assert.h>
+
 #include <console.h>
 #include <cpu.h>
 #include <idt.h>

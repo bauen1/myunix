@@ -394,7 +394,7 @@ static fs_mount_t *findmount(const fs_mount_t *parent, const char *subpath) {
 
 	const size_t subpath_len = strlen(subpath);
 
-	for list_each(node, parent->mounts) {
+	list_foreach(node, parent->mounts) {
 		fs_mount_t *mount = (fs_mount_t *)node->value;
 		if (!memcmp(mount->element, subpath, subpath_len + 1)) {
 			return mount;
@@ -461,7 +461,7 @@ static fs_node_t *findfile_recursive(list_t *elements, fs_node_t *root_node, uns
 			fs_mount_t *mount = walk_mount_graph(l, fs_root_mount);
 			next_node = findfile_recursive(l, mount->node, level + 1);
 
-			for list_each(node, l) {
+			list_foreach(node, l) {
 				kfree(node->value);
 				node->value = NULL;
 			}
@@ -487,7 +487,7 @@ static fs_node_t *findfile(const char *root, const char *relative_path) {
 	fs_mount_t *mount = walk_mount_graph(l, fs_root_mount);
 	fs_node_t *f = findfile_recursive(l, mount->node, 0);
 
-	for list_each(node, l) {
+	list_foreach(node, l) {
 		kfree(node->value);
 		node->value = NULL;
 	}
@@ -529,7 +529,7 @@ bool kmount(const char *path, fs_node_t *node) {
 		return false;
 	}
 
-	for list_each(node, elements) {
+	list_foreach(node, elements) {
 		const char *s = (const char *)node->value;
 		printf("%s: element '%s'\n", __func__, s);
 	}
@@ -564,7 +564,7 @@ bool kmount(const char *path, fs_node_t *node) {
 		assert(0);
 	}
 
-	for list_each(node, elements) {
+	list_foreach(node, elements) {
 		kfree(node->value);
 		node->value = NULL;
 	}
