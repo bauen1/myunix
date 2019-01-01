@@ -177,83 +177,87 @@ static void __schedule(void) {
 	assert_panic(scheduler_lock_count == 0);
 	assert(current_task != NULL);
 
-	// XXX: get next ready task
-	task_t *next_task = task_dequeue(&ready_queue);
-	if (next_task == NULL) {
-		// XXX: no new task waiting for cpu time
-		if (current_task != NULL) {
-			if (current_task->state == TASK_STATE_RUNNING) {
-				// XXX: keep running, since we're the only task asking for cpu
-				next_task = current_task;
-			} else {
-				// XXX: current task blocking on something so we have nothing to do, idle
-				task_t *task = current_task;
-				current_task = NULL;
-				scheduler_lock_count++;
-
-				do {
-					interrupts_enable();
-					__asm__ __volatile__("hlt");
-					interrupts_disable(); //XXX: need to be disabled for while check below
-				} while (ready_queue.first == NULL);
-
-				if (postponed_schedule) {
-					postponed_schedule = false;
-				}
-
-				scheduler_lock_count--;
-				assert_panic(scheduler_lock_count == 0);
-				current_task = task;
-
-				next_task = task_dequeue(&ready_queue);
-				assert_panic(next_task != NULL);
-				// FIXME: somewhat ugly workaround to ensure the sanity checks a few lines down don't fail
-				if (current_task == next_task) {
-					assert(current_task->state == TASK_STATE_READY);
-					current_task->state = TASK_STATE_RUNNING;
-				}
-			}
-		} else {
-			// XXX: already idleing somewhere, we shouldn't have been called: this is bad
-			assert_panic(0);
-		}
+	if (current_task == NULL) {
+		/*
+		 * Worst Case: we are already idleing somewhere, __schedule() shouldn't have been called, this is a serious bug
+		 * Solution: just panic
+		 */
+		assert_panic(0);
 	}
 
-	assert(next_task != NULL);
+	task_t *next_task = task_dequeue(&ready_queue);
+	if (next_task == NULL) { /* no task waiting for cpu time */
+		if (current_task->state == TASK_STATE_RUNNING) {
+			/*
+			 * 1. Case: we're the only task running, keep running
+			 */
+			next_task = current_task;
+		} else {
+			/*
+			 * 2. Case: Current task blocked and we have nothing else to do, idle and wait for a task to wakeup
+			 */
+
+			/* XXX: idleing is marked by current_task = NULL */
+			task_t *task = current_task;
+			current_task = NULL;
+			/* XXX: scheduler_lock_count > 0 to prevent __schedule from being called while idleing */
+			scheduler_lock_count++;
+
+			do {
+				interrupts_enable();
+				__asm__ __volatile__("hlt");
+				interrupts_disable(); //XXX: need to be disabled for while check below
+			} while (ready_queue.first == NULL);
+
+			if (postponed_schedule) {
+				/* XXX: if a task tried to schedule while we were idleing, ensure we don't immidieatly try to schedule again */
+				postponed_schedule = false;
+			}
+
+			current_task = task;
+			scheduler_lock_count--;
+			assert_panic(scheduler_lock_count == 0); // sanity check
+
+			next_task = task_dequeue(&ready_queue);
+			assert_panic(next_task != NULL);
+
+			if (current_task == next_task) {
+				/*
+				 * XXX: we're already in the current task so we don't need to change context, so we only fake it
+				 * this keeps the sanity checks a few lines down happy
+				 */
+				assert(current_task->state == TASK_STATE_READY);
+				current_task->state = TASK_STATE_RUNNING;
+			}
+		}
+	}
 
 	if (current_task != next_task) {
-		// XXX: switch to next task
-		if (current_task != NULL) {
-			if (current_task->state == TASK_STATE_RUNNING) {
-				// XXX: task got preempted, add him back to the queue
-				current_task->state = TASK_STATE_READY;
-				task_queue(&ready_queue, current_task);
-			} else if (current_task->state == TASK_STATE_TERMINATED) {
-				printf("%s: terminating task %p\n", __func__, current_task);
-				task_queue(&terminated_queue, current_task);
-				assert_panic(next_task->state == TASK_STATE_READY);
-				next_task->state = TASK_STATE_RUNNING;
-				current_task = next_task;
-				__restore_task(current_task);
-				assert_panic(0);
-			} else {
-				// XXX: task blocked or something else
+		/* we need to switch context */
+		assert(next_task->state == TASK_STATE_READY); // sanity check
 
-			}
-
-			assert(next_task->state == TASK_STATE_READY);
+		if (current_task->state == TASK_STATE_RUNNING) {
+			/* Case 1: current task got preempted */
+			current_task->state = TASK_STATE_READY;
+			task_queue(&ready_queue, current_task);
+		} else if (current_task->state == TASK_STATE_TERMINATED) {
+			/* Case 2: current task is terminating */
+			printf("%s: terminating task %p\n", __func__, current_task);
 			next_task->state = TASK_STATE_RUNNING;
-			call_switch_task(next_task);
-		} else {
+			current_task = next_task;
+			__restore_task(current_task);
+			/* __restore_task should not return */
 			assert_panic(0);
+		} else {
+			/* Case 3: current task blocked voluntarily, no need to do anything */
 		}
-	} else {
-		// XXX: no need to switch
+
+		/* perform the actual context switch */
+		next_task->state = TASK_STATE_RUNNING;
+		call_switch_task(next_task);
 	}
 
-	// perfom some sanity checks
-	assert(current_task != NULL);
-	assert(current_task->state == TASK_STATE_RUNNING);
+	assert(current_task->state == TASK_STATE_RUNNING); // sanity check
 }
 
 void scheduler_lock(void) {
