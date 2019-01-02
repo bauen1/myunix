@@ -84,8 +84,16 @@ static bool is_mapped(uintptr_t v_addr) {
 	}
 }
 
+static bool is_mapped_uint32(uintptr_t addr) {
+	bool success = true;
+	for (size_t i = 0; i < sizeof(uint32_t); i++) {
+		success &= is_mapped(addr + i);
+	}
+	return success;
+}
+
 /* TODO: if possible parse eflags and mark any interrupt frames (and switches to/from userspace) */
-void print_stack_trace(void) {
+__attribute__((no_sanitize_undefined)) void print_stack_trace(void) {
 	uintptr_t ebp_r = 0;
 	__asm__ __volatile__("mov %%ebp, %0" : "=r" (ebp_r));
 	printf("========== STACKTRACE BEGIN =========\n");
@@ -93,14 +101,14 @@ void print_stack_trace(void) {
 	const uint32_t *ebp = (uint32_t *)ebp_r;
 	for (unsigned int frame = 0; /**/ ; frame++) {
 		printf(" [frame %4u]: ", frame);
-		if (!is_mapped((uintptr_t)&ebp[0])) {
+		if (!is_mapped_uint32((uintptr_t)&ebp[0])) {
 			printf(" -\n");
 			break;
 		}
 
 		const uint32_t frame_ebp = ebp[0];
 		printf("ebp: 0x%8x ", frame_ebp);
-		if (!is_mapped((uintptr_t)&ebp[1])) {
+		if (!is_mapped_uint32((uintptr_t)&ebp[1])) {
 			printf("-\n");
 			break;
 		}

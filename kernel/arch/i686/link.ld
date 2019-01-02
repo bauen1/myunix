@@ -30,20 +30,20 @@ SECTIONS
 	__stop_mod_info = .;
 
 	. = ALIGN(4K);
-	__start_isrs = .;
-	isrs : { /* isrs code, shared with userspace*/
-		*(isrs)
+	__start_shared_data = .;
+	shared_data : { /* data shared between kernel and userspace */
+		*(shared_data)
 	}
 	. = ALIGN(4K);
-	__stop_isrs = .;
+	__stop_shared_data = .;
 
 	. = ALIGN(4K);
-	__start_user_shared = .;
-	user_shared : { /* other stuff shared with userspace */
-		*(user_shared)
+	__start_shared_text = .;
+	shared_text : { /* text shared between kernel and userspace */
+		*(shared_text)
 	}
 	. = ALIGN(4K);
-	__stop_user_shared = .;
+	__stop_shared_text = .;
 
 	_end = .;
 

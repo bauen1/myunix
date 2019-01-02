@@ -6,8 +6,8 @@
 #include <tss_flush.h>
 
 gdt_pointer_t gdt_pointer;
-__attribute__((section("user_shared"))) __attribute__((aligned(4096))) gdt_entry_t gdt[6];
-__attribute__((section("user_shared"))) __attribute__((aligned(4096))) tss_t tss;
+__attribute__((section("shared_data"))) __attribute__((aligned(4096))) gdt_entry_t gdt[6];
+__attribute__((section("shared_data"))) __attribute__((aligned(4096))) tss_t tss;
 
 static void gdt_set_gate(uint8_t i, uint32_t base, uint32_t limit, uint8_t access, uint8_t granularity) {
 	gdt[i].limit_low = (uint16_t)(limit & 0xFFFF);
@@ -33,11 +33,12 @@ void gdt_init(void) {
 	tss.fs = 0x13;
 	tss.gs = 0x13;
 
-	gdt_set_gate(0, 0, 0x00000000, 0x00, 0x00); /* NULL segment */
-	gdt_set_gate(1, 0, 0xFFFFFFFF, 0x9A, 0xC0); /* kernel segment */
-	gdt_set_gate(2, 0, 0xFFFFFFFF, 0x92, 0xC0); /* kernel segment */
-	gdt_set_gate(3, 0, 0xFFFFFFFF, 0xF8, 0xC0); /* user segment */
-	gdt_set_gate(4, 0, 0xFFFFFFFF, 0xF2, 0xC0); /* user segment */
+	/* XXX: all gdt descriptors have been set as accessed so we can map them read-only into userspace page directories */
+	gdt_set_gate(0, 0, 0x00000000, 0x01, 0x00); /* NULL segment */
+	gdt_set_gate(1, 0, 0xFFFFFFFF, 0x9b, 0xC0); /* kernel segment */
+	gdt_set_gate(2, 0, 0xFFFFFFFF, 0x93, 0xC0); /* kernel segment */
+	gdt_set_gate(3, 0, 0xFFFFFFFF, 0xF9, 0xC0); /* user segment */
+	gdt_set_gate(4, 0, 0xFFFFFFFF, 0xF3, 0xC0); /* user segment */
 	gdt_set_gate(5, tss_base, tss_limit, 0x89, 0x40); /* tss segment */
 
 	gdt_pointer.limit = sizeof(gdt) - 1;

@@ -263,13 +263,10 @@ static void process_unmap_kstack(process_t *process) {
 }
 
 static void process_page_directory_map_shared(page_directory_t *page_directory) {
-	// ISR stubs
-	process_map_shared_region(page_directory, (uintptr_t)&isrs_start,
-		(uintptr_t)&isrs_end, PAGE_PRESENT);
-	// other stuff (gdt, idt, tss)
-	// TODO: make a user_shared_readonly and user_shared_readwrite section
-	process_map_shared_region(page_directory, (uintptr_t)&__start_user_shared,
-		(uintptr_t)&__stop_user_shared, PAGE_PRESENT | PAGE_READWRITE);
+	/* kernel/user shared data */
+	process_map_shared_region(page_directory, (uintptr_t)&__start_shared_data, (uintptr_t)&__stop_shared_data, PAGE_PRESENT);
+	/* kernel/user shared text */
+	process_map_shared_region(page_directory, (uintptr_t)&__start_shared_text, (uintptr_t)&__stop_shared_text, PAGE_PRESENT);
 }
 
 // TODO: ensure no additional information gets leaked (align and FILL a block) (maybe by stuffing everything in a special segment)
@@ -290,8 +287,9 @@ static void process_page_directory_free(page_directory_t *pdir) {
 	}
 
 	// XXX: this is the last reference, clean up
-	process_unmap_shared_region(pdir, (uintptr_t)&isrs_start, (uintptr_t)&isrs_end);
-	process_unmap_shared_region(pdir, (uintptr_t)&__start_user_shared, (uintptr_t)&__stop_user_shared);
+	/* unmap shared regions */
+	process_unmap_shared_region(pdir, (uintptr_t)&__start_shared_data, (uintptr_t)&__stop_shared_data);
+	process_unmap_shared_region(pdir, (uintptr_t)&__start_shared_text, (uintptr_t)&__stop_shared_text);
 
 	// XXX: and free all allocated blocks
 	for (uintptr_t i = 0; i < 1024; i++) {
@@ -548,38 +546,34 @@ static void page_directory_clone_table(page_table_t *newtable, page_table_t *old
 
 	for (uintptr_t i = 0; i < 1024; i++) {
 		page_t page = oldtable->pages[i];
-		if (page & PAGE_PRESENT) {
-			if (page & PAGE_USER) {
-				if (newtable->pages[i] != 0) {
-					assert(0);
-				}
-				uintptr_t oldphys = page & ~0x3FF;
-				uintptr_t newphys = pmm_alloc_blocks_safe(1);
-				map_page(get_table(oldkvtmp, kernel_directory), oldkvtmp,
-					oldphys, PAGE_PRESENT | PAGE_READWRITE);
-				invalidate_page(oldkvtmp);
-				map_page(get_table(newkvtmp, kernel_directory), newkvtmp,
-					newphys, PAGE_PRESENT | PAGE_READWRITE);
-				invalidate_page(newkvtmp);
-				memcpy((void *)newkvtmp, (void *)oldkvtmp, BLOCK_SIZE);
-				// XXX: we might be copying more than we want
-				newtable->pages[i] = newphys | (page & 0x3FF);
-			} else {
-				// XXX: ignore kernel pages
-//				assert(0);
-				continue;
-			}
-		} else if (page == 0) {
+		if (page == 0) {
 			continue;
-		} else {
-			if (page == PAGE_VALUE_GUARD) {
-				continue;
-			} else if (page == PAGE_VALUE_RESERVED) {
-				/* XXX: cloning this just calls for trouble*/
-				assert(0);
-			} else {
+		} else if (page == PAGE_VALUE_GUARD) {
+			continue;
+		} else if (page == PAGE_VALUE_RESERVED) {
+			// XXX: shouldn't be here
+			assert(0);
+		} else if ((page & PAGE_PRESENT) && !(page & PAGE_USER)) {
+			// XXX: ignore kernel pages
+			continue;
+		} else if ((page & PAGE_PRESENT) && (page & PAGE_USER)) {
+			if (newtable->pages[i] != 0) {
 				assert(0);
 			}
+			uintptr_t oldphys = page & ~0x3FF;
+			uintptr_t newphys = pmm_alloc_blocks_safe(1);
+			map_page(get_table(oldkvtmp, kernel_directory), oldkvtmp,
+				oldphys, PAGE_PRESENT | PAGE_READWRITE);
+			invalidate_page(oldkvtmp);
+			map_page(get_table(newkvtmp, kernel_directory), newkvtmp,
+				newphys, PAGE_PRESENT | PAGE_READWRITE);
+			invalidate_page(newkvtmp);
+			memcpy((void *)newkvtmp, (void *)oldkvtmp, BLOCK_SIZE);
+			// XXX: we might be copying more than we want
+			newtable->pages[i] = newphys | (page & 0x3FF);
+		} else {
+			// XXX: this should never happen
+			assert(0);
 		}
 	}
 
@@ -705,7 +699,7 @@ void __attribute__((noreturn)) process_exit(unsigned int status) {
 	printf("%s: task_unblock_next()\n", __func__);
 	task_unblock_next(&p->wait_queue);
 	task_exit();
-	assert(0);
+	// TODO: finalize
 }
 
 /*

@@ -1,16 +1,14 @@
 extern kernel_directory
 extern handle_isr
 
-; TODO: only reload cr3 when necessary
-section isrs
-global isrs_start
-isrs_start:
-
+section shared_data
 global isrs_kernel_directory_ptr:data (isrs_kernel_directory_ptr.end - isrs_kernel_directory_ptr)
 isrs_kernel_directory_ptr:
 	dd 0
 .end:
 
+section shared_text
+align 4096
 isr_common_stub:
 	pusha
 
@@ -134,6 +132,4 @@ ISR_CUSTOM 46,14
 ISR_CUSTOM 47,15
 ISR_CUSTOM 128,0
 
-global isrs_end
-isrs_end:
 align 4096

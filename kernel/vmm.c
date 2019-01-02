@@ -219,7 +219,7 @@ inline uintptr_t vmm_find_dma_region(size_t size) {
 			uint32_t len = 0;
 
 			while (len < size) {
-				uintptr_t v_addr = (start + len) * BLOCK_SIZE;
+				const uintptr_t v_addr = (start + len) * BLOCK_SIZE;
 #ifdef DEBUG
 				printf("  start: 0x%x (len: 0x%x)\n", start, len);
 #endif
@@ -362,6 +362,7 @@ static void page_fault(registers_t *regs) {
 	uintptr_t address;
 	__asm__ __volatile__("mov %%cr2, %0" : "=r"(address));
 	printf("! page_fault !\n");
+
 	const char *action;
 	const char *cause;
 	const char *mode;

@@ -1,6 +1,8 @@
 #ifndef ARCH_BOOT_H
 #define ARCH_BOOT_H 1
 
+#include <stddef.h>
+
 extern void *_start; /* start of kernel / .text */
 #define __text_start _start
 extern void *_etext; /* end of .text / start of .data */
@@ -17,11 +19,15 @@ extern const uintptr_t __stack_chk_guard;
 extern void *stack;
 
 /* special sections */
-extern void *isrs_start;
-extern void *isrs_end;
-extern void *__start_user_shared;
-extern void *__stop_user_shared;
 extern void *__start_mod_info;
 extern void *__stop_mod_info;
+
+/* user and kernel shared sections */
+/* data: read-write */
+extern void *__start_shared_data;
+extern void * __stop_shared_data;
+/* text: read-only */
+extern void *__start_shared_text;
+extern void * __stop_shared_text;
 
 #endif

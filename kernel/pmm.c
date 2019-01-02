@@ -76,6 +76,7 @@ inline uint32_t pmm_find_region(size_t size) {
 
 			uint32_t block_start = i * 32 + j;
 			size_t block_length = 1;
+
 			while (block_length < size) {
 				const uint32_t block = block_start + block_length;
 				assert(block < block_map_size);

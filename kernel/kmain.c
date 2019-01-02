@@ -440,10 +440,9 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 		// TODO: implement
 	}
 
-	// FIXME: we're not mapping the isrs section, yet it still somehow works, this is a disaster waiting to happen
 	/* map the code section read-only */
 	map_pages((uintptr_t)&__text_start, (uintptr_t)&__text_end,
-		PAGE_PRESENT,                        ".text      ");
+		PAGE_PRESENT,                  ".text      ");
 
 	/* map the data section read-write */
 	map_pages((uintptr_t)&__data_start, (uintptr_t)&__data_end,
@@ -455,15 +454,20 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 
 	/* these mappings may overwrite the mappings above */
 
-	/* map the shared user section read-write */
-	map_pages((uintptr_t)&__start_user_shared, (uintptr_t)&__stop_user_shared,
-		PAGE_PRESENT | PAGE_READWRITE, "user_shared");
+	/* map the user/kernel shared data read-write */
+	map_pages((uintptr_t)&__start_shared_data, (uintptr_t)&__stop_shared_data,
+		PAGE_PRESENT | PAGE_READWRITE, "shared_data");
+	/* map the user/kernel shared code read-only */
+	map_pages((uintptr_t)&__start_shared_text, (uintptr_t)&__stop_shared_text,
+		PAGE_PRESENT,                  "shared_text");
 
+	/* map modules info */
 	map_pages((uintptr_t)&__start_mod_info, (uintptr_t)&__stop_mod_info,
-		PAGE_PRESENT, "mod_info   ");
+		PAGE_PRESENT,                   "mod_info  ");
 
 	/* directly map the pmm block map */
-	map_pages((uintptr_t)block_map, (uintptr_t)block_map + (block_map_size / 32), PAGE_PRESENT | PAGE_READWRITE, "pmm_map    ");
+	map_pages((uintptr_t)block_map, (uintptr_t)block_map + (block_map_size / 32),
+	    PAGE_PRESENT | PAGE_READWRITE,  "pmm_map   ");
 
 	/* map the framebuffer / textbuffer */
 	if ((fb_start != 0) & (fb_size != 0)) {
@@ -478,11 +482,9 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 
 	printf("free %u kb\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
 
+	/* initialise the kernel heap */
 	liballoc_init();
 	printf("[%u] [OK] liballoc_init\n", (unsigned int)timer_ticks);
-
-	syscall_init();
-	printf("[%u] [OK] syscall_init\n", (unsigned int)timer_ticks);
 
 	framebuffer_enable_double_buffer();
 	printf("[%u] [OK] tripple framebuffer enabled\n", (unsigned int)timer_ticks);
@@ -493,6 +495,9 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	/* enable interrupts */
 	interrupts_enable();
 	printf("[%u] [OK] enable interrupts\n", (unsigned int)timer_ticks);
+
+	syscall_init();
+	printf("[%u] [OK] syscall_init\n", (unsigned int)timer_ticks);
 
 	printf("free %u kb\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
 
@@ -506,6 +511,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	assert(mbi->flags & MULTIBOOT_INFO_MODS);
 	printf("we have modules!\n");
 
+	// TODO: make this test less complicated
 	fs_node_t *ramdisk = NULL;
 	if (mbi->mods_count > 0) {
 		// we have modules
@@ -514,7 +520,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 			uintptr_t mod_start = mods[i].mod_start;
 			uintptr_t mod_end = mods[i].mod_end;
 			char *s = (char *)mods[i].cmdline;
-			unsigned int type = 0; // 0: random program; 1: ramdisk
+			unsigned int type = 0; /* 0: something; 1: tar ramdisk */
 			if (s != NULL) {
 				size_t j = 0;
 				while (s[j]) {
@@ -533,8 +539,6 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 					}
 					j++;
 				}
-			} else {
-				type = 0;
 			}
 
 			switch(type) {
@@ -557,11 +561,14 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	process_init();
 
 	printf("free %u kb\n", pmm_count_free_blocks() * BLOCK_SIZE / 1024);
+
+	/* mount the ramdisk root filesystem */
 	fs_node_t *tar_root = mount_tar(ramdisk);
 	assert(tar_root != NULL);
 	fs_mount_root(tar_root);
 
 	{
+		/* mount /tmp */
 		bool success = kmount("/tmp", mount_tmpfs());
 		printf("%s: %s mounted /tmp!\n", __func__, success ? "successfully" : "failed to");
 		if (success) {
@@ -575,6 +582,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 		}
 	}
 
+	/* virtual filesystem tests */
 	{
 		// test if mount was successful and kopen works
 		fs_node_t *dir = kopen("/tmp", 0);
@@ -594,7 +602,6 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	kmain_ls("/");
 	kmain_ls("/tmp");
 	kmain_ls("/test_dir");
-	kmain_ls("/test/../");
 	kmain_ls("/tinycc");
 	kmain_ls("/tinycc/bin");
 
@@ -609,6 +616,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 		kmain_ls("/tmp/abc");
 	}
 
+	/* run /init */
 	printf("%s: exec('/init')\n", __func__);
 	{
 		fs_node_t *f = kopen("/init", 0);
@@ -626,6 +634,7 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	}
 	printf("%s: done\n", __func__);
 
+	/* synchronization tests */
 	ktask_spawn(ktask_test1, "test1", (void *)0x11111111);
 	ktask_spawn(ktask_test2, "test2", (void *)0x22222222);
 	ktask_spawn(ktask_test, "test", (void *)0x3333333);
