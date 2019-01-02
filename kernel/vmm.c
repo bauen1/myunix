@@ -399,6 +399,7 @@ static void page_fault(registers_t *regs) {
 	if (regs->err_code & 0x4) {
 		assert(current_process != NULL);
 		pdir = current_process->task.pdir;
+		print_user_stack_trace(current_process->task.pdir, regs);
 	} else {
 		pdir = kernel_directory;
 		print_stack_trace();

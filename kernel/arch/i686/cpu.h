@@ -2,6 +2,7 @@
 #define ARCH_CPU_H 1
 
 #include <stdint.h>
+#include <vmm.h>
 
 typedef struct registers {
 	uint32_t old_directory __attribute__((packed));
@@ -51,5 +52,6 @@ void interrupts_enable(void);
 /* debug helpers */
 void dump_regs(registers_t *regs);
 void print_stack_trace(void);
+void print_user_stack_trace(page_directory_t *pdir, registers_t *regs);
 
 #endif
