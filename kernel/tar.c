@@ -137,9 +137,9 @@ static uintptr_t tar_lookup(fs_node_t *device, char *fname, struct tar_header *h
 
 	tar_foreach_entry(device, header) {
 		if (!memcmp(header->name, fname, fname_len)) {
-			if (header->name[fname_len + 1] == 0) {
+			if (header->name[fname_len] == 0) {
 				return ptr;
-			} else if ((header->name[fname_len + 1] == '/') && (header->name[fname_len + 2] == 0)) {
+			} else if ((header->name[fname_len] == '/') && (header->name[fname_len + 1] == 0)) {
 				return ptr;
 			}
 		}
@@ -268,7 +268,7 @@ static fs_node_t *tar_finddir(struct fs_node *node, char *name) {
 	path1 += strlen(name);
 	*path1 = 0;
 
-	uintptr_t off = tar_lookup(((struct tar_obj *)node->object)->device, path, &header);
+	uintptr_t off = tar_lookup(obj->device, path, &header);
 
 	if (off == (uintptr_t)-1) {
 		return NULL;
