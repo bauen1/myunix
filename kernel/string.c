@@ -27,11 +27,11 @@ char *strncpy(char *dest, const char *src, size_t n) {
 int memcmp(const void *v1, const void *v2, size_t len) {
 	assert(v1 != NULL);
 	assert(v2 != NULL);
-	char *l = (char *)v1;
-	char *r = (char *)v2;
+	const char *s1 = v1;
+	const char *s2 = v2;
 	for (size_t i = 0; i < len; i++) {
-		if (l[i] != r[i]) {
-			return l[i] - r[i];
+		if (s1[i] != s2[i]) {
+			return s1[i] - s2[i];
 		}
 	}
 	return 0;
@@ -55,6 +55,6 @@ char *strndup(const char *s, size_t n) {
 		return NULL;
 	}
 	strncpy(s2, s, len);
-	s2[len + 1] = 0;
+	s2[len] = 0;
 	return s2;
 }
