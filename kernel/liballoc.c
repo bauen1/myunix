@@ -656,7 +656,7 @@ void* kcalloc(size_t nobj, size_t size) {
        return p;
 }
 
-void* krealloc(void *p, size_t size) {
+__attribute__((no_sanitize_undefined)) void* krealloc(void *p, size_t size) {
 	void *ptr;
 	struct liballoc_minor *min;
 	unsigned int real_size;
