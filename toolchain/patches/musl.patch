@@ -661,10 +661,10 @@ index 00000000..d1b27121
 +#define SIZE_MAX        UINT32_MAX
 diff --git a/arch/i386-myunix/bits/syscall.h.in b/arch/i386-myunix/bits/syscall.h.in
 new file mode 100644
-index 00000000..60e5ed09
+index 00000000..e0c93990
 --- /dev/null
 +++ b/arch/i386-myunix/bits/syscall.h.in
-@@ -0,0 +1,31 @@
+@@ -0,0 +1,42 @@
 +#define __NR_exit 1
 +
 +#define __NR_read 3
@@ -691,6 +691,17 @@ index 00000000..60e5ed09
 +#define __NR_clone 120
 +
 +#define __NR_sched_yield		158
++
++#define __NR_getuid32		199
++#define __NR_getgid32		200
++#define __NR_geteuid32		201
++#define __NR_getegid32		202
++
++#define __NR_setresuid32	208
++#define __NR_setresgid32	210
++
++#define __NR_setuid32		213
++#define __NR_setgid32		214
 +
 +#define __NR_dup3 330
 +
@@ -7702,49 +7713,6 @@ index 103fbbb5..e9977e6e 100644
 +*/
  	return buf == tmp ? strdup(buf) : buf;
  }
-diff --git a/src/unistd/getegid.c b/src/unistd/getegid.c
-index 6287490d..104461ad 100644
---- a/src/unistd/getegid.c
-+++ b/src/unistd/getegid.c
-@@ -3,5 +3,9 @@
- 
- gid_t getegid(void)
- {
-+/*
-+// TODO: implement
- 	return __syscall(SYS_getegid);
-+*/
-+	return -1;
- }
-diff --git a/src/unistd/geteuid.c b/src/unistd/geteuid.c
-index 88f2cd53..4663b69c 100644
---- a/src/unistd/geteuid.c
-+++ b/src/unistd/geteuid.c
-@@ -3,5 +3,9 @@
- 
- uid_t geteuid(void)
- {
-+/*
-+// TODO: implement
- 	return __syscall(SYS_geteuid);
-+*/
-+	return -1;
- }
-diff --git a/src/unistd/getgid.c b/src/unistd/getgid.c
-index 1c9fe715..bbb569cb 100644
---- a/src/unistd/getgid.c
-+++ b/src/unistd/getgid.c
-@@ -3,5 +3,10 @@
- 
- gid_t getgid(void)
- {
-+/*
-+// TODO: implement
- 	return __syscall(SYS_getgid);
-+
-+*/
-+	return -1;
- }
 diff --git a/src/unistd/getgroups.c b/src/unistd/getgroups.c
 index 0e6e63af..a867f4ad 100644
 --- a/src/unistd/getgroups.c
@@ -7814,21 +7782,6 @@ index 93ba690e..9c3f2a3e 100644
  	return syscall(SYS_getsid, pid);
 +*/
 +	return -1;
- }
-diff --git a/src/unistd/getuid.c b/src/unistd/getuid.c
-index 61309d1b..210f8a21 100644
---- a/src/unistd/getuid.c
-+++ b/src/unistd/getuid.c
-@@ -1,7 +1,9 @@
-+// TODO: implement
- #include <unistd.h>
- #include "syscall.h"
- 
- uid_t getuid(void)
- {
--	return __syscall(SYS_getuid);
-+//	return __syscall(SYS_getuid);
-+	return 0;
  }
 diff --git a/src/unistd/isatty.c b/src/unistd/isatty.c
 index c8badaf5..360a0633 100644
@@ -8074,51 +8027,6 @@ index 6825ffc8..b7faf6ed 100644
  #endif
  }
 +*/
-diff --git a/src/unistd/setegid.c b/src/unistd/setegid.c
-index e6da2573..0241d544 100644
---- a/src/unistd/setegid.c
-+++ b/src/unistd/setegid.c
-@@ -1,3 +1,5 @@
-+/*
-+// TODO: implement
- #include <unistd.h>
- #include "libc.h"
- #include "syscall.h"
-@@ -6,3 +8,4 @@ int setegid(gid_t egid)
- {
- 	return __setxid(SYS_setresgid, -1, egid, -1);
- }
-+*/
-diff --git a/src/unistd/seteuid.c b/src/unistd/seteuid.c
-index ef8b9df4..d505cad5 100644
---- a/src/unistd/seteuid.c
-+++ b/src/unistd/seteuid.c
-@@ -1,3 +1,5 @@
-+/*
-+// TODO: implement
- #include <unistd.h>
- #include "syscall.h"
- #include "libc.h"
-@@ -6,3 +8,4 @@ int seteuid(uid_t euid)
- {
- 	return __setxid(SYS_setresuid, -1, euid, -1);
- }
-+*/
-diff --git a/src/unistd/setgid.c b/src/unistd/setgid.c
-index bae4616a..2d6831a9 100644
---- a/src/unistd/setgid.c
-+++ b/src/unistd/setgid.c
-@@ -1,3 +1,5 @@
-+/*
-+// TODO: implement
- #include <unistd.h>
- #include "syscall.h"
- #include "libc.h"
-@@ -6,3 +8,4 @@ int setgid(gid_t gid)
- {
- 	return __setxid(SYS_setgid, gid, 0, 0);
- }
-+*/
 diff --git a/src/unistd/setpgid.c b/src/unistd/setpgid.c
 index 06160695..c72beb82 100644
 --- a/src/unistd/setpgid.c
@@ -8222,62 +8130,21 @@ index 609bbe4a..09d2ce02 100644
  	return syscall(SYS_setsid);
  }
 +*/
-diff --git a/src/unistd/setuid.c b/src/unistd/setuid.c
-index 602ecbbf..ad39b9e3 100644
---- a/src/unistd/setuid.c
-+++ b/src/unistd/setuid.c
-@@ -1,3 +1,5 @@
-+/*
-+// TODO: implement
- #include <unistd.h>
- #include "syscall.h"
- #include "libc.h"
-@@ -6,3 +8,4 @@ int setuid(uid_t uid)
- {
- 	return __setxid(SYS_setuid, uid, 0, 0);
- }
-+*/
 diff --git a/src/unistd/setxid.c b/src/unistd/setxid.c
-index 0239f8af..29f53c75 100644
+index 0239f8af..85113118 100644
 --- a/src/unistd/setxid.c
 +++ b/src/unistd/setxid.c
-@@ -1,3 +1,5 @@
-+/*
-+// TODO: implement
- #include <unistd.h>
- #include <errno.h>
- #include "syscall.h"
-@@ -15,11 +17,11 @@ static void do_setxid(void *p)
- 	if (c->err>0) return;
- 	int ret = -__syscall(c->nr, c->id, c->eid, c->sid);
- 	if (ret && !c->err) {
--		/* If one thread fails to set ids after another has already
-+*/		/* If one thread fails to set ids after another has already
+@@ -19,8 +19,8 @@ static void do_setxid(void *p)
  		 * succeeded, forcibly killing the process is the only safe
  		 * thing to do. State is inconsistent and dangerous. Use
  		 * SIGKILL because it is uncatchable. */
 -		__block_all_sigs(0);
-+/*		__block_all_sigs(0);
- 		__syscall(SYS_kill, __syscall(SYS_getpid), SIGKILL);
+-		__syscall(SYS_kill, __syscall(SYS_getpid), SIGKILL);
++//		__block_all_sigs(0);
++//		__syscall(SYS_kill, __syscall(SYS_getpid), SIGKILL);
  	}
  	c->err = ret;
-@@ -27,9 +29,9 @@ static void do_setxid(void *p)
- 
- int __setxid(int nr, int id, int eid, int sid)
- {
--	/* err is initially nonzero so that failure of the first thread does not
-+*/	/* err is initially nonzero so that failure of the first thread does not
- 	 * trigger the safety kill above. */
--	struct ctx c = { .nr = nr, .id = id, .eid = eid, .sid = sid, .err = -1 };
-+/*	struct ctx c = { .nr = nr, .id = id, .eid = eid, .sid = sid, .err = -1 };
- 	__synccall(do_setxid, &c);
- 	if (c.err) {
- 		if (c.err>0) errno = c.err;
-@@ -37,3 +39,4 @@ int __setxid(int nr, int id, int eid, int sid)
- 	}
- 	return 0;
  }
-+*/
 diff --git a/src/unistd/symlink.c b/src/unistd/symlink.c
 index 0973d78a..1b18090c 100644
 --- a/src/unistd/symlink.c

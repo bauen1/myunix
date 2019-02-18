@@ -819,6 +819,54 @@ static uint32_t syscall_sched_yield(registers_t *regs) {
 	return 0;
 }
 
+static uint32_t syscall_getuid(registers_t *regs) {
+	(void)regs;
+	// TODO: implement
+	return 0;
+}
+
+static uint32_t syscall_getgid(registers_t *regs) {
+	(void) regs;
+	// TODO: implement
+	return 0;
+}
+
+static uint32_t syscall_geteuid(registers_t *regs) {
+	(void) regs;
+	// TODO: implement
+	return 0;
+}
+
+static uint32_t syscall_getegid(registers_t *regs) {
+	(void) regs;
+	// TODO: implement
+	return 0;
+}
+
+static uint32_t syscall_setresuid(registers_t *regs) {
+	(void) regs;
+	// TODO: implement
+	return 0;
+}
+
+static uint32_t syscall_setresgid(registers_t *regs) {
+	(void) regs;
+	// TODO: implement
+	return 0;
+}
+
+static uint32_t syscall_setuid(registers_t *regs) {
+	(void) regs;
+	// TODO: implement
+	return 0;
+}
+
+static uint32_t syscall_setgid(registers_t *regs) {
+	(void) regs;
+	// TODO: implement
+	return 0;
+}
+
 static uint32_t syscall_dumpregs(registers_t *regs) {
 	dump_regs(regs);
 	return 0;
@@ -896,6 +944,30 @@ static void syscall_handler(registers_t *regs) {
 		case 0xa2:
 			regs->eax = syscall_nano_sleep(regs);
 			break;
+		case 0xa4:
+			regs->eax = syscall_setresuid(regs);
+			break;
+		case 0xaa:
+			regs->eax = syscall_setresgid(regs);
+			break;
+		case 0xc7:
+			regs->eax = syscall_getuid(regs);
+			break;
+		case 0xc8:
+			regs->eax = syscall_getgid(regs);
+			break;
+		case 0xc9:
+			regs->eax = syscall_geteuid(regs);
+			break;
+		case 0xca:
+			regs->eax = syscall_getegid(regs);
+			break;
+		case 0xd5:
+			regs->eax = syscall_setuid(regs);
+			break;
+		case 0xd6:
+			regs->eax = syscall_setgid(regs);
+			break;
 		case 0x14a:
 			regs->eax = syscall_dup3(regs);
 			break;
@@ -906,7 +978,7 @@ static void syscall_handler(registers_t *regs) {
 			regs->eax = syscall_munmap(regs);
 			break;
 		default:
-			printf("undefined syscall %u\n", regs->eax);
+			printf("%s: TODO: implement syscall %u\n", __func__, regs->eax);
 			assert(0);
 			regs->eax = (uint32_t)-1;
 			break;
