@@ -160,8 +160,8 @@ if [ ! -f .built_musl ]; then
 		CFLAGS="-I$PWD/../../../toolchain/opt/lib/tcc/include/" \
 		../musl/configure \
 			--prefix=/usr \
-			--target=i386-myunix \
-			--host=i386-myunix \
+			--target="i386-myunix" \
+			--host="i386-myunix" \
 			--disable-shared \
 			--enable-debug \
 			--enable-warnings
