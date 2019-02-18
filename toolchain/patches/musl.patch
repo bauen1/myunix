@@ -1,5 +1,5 @@
 diff --git a/Makefile b/Makefile
-index 308ddaae..f74046db 100644
+index 308ddaae..88d0c825 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -17,18 +17,22 @@ includedir = $(prefix)/include
@@ -8,7 +8,7 @@ index 308ddaae..f74046db 100644
  
 -SRC_DIRS = $(addprefix $(srcdir)/,src/* crt ldso)
 +#MY_OBJS2 = stdlib setjmp regex string crypt ctype errno exit math stdio
-+MY_OBJS2 = stdlib string env exit unistd dirent thread conf internal errno stdio math locale multibyte stat setjmp time signal ctype regex prng process mman malloc misc temp fcntl time myunix
++MY_OBJS2 = stdlib string env exit unistd dirent thread conf internal errno stdio math locale multibyte stat setjmp time signal ctype regex prng process mman malloc misc temp fcntl time sched myunix
 +MY_OBJS = $(addprefix src/, $(MY_OBJS2))
 +#SRC_DIRS = $(addprefix $(srcdir)/,src/* crt ldso)
 +# crt1.c crti.c crtn.c Scrt1.c
@@ -661,10 +661,10 @@ index 00000000..d1b27121
 +#define SIZE_MAX        UINT32_MAX
 diff --git a/arch/i386-myunix/bits/syscall.h.in b/arch/i386-myunix/bits/syscall.h.in
 new file mode 100644
-index 00000000..8930cd94
+index 00000000..60e5ed09
 --- /dev/null
 +++ b/arch/i386-myunix/bits/syscall.h.in
-@@ -0,0 +1,29 @@
+@@ -0,0 +1,31 @@
 +#define __NR_exit 1
 +
 +#define __NR_read 3
@@ -689,6 +689,8 @@ index 00000000..8930cd94
 +#define __NR_readdir		 89
 +
 +#define __NR_clone 120
++
++#define __NR_sched_yield		158
 +
 +#define __NR_dup3 330
 +
@@ -2640,19 +2642,6 @@ index 4435f216..00000000
 -int sched_setscheduler(pid_t pid, int sched, const struct sched_param *param)
 -{
 -	return __syscall_ret(-ENOSYS);
--}
-diff --git a/src/sched/sched_yield.c b/src/sched/sched_yield.c
-deleted file mode 100644
-index ee6f0e7f..00000000
---- a/src/sched/sched_yield.c
-+++ /dev/null
-@@ -1,7 +0,0 @@
--#include <sched.h>
--#include "syscall.h"
--
--int sched_yield()
--{
--	return syscall(SYS_sched_yield);
 -}
 diff --git a/src/select/poll.c b/src/select/poll.c
 index 9e0bcbd8..a822d994 100644

@@ -813,6 +813,12 @@ static uint32_t syscall_readdir(registers_t *regs) {
 	return 1;
 }
 
+static uint32_t syscall_sched_yield(registers_t *regs) {
+	(void)regs;
+	yield();
+	return 0;
+}
+
 static uint32_t syscall_dumpregs(registers_t *regs) {
 	dump_regs(regs);
 	return 0;
@@ -883,6 +889,9 @@ static void syscall_handler(registers_t *regs) {
 			break;
 		case 0x78:
 			regs->eax = syscall_clone(regs);
+			break;
+		case 0x9E:
+			regs->eax = syscall_sched_yield(regs);
 			break;
 		case 0xa2:
 			regs->eax = syscall_nano_sleep(regs);
