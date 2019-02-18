@@ -88,10 +88,10 @@ if [ ! -f .built_tinycc ]; then
 	(cd tinycc-build
 		../tinycc/configure \
 			--prefix="$PREFIX/opt" \
+			--triplet="$TARGET_ARCH-myunix" \
 			--strip-binaries \
 			--sysroot='$PREFIX/sysroot' \
 			--cpu="$TARGET_ARCH" \
-			--triplet="$TARGET" \
 		#	--config-musl
 		#	--sysincludepaths='' \
 		#	--libpaths='' \
@@ -174,6 +174,6 @@ if [ ! -f .built_musl ]; then
 	echo "Linking toolchain/sysroot to installed musl libc"
 	ln -svf musl-install ../sysroot
 	# allow c compilers to find crt*.o
-	ln -svf . ../sysroot/usr/lib/"$TARGET"
+	ln -svf . ../sysroot/usr/lib/"$TARGET_ARCH-myunix"
 	touch .built_musl
 fi
