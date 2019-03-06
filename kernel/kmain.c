@@ -606,11 +606,11 @@ void __attribute__((used)) kmain(struct multiboot_info *mbi, uint32_t eax, uintp
 	kmain_ls("/tinycc/bin");
 
 	{
-		fs_node_t *test = kopen("/tmp/abc/file_1", 0);
-		if (test != NULL) {
+		fs_node_t *node = kopen("/tmp/abc/file_1", 0);
+		if (node != NULL) {
 			printf("Found file!!!\n");
-			printf("file name: '%s'\n", test->name);
-			fs_close(&test);
+			printf("file name: '%s'\n", node->name);
+			fs_close(&node);
 		}
 
 		kmain_ls("/tmp/abc");

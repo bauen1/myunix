@@ -16,6 +16,7 @@
 /*
 returns 0 on success
 returns -1 on failure
+XXX: does not check the permissions on the tables themself!
 */
 static intptr_t map_userspace_to_kernel(page_directory_t *pdir, uintptr_t ptr, uintptr_t kptr, size_t n) {
 	if ((pdir == NULL) || ((ptr & 0xFFF) != 0) || ((kptr & 0xFFF) != 0) || (n == 0)) {
@@ -280,6 +281,7 @@ intptr_t copy_to_userspace(page_directory_t *pdir, uintptr_t ptr, size_t n, cons
 	return n;
 }
 
+/* syscall implementations */
 static uint32_t syscall_execve(registers_t *regs) {
 	uintptr_t user_path = regs->ebx;
 	uintptr_t user_argv = regs->ecx;
@@ -340,6 +342,7 @@ static uint32_t syscall_execve(registers_t *regs) {
 		}
 		return 2;
 	} else {
+		// TODO: validate that this is actually a file and not a directory
 		process_execve(current_process, f, argc, argv, envc, envp);
 		fs_close(&f);
 		if (argv != NULL) {
@@ -385,11 +388,12 @@ static uint32_t syscall_lseek(registers_t *regs) {
 		return -1;
 	}
 
-	if (flags == 0) {
+	if (flags == 0) { /* seek to absolute offset */
 		(void)flags;
 		fd->seek = offset;
 		return 0;
 	} else {
+		/* TODO: implement */
 		return -1;
 	}
 }
@@ -511,9 +515,11 @@ static uint32_t syscall_open(registers_t *regs) {
 	(void)mode; (void)flags;
 
 	fs_node_t *node = kopen(path, 0);
-	if (node) {
+	if (node != NULL) {
 		fd_entry_t *fd = fd_new();
 		if (fd == NULL) {
+			printf("%s: fd_new() failure\n", __func__);
+			fs_close(&node);
 			return -1;
 		}
 		fd->node = node;

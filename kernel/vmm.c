@@ -404,10 +404,10 @@ static void page_fault(registers_t *regs) {
 		pdir = kernel_directory;
 		print_stack_trace();
 	}
+	assert(pdir != NULL);
 	if (pdir->physical_address != regs->old_directory) {
 		printf("%s: page directory doesn't match, dump is incorrect\n", __func__);
 	}
-	assert(pdir != NULL);
 	// TODO: consider table flags
 	page_table_t *table = get_table(address, pdir);
 	if (table == NULL) {
