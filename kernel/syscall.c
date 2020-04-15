@@ -153,8 +153,6 @@ intptr_t copy_from_userspace_ptr_array(page_directory_t *pdir, uintptr_t ptr, si
 	assert(pdir != NULL);
 	assert(buffer != NULL);
 
-	printf("%s(pdir: %p, ptr: %p, size: %u, buffer: %p)\n", __func__, pdir, ptr, (unsigned int)size, buffer);
-
 	if (ptr == 0) {
 		return 0;
 	}
@@ -185,14 +183,11 @@ intptr_t copy_from_userspace_ptr_array(page_directory_t *pdir, uintptr_t ptr, si
 
 		for (uintptr_t *v = (uintptr_t *)(kptr + offset); (uintptr_t)v < kptr + BLOCK_SIZE; v++) {
 			if ((uintptr_t)buf >= (uintptr_t)buffer + size * sizeof(uintptr_t)) {
-				printf("%s: end of buffer\n", __func__);
 				unmap_from_kernel(kptr, 1);
 				return i - 1;
 			}
-			printf("%s: v: %p\n", __func__, *v);
 			*buf = *v;
 			if (*v == 0) {
-				printf("%s: end of array\n", __func__);
 				unmap_from_kernel(kptr, 1);
 				return i;
 			} else {
@@ -235,13 +230,11 @@ char **copy_from_userspace_array(page_directory_t *pdir, uintptr_t ptr, size_t s
 	for (size_t i = 0; i < (size - 1); i++) {
 		const uintptr_t user_ptr = user_array[i];
 		if (user_ptr == 0) {
-			printf("%s: user_ptr = 0 assuming end\n", __func__);
 			array[i] = NULL;
 			return array;
 		} else {
 			const size_t element_size = 256;
 			char *element = kmalloc(element_size);
-			printf("%s: copy %p from user\n", __func__, user_array[i]);
 			intptr_t r = copy_from_userspace_string(pdir, user_array[i], element_size, element);
 			if (r < 0) {
 				printf("%s: copy failure! (r=%d)\n", __func__, r);
@@ -387,6 +380,7 @@ static uint32_t syscall_lseek(registers_t *regs) {
 	if (fd == NULL) {
 		return -1;
 	}
+	assert(fd->node != NULL);
 
 	if (flags == 0) { /* seek to absolute offset */
 		(void)flags;
@@ -472,13 +466,8 @@ static uint32_t syscall_waitpid(registers_t *regs) {
 	uint32_t status = regs->ecx;
 	uint32_t options = regs->edx;
 
-	printf("%s(pid: %i, status: %u, options: %u)\n", __func__, pid, status, options);
-
 	uint32_t r = process_waitpid(pid, status, options);
 
-	process_waitpid(pid, status, options);
-
-	printf("%s: done: %u\n", __func__, r);
 	return r;
 }
 
@@ -486,6 +475,11 @@ static uint32_t syscall_waitpid(registers_t *regs) {
 static uint32_t syscall_gettimeofday(registers_t *regs) {
 	(void)regs;
 //	printf("%s()\n", __func__);
+	return -1;
+}
+
+static uint32_t syscall_readlink(registers_t *regs) {
+	(void)regs;
 	return -1;
 }
 
@@ -538,9 +532,11 @@ static uint32_t syscall_dup(registers_t *regs) {
 		return -1;
 	}
 
+	assert(fd->node != NULL);
+
 	int r = fd_table_append(current_process->fd_table, fd_reference(fd));
 	if (r == -1) {
-		fd_free(fd);
+		fd_release(&fd);
 		return -1;
 	}
 	return r;
@@ -553,6 +549,7 @@ static uint32_t syscall_dup2(registers_t *regs) {
 	if (fd == NULL) {
 		return -1;
 	}
+	assert(fd->node != NULL);
 	if (newfd == oldfd) {
 		return newfd;
 	}
@@ -576,9 +573,9 @@ static uint32_t syscall_close(registers_t *regs) {
 	if (fd == NULL) {
 		return -1;
 	}
+	assert(fd->node != NULL);
 
 	fd_table_set(current_process->fd_table, fd_num, NULL);
-	fd_free(fd);
 	return 0;
 }
 
@@ -597,6 +594,7 @@ static uint32_t syscall_read(registers_t *regs) {
 	if (fd == NULL) {
 		return -1;
 	}
+	assert(fd->node != NULL);
 
 	// FIXME: handle length = 0 properly
 	if (length == 0) {
@@ -613,6 +611,7 @@ static uint32_t syscall_read(registers_t *regs) {
 		printf("syscall_read early abort: %u\n", (uintptr_t)v);
 		return -1;
 	}
+
 	uint32_t r = fs_read(fd->node, fd->seek, length, (void *)kptr2);
 	if (r != (uint32_t)-1) {
 		fd->seek += r;
@@ -631,6 +630,7 @@ static uint32_t syscall_write(registers_t *regs) {
 	if (fd == NULL) {
 		return -1;
 	}
+	assert(fd->node != NULL);
 	if (length == 0) {
 //		return fs_read(fd->node, fd->seek, 0, NULL);
 		return 0;

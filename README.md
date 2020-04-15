@@ -1,3 +1,7 @@
+# DEPRECATED
+
+See https://gitlab.com/myunix/myunix/ for the next version.
+
 # myunix
 A unix-like kernel+userspace, for SCIENCE!
 
